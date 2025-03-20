@@ -21,18 +21,11 @@ def get_current_price(ticker):
                 raise Exception(f"Could not fetch price after {max_retries} attempts: {str(e)}")
     return None
 
-def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2, 
+def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2, 
                         min_annual_tv_pct=9.9, max_otm_pct=5.0):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
     for near-the-money call options.
-    
-    Args:
-        ticker_symbol (str): Stock symbol
-        min_volume (int): Minimum option volume
-        max_expirations (int): Number of expiration dates to analyze
-        min_annual_tv_pct (float): Minimum annualized time value percentage
-        max_otm_pct (float): Maximum percentage out-of-the-money to consider
     """
     print(f"\nFetching data for {ticker_symbol}...")
     print(f"Filtering for options with:")
@@ -41,11 +34,11 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2,
     print(f"- Minimum volume: {min_volume}")
     
     try:
-        # Get current stock price using simplified method
+        # Get current stock price
         current_price = get_current_price(ticker_symbol)
         if not current_price:
             print(f"Error: Could not fetch current price for {ticker_symbol}")
-            return
+            return None
         
         print(f"\nCurrent Price: ${current_price:.2f}")
         
@@ -62,7 +55,7 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2,
         all_expirations = stock.options
         if not all_expirations:
             print("No options data available")
-            return
+            return None
             
         expirations = all_expirations[:max_expirations]
         print(f"Analyzing {len(expirations)} expiration dates")
@@ -112,6 +105,7 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2,
                 # Only include if meets minimum time value percentage
                 if time_value_pct >= min_annual_tv_pct:
                     results.append({
+                        'Ticker': ticker_symbol,
                         'Expiration': expiry,
                         'Strike': option['strike'],
                         'Last': option['lastPrice'],
@@ -130,7 +124,7 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2,
             print(f"- Annualized time value >= {min_annual_tv_pct}%")
             print(f"- Within {max_otm_pct}% of current price")
             print(f"- Volume >= {min_volume}")
-            return
+            return None
         
         # Convert results to DataFrame and sort
         df_results = pd.DataFrame(results)
@@ -147,15 +141,20 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=50, max_expirations=2,
         return df_results
         
     except Exception as e:
-        print(f"Error in analysis: {str(e)}")
+        print(f"Error in analysis for {ticker_symbol}: {str(e)}")
         return None
 
 if __name__ == "__main__":
-    # Example usage
-    analyze_option_chain(
-        ticker_symbol="ORCL",
-        min_volume=50,           # Minimum trading volume
-        max_expirations=2,       # Look at nearest 2 expiration dates
-        min_annual_tv_pct=9.9,   # Minimum annualized time value percentage
-        max_otm_pct=5.0          # Maximum percentage out-of-the-money
-    )
+    # Array of stock tickers to analyze
+    tickers = ["ORCL", "AMZN", "XOM", "SLV"]
+    
+    # Loop through each ticker and analyze
+    for ticker in tickers:
+        print(f"\nAnalyzing options for {ticker}...")
+        analyze_option_chain(
+            ticker_symbol=ticker,
+            min_volume=50,           # Minimum trading volume
+            max_expirations=2,       # Look at nearest 2 expiration dates
+            min_annual_tv_pct=9.9,   # Minimum annualized time value percentage
+            max_otm_pct=5.0          # Maximum percentage out-of-the-money
+        )
