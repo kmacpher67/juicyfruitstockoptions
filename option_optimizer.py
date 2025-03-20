@@ -1,6 +1,28 @@
+import yfinance as yf
+import pandas as pd
+from datetime import datetime
+import numpy as np
+import time
+
+def get_current_price(ticker):
+    """Get current stock price with retries"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(ticker)
+            price = stock.history(period='1d')['Close'].iloc[-1]
+            if price:
+                return price
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Retry {attempt + 1} of {max_retries} for price fetch...")
+                time.sleep(1)
+            else:
+                raise Exception(f"Could not fetch price after {max_retries} attempts: {str(e)}")
+    return None
+
 def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2, 
-                        min_annual_tv_pct=9.9, max_otm_pct=5.0, 
-                        min_days=5, max_results=20):
+                        min_annual_tv_pct=9.9, max_otm_pct=5.0):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
     for near-the-money call options.
@@ -10,8 +32,6 @@ def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2,
     print(f"- Minimum annualized time value: {min_annual_tv_pct}%")
     print(f"- Maximum OTM percentage: {max_otm_pct}%")
     print(f"- Minimum volume: {min_volume}")
-    print(f"- Minimum days to expiration: {min_days}")
-    print(f"- Maximum results to display: {max_results}")
     
     try:
         # Get current stock price
@@ -67,7 +87,7 @@ def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2,
             for _, option in ntm_calls.iterrows():
                 days_to_expiry = (pd.to_datetime(expiry) - pd.to_datetime(datetime.now().date())).days
                 
-                if days_to_expiry < min_days:
+                if days_to_expiry <= 0:
                     continue
                 
                 # Calculate time value
@@ -104,15 +124,11 @@ def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2,
             print(f"- Annualized time value >= {min_annual_tv_pct}%")
             print(f"- Within {max_otm_pct}% of current price")
             print(f"- Volume >= {min_volume}")
-            print(f"- Days to expiration >= {min_days}")
             return None
         
         # Convert results to DataFrame and sort
         df_results = pd.DataFrame(results)
         df_results = df_results.sort_values('Ann.TV%', ascending=False)
-        
-        # Limit the number of results displayed
-        df_results = df_results.head(max_results)
         
         # Print results
         print("\nBest Time Value Opportunities (sorted by annualized time value):")
@@ -127,3 +143,38 @@ def analyze_option_chain(ticker_symbol, min_volume=50, max_expirations=2,
     except Exception as e:
         print(f"Error in analysis for {ticker_symbol}: {str(e)}")
         return None
+
+if __name__ == "__main__":
+    # Default values
+    default_tickers = ["ORCL", "AMZN", "XOM", "SLV"]
+    default_min_volume = 50
+    default_max_expirations = 2
+    default_min_annual_tv_pct = 9.9
+    default_max_otm_pct = 5.0
+
+    # User input
+    tickers_input = input(f"Enter stock tickers (comma-separated, default: {default_tickers}): ").strip()
+    tickers = tickers_input.split(",") if tickers_input else default_tickers
+
+    min_volume = input(f"Enter minimum volume (default: {default_min_volume}): ").strip()
+    min_volume = int(min_volume) if min_volume else default_min_volume
+
+    max_expirations = input(f"Enter maximum expiration dates to analyze (default: {default_max_expirations}): ").strip()
+    max_expirations = int(max_expirations) if max_expirations else default_max_expirations
+
+    min_annual_tv_pct = input(f"Enter minimum annualized time value percentage (default: {default_min_annual_tv_pct}): ").strip()
+    min_annual_tv_pct = float(min_annual_tv_pct) if min_annual_tv_pct else default_min_annual_tv_pct
+
+    max_otm_pct = input(f"Enter maximum OTM percentage (default: {default_max_otm_pct}): ").strip()
+    max_otm_pct = float(max_otm_pct) if max_otm_pct else default_max_otm_pct
+
+    # Loop through each ticker and analyze
+    for ticker in tickers:
+        print(f"\nAnalyzing options for {ticker.strip()}...")
+        analyze_option_chain(
+            ticker_symbol=ticker.strip(),
+            min_volume=min_volume,
+            max_expirations=max_expirations,
+            min_annual_tv_pct=min_annual_tv_pct,
+            max_otm_pct=max_otm_pct
+        )
