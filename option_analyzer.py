@@ -1,86 +1,157 @@
+import os
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
 import numpy as np
 
-def analyze_option_chain(ticker_symbol, min_volume=100):
+def analyze_option_chain(ticker_symbol, min_volume=100, max_expirations=6, min_annual_tv_pct=11.9, max_otm_pct=11.0,
+                         min_days=10, max_results=5, portfolio_date=None):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
-    for out-of-the-money call options.
+    for near-the-money call options.
     
     Args:
-        ticker_symbol (str): Stock ticker symbol (e.g., 'ORCL')
-        min_volume (int): Minimum option volume to consider
+        ticker_symbol (str): Stock symbol
+        min_volume (int): Minimum option volume
+        max_expirations (int): Number of expiration dates to analyze
+        min_annual_tv_pct (float): Minimum annualized time value percentage
+        max_otm_pct (float): Maximum percentage out-of-the-money to consider
+        min_days (int): Minimum days to expiration
+        max_results (int): Maximum number of results to display
+        portfolio_date (str): Date of the portfolio in YYYYMMDD format (used for output filename)
     """
-    # Get stock information
-    stock = yf.Ticker(ticker_symbol)
-    current_price = stock.info['regularMarketPrice']
-    print(f"\nAnalyzing {ticker_symbol} - Current Price: ${current_price:.2f}\n")
+    print(f"\nFetching data for {ticker_symbol}...")
+    print(f"Filtering for options with:")
+    print(f"- Minimum annualized time value: {min_annual_tv_pct}%")
+    print(f"- Maximum OTM percentage: {max_otm_pct}%")
+    print(f"- Minimum volume: {min_volume}")
     
-    # Get all available expiration dates
     try:
-        expirations = stock.options
-    except:
-        print("Error: Could not fetch option chain data")
-        return
-    
-    # Store results
-    results = []
-    
-    # Analyze each expiration date
-    for expiry in expirations:
-        # Get call options for this expiration
-        opt = stock.option_chain(expiry)
-        calls = opt.calls
+        # Get current stock price using simplified method
+        current_price = get_current_price(ticker_symbol)
+        if not current_price:
+            print(f"Error: Could not fetch current price for {ticker_symbol}")
+            return
         
-        # Filter for out-of-the-money calls
-        otm_calls = calls[calls['strike'] > current_price]
+        print(f"\nCurrent Price: ${current_price:.2f}")
         
-        # Filter for minimum volume
-        otm_calls = otm_calls[otm_calls['volume'] >= min_volume]
+        # Calculate price range for near-the-money options
+        max_strike = current_price * (1 + max_otm_pct/100)
+        min_strike = current_price * 0.99  # Consider options just slightly ITM
         
-        if len(otm_calls) == 0:
-            continue
+        print(f"Analyzing strikes between ${min_strike:.2f} and ${max_strike:.2f}")
+        
+        # Get stock object
+        stock = yf.Ticker(ticker_symbol)
+        
+        # Get expiration dates
+        all_expirations = stock.options
+        if not all_expirations:
+            print("No options data available")
+            return
             
-        # Calculate time value
-        # Time value = Option price - (Current stock price - Strike price)
-        for _, option in otm_calls.iterrows():
-            time_value = option['lastPrice']  # For OTM calls, entire premium is time value
-            days_to_expiry = (pd.to_datetime(expiry) - pd.to_datetime(datetime.now().date())).days
-            
-            # Calculate annualized time value percentage
-            time_value_pct = (time_value / option['strike']) * (365 / days_to_expiry) * 100
-            
-            results.append({
-                'Expiration': expiry,
-                'Strike': option['strike'],
-                'Last Price': option['lastPrice'],
-                'Volume': option['volume'],
-                'Open Interest': option['openInterest'],
-                'Time Value': time_value,
-                'Days to Expiry': days_to_expiry,
-                'Ann. Time Value %': time_value_pct
-            })
-    
-    if not results:
-        print("No suitable options found matching criteria")
-        return
+        expirations = all_expirations[:max_expirations]
+        print(f"Analyzing {len(expirations)} expiration dates")
         
-    # Convert results to DataFrame and sort by annualized time value
-    df_results = pd.DataFrame(results)
-    df_results = df_results.sort_values('Ann. Time Value %', ascending=False)
-    
-    # Print top 10 opportunities
-    print("\nTop 10 Time Value Opportunities for OTM Calls:")
-    print("=============================================")
-    pd.set_option('display.float_format', lambda x: '%.2f' % x)
-    print(df_results.head(10).to_string(index=False))
+        results = []
+        
+        # Analyze each expiration date
+        for expiry in expirations:
+            print(f"\nProcessing {expiry}...")
+            
+            # Get option chain
+            opt = stock.option_chain(expiry)
+            calls = opt.calls
+            
+            # Filter for near-the-money calls
+            ntm_calls = calls[
+                (calls['strike'] >= min_strike) & 
+                (calls['strike'] <= max_strike)
+            ]
+            
+            # Filter for minimum volume
+            ntm_calls = ntm_calls[ntm_calls['volume'] >= min_volume]
+            
+            if len(ntm_calls) == 0:
+                print(f"No suitable options found for {expiry}")
+                continue
+            
+            # Calculate metrics for each option
+            for _, option in ntm_calls.iterrows():
+                days_to_expiry = (pd.to_datetime(expiry) - pd.to_datetime(datetime.now().date())).days
+                
+                if days_to_expiry <= 0:
+                    continue
+                
+                # Calculate time value
+                if option['strike'] > current_price:
+                    # OTM option - all premium is time value
+                    time_value = option['lastPrice']
+                else:
+                    # ITM option - subtract intrinsic value
+                    intrinsic = max(0, current_price - option['strike'])
+                    time_value = option['lastPrice'] - intrinsic
+                
+                # Calculate annualized time value percentage
+                time_value_pct = (time_value / option['strike']) * (365 / days_to_expiry) * 100
+                
+                # Only include if meets minimum time value percentage
+                if time_value_pct >= min_annual_tv_pct:
+                    results.append({
+                        'Expiration': expiry,
+                        'Strike': option['strike'],
+                        'Last': option['lastPrice'],
+                        'Bid': option['bid'],
+                        'Ask': option['ask'],
+                        'Volume': option['volume'],
+                        'OI': option['openInterest'],
+                        'TimeVal$': time_value,
+                        'Days': days_to_expiry,
+                        'Ann.TV%': time_value_pct,
+                        'Dist.%': ((option['strike'] - current_price) / current_price) * 100
+                    })
+        
+        if not results:
+            print("\nNo options found matching the criteria:")
+            print(f"- Annualized time value >= {min_annual_tv_pct}%")
+            print(f"- Within {max_otm_pct}% of current price")
+            print(f"- Volume >= {min_volume}")
+            return
+        
+        # Convert results to DataFrame and sort
+        df_results = pd.DataFrame(results)
+        df_results = df_results.sort_values('Ann.TV%', ascending=False)
+        
+        # Print results
+        print("\nBest Time Value Opportunities (sorted by annualized time value):")
+        print("=========================================================")
+        pd.set_option('display.float_format', lambda x: '%.2f' % x)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        print(df_results.to_string(index=False))
+        
+        # Write results to a CSV file
+        if portfolio_date:
+            output_filename = f"recommendations.{portfolio_date}.csv"
+        else:
+            output_filename = f"recommendations.csv"
+        
+        output_path = os.path.join(os.getcwd(), output_filename)
+        df_results.to_csv(output_path, index=False)
+        print(f"\nRecommendations written to: {output_path}")
+        
+        return df_results
+        
+    except Exception as e:
+        print(f"Error in analysis: {str(e)}")
+        return None
 
 def main():
     ticker = input("Enter stock ticker symbol (e.g., ORCL): ").upper()
     min_vol = int(input("Enter minimum option volume (default 100): ") or "100")
+    portfolio_date = input("Enter portfolio date in YYYYMMDD format (optional): ")
     
-    analyze_option_chain(ticker, min_vol)
+    analyze_option_chain(ticker, min_vol, portfolio_date=portfolio_date)
 
 if __name__ == "__main__":
     main()

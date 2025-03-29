@@ -21,10 +21,17 @@ def get_current_price(ticker):
                 raise Exception(f"Could not fetch price after {max_retries} attempts: {str(e)}")
     return None
 
-def analyze_option_chain(ticker_symbol="ORCL", min_volume=100, max_expirations=2):
+def analyze_option_chain(ticker_symbol="ORCL", min_volume=100, max_expirations=2, min_annual_tv_pct=9.9, max_otm_pct=5.0):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
-    for out-of-the-money call options.
+    for near-the-money call options.
+    
+    Args:
+        ticker_symbol (str): Stock symbol
+        min_volume (int): Minimum option volume
+        max_expirations (int): Number of expiration dates to analyze
+        min_annual_tv_pct (float): Minimum annualized time value percentage
+        max_otm_pct (float): Maximum percentage out-of-the-money to consider
     """
     print(f"\nFetching data for {ticker_symbol}...")
     
