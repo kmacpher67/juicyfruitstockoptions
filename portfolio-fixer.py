@@ -86,16 +86,28 @@ def evaluate_portfolio(file_path):
                     max_results=3
                 )
 
+                # Extract current option details
+                current_expiration = option.get("Expiration", "N/A")
+                current_strike = option.get("Strike", "N/A")
+                current_premium = option.get("Market Price", "N/A")
+                current_volume = option.get("Volume", "N/A")
+                current_annualized_return = option.get("Ann.TV%", "N/A")
+                current_distance_otm = option.get("Dist.%", "N/A")
+
                 # Check if better options are available
                 if better_options is not None and not better_options.empty:
                     for better_option in better_options.to_dict(orient="records"):
                         recommendations.append({
+                            "Today's Date Time": today_datetime,
                             "Ticker": ticker,
-                            "Recommendation": "Consider Rolling to Better Option",
                             "Current Option Description": option["Financial Instrument Description"],
-                            "Current Expiration": option.get("Expiration", "N/A"),
-                            "Current Strike": option.get("Strike", "N/A"),  # Use fallback if missing
-                            "Current Premium": option["Market Price"],
+                            "Current Expiration": current_expiration,
+                            "Current Strike": current_strike,
+                            "Current Premium": current_premium,
+                            "Current Volume": current_volume,
+                            "Current Annualized Return (%)": current_annualized_return,
+                            "Current Distance OTM (%)": current_distance_otm,
+                            "Recommendation": "Consider Rolling to Better Option",
                             "New Expiration": better_option["Expiration"],
                             "New Strike": better_option["Strike"],
                             "New Premium": better_option["Last"],
@@ -125,7 +137,6 @@ def evaluate_portfolio(file_path):
                     recommendations.append({
                         "Today's Date Time": today_datetime,
                         "Ticker": ticker,
-                        "Current Option Description": "",  # Blank for new trades
                         "Recommendation": "Sell Covered Call",
                         "Expiration": call["Expiration"],
                         "Strike": call["Strike"],
@@ -200,6 +211,6 @@ if __name__ == "__main__":
     for rec in recommendations:
         print(f"\nTicker: {rec['Ticker']}")
         print(f"Recommendation: {rec['Recommendation']}")
-        if rec["Details"]:
+        if rec.get("Details"):  # Safely check for "Details"
             print("Details:")
             print(pd.DataFrame(rec["Details"]))
