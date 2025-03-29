@@ -23,7 +23,7 @@ def get_current_price(ticker):
 
 
 def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_annual_tv_pct=10.9, max_otm_pct=11.0,
-                         min_days=10, max_results=5, portfolio_date=None):
+                         min_days=10, max_results=5, portfolio_date=None, minimum_bid_amount=0):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
     for near-the-money call options.
@@ -37,6 +37,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         min_days (int): Minimum days to expiration
         max_results (int): Maximum number of results to display
         portfolio_date (str): Date of the portfolio in YYYYMMDD format (used for output filename)
+        minimum_bid_amount (int): Minimum bid price to consider
     """
     print(f"\nFetching data for {ticker_symbol}...")
     print(f"Filtering for options with:")
@@ -44,6 +45,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
     print(f"- Maximum OTM percentage: {max_otm_pct}%")
     print(f"- Minimum volume: {min_volume}")
     print(f"- Minimum days to expiration: {min_days}")
+    print(f"- Minimum bid amount: {minimum_bid_amount}")
     
     try:
         # Get current stock price using simplified method
@@ -100,8 +102,11 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
                 (calls['strike'] <= max_strike)
             ]
             
-            # Filter for minimum volume
-            ntm_calls = ntm_calls[ntm_calls['volume'] >= min_volume]
+            # Filter for minimum volume and minimum bid amount
+            ntm_calls = ntm_calls[
+                (ntm_calls['volume'] >= min_volume) & 
+                (ntm_calls['bid'] >= minimum_bid_amount)
+            ]
             
             if len(ntm_calls) == 0:
                 print(f"No suitable options found for {expiry}")
@@ -147,6 +152,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
             print(f"- Annualized time value >= {min_annual_tv_pct}%")
             print(f"- Within {max_otm_pct}% of current price")
             print(f"- Volume >= {min_volume}")
+            print(f"- Bid >= {minimum_bid_amount}")
             return
         
         # Convert results to DataFrame and sort
@@ -187,9 +193,14 @@ def main():
     ticker = input("Enter stock ticker symbol (e.g., ORCL): ").upper()
     min_vol = int(input("Enter minimum option volume (default 100): ") or "100")
     portfolio_date = input("Enter portfolio date in YYYYMMDD format (optional): ")
-    min_days = int(input("Enter min_days date Minimum days to expiration 10: ") or "10")
+    min_days = int(input("Enter minimum days to expiration (default 10): ") or "10")
+    min_bid = float(input("Enter minimum bid amount (default 0): ") or "0")
+    min_annual_tv_pct = float(input("Enter minimum annualized time value percentage (default 10.9): ") or "10.9")    
+    max_expirations = int(input("Enter maximum expiration dates to analyze (default 5): ") or "5")
+    max_otm_pct = float(input("Enter maximum OTM percentage (default 11.0): ") or "11.0")
+    max_results = int(input("Enter maximum number of results to display (default 5): ") or "5")
     
-    analyze_option_chain(ticker, min_vol, portfolio_date=portfolio_date)
+    analyze_option_chain(ticker, min_vol, min_days=min_days, minimum_bid_amount=min_bid, portfolio_date=portfolio_date)
 
 if __name__ == "__main__":
     main()
