@@ -46,6 +46,9 @@ def evaluate_portfolio(file_path):
     print("stock=" + str(stock_positions))
     print("option=" + str(option_positions))
 
+    # Get today's date and time
+    today_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     # Evaluate each stock position
     for _, stock in stock_positions.iterrows():
         ticker = stock["Financial Instrument Description"]
@@ -81,7 +84,9 @@ def evaluate_portfolio(file_path):
                 if better_options is not None and not better_options.empty:
                     for better_option in better_options.to_dict(orient="records"):
                         recommendations.append({
+                            "Today's Date Time": today_datetime,
                             "Ticker": ticker,
+                            "Current Option Description": option["Financial Instrument Description"],
                             "Recommendation": "Consider Rolling to Better Option",
                             "Current Expiration": option.get("Expiration", "N/A"),
                             "Current Strike": option["Strike"],
@@ -113,7 +118,9 @@ def evaluate_portfolio(file_path):
             if best_calls is not None and not best_calls.empty:
                 for call in best_calls.to_dict(orient="records"):
                     recommendations.append({
+                        "Today's Date Time": today_datetime,
                         "Ticker": ticker,
+                        "Current Option Description": "",  # Blank for new trades
                         "Recommendation": "Sell Covered Call",
                         "Expiration": call["Expiration"],
                         "Strike": call["Strike"],
@@ -129,7 +136,9 @@ def evaluate_portfolio(file_path):
             print(f"\n{ticker}: Over-covered. Recommending buying back calls.")
             for _, option in related_options.iterrows():
                 recommendations.append({
+                    "Today's Date Time": today_datetime,
                     "Ticker": ticker,
+                    "Current Option Description": option["Financial Instrument Description"],
                     "Recommendation": "Buy Back Call",
                     "Expiration": option["Expiration"],
                     "Strike": option["Strike"],
@@ -143,7 +152,9 @@ def evaluate_portfolio(file_path):
             print(f"\n{ticker}: Fully covered. Recommending rolling or holding.")
             for _, option in related_options.iterrows():
                 recommendations.append({
+                    "Today's Date Time": today_datetime,
                     "Ticker": ticker,
+                    "Current Option Description": option["Financial Instrument Description"],
                     "Recommendation": "Roll or Hold",
                     "Expiration": option["Expiration"],
                     "Strike": option["Strike"],
