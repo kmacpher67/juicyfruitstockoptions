@@ -4,7 +4,25 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 
-def analyze_option_chain(ticker_symbol, min_volume=100, max_expirations=6, min_annual_tv_pct=11.9, max_otm_pct=11.0,
+def get_current_price(ticker):
+    """Fetch the current stock price with retries."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(ticker)
+            price = stock.history(period='1d')['Close'].iloc[-1]
+            if price:
+                return price
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Retry {attempt + 1} of {max_retries} for price fetch...")
+                time.sleep(1)
+            else:
+                raise Exception(f"Could not fetch price for {ticker} after {max_retries} attempts: {str(e)}")
+    return None
+
+
+def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_annual_tv_pct=10.9, max_otm_pct=11.0,
                          min_days=10, max_results=5, portfolio_date=None):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
@@ -143,7 +161,7 @@ def analyze_option_chain(ticker_symbol, min_volume=100, max_expirations=6, min_a
         return df_results
         
     except Exception as e:
-        print(f"Error in analysis: {str(e)}")
+        print(f"Error in analysis: {e}")
         return None
 
 def main():

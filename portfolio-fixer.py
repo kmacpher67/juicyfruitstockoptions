@@ -2,6 +2,26 @@ import os
 import pandas as pd
 from datetime import datetime
 from option_analyzer import analyze_option_chain  # Assuming option_analyzer.py is in the same directory
+import yfinance as yf
+import time
+
+def get_current_price(ticker):
+    """Fetch the current stock price with retries."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(ticker)
+            price = stock.history(period='1d')['Close'].iloc[-1]
+            if price:
+                return price
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Retry {attempt + 1} of {max_retries} for price fetch for {ticker}...")
+                time.sleep(1)
+            else:
+                print(f"Error: Could not fetch price for {ticker} after {max_retries} attempts. Skipping...")
+                return None
+    return None
 
 def get_latest_portfolio_file(directory):
     """Find the latest portfolio file based on the date in the filename."""
@@ -30,7 +50,10 @@ def evaluate_portfolio(file_path):
     for _, stock in stock_positions.iterrows():
         ticker = stock["Financial Instrument Description"]
         shares = stock["Position"]
-        current_price = stock["Market Price"]
+        current_price = get_current_price(ticker)
+        if not current_price:
+            print(f"Skipping {ticker} due to missing price data.")
+            continue
 
         # Find related call options
         related_options = option_positions[option_positions["Financial Instrument Description"].str.contains(ticker, na=False)]
@@ -39,9 +62,37 @@ def evaluate_portfolio(file_path):
         # Calculate free shares available for covered calls
         free_shares = shares - total_calls_covered
 
-        # Skip if there are fewer than 100 free shares
+        # If there are fewer than 100 free shares, compare existing options to better alternatives
         if free_shares < 100:
-            print(f"\n{ticker}: Not enough free shares for a covered call (Free Shares: {free_shares}). Skipping...")
+            print(f"\n{ticker}: Not enough free shares for a covered call (Free Shares: {free_shares}). Comparing existing options to alternatives...")
+            for _, option in related_options.iterrows():
+                # Analyze better alternatives for the current option
+                better_options = analyze_option_chain(
+                    ticker_symbol=ticker,
+                    min_volume=10,
+                    max_expirations=6,
+                    min_annual_tv_pct=10.0,
+                    max_otm_pct=10.0,
+                    min_days=10,
+                    max_results=5
+                )
+
+                # Check if better options are available
+                if better_options is not None and not better_options.empty:
+                    for better_option in better_options.to_dict(orient="records"):
+                        recommendations.append({
+                            "Ticker": ticker,
+                            "Recommendation": "Consider Rolling to Better Option",
+                            "Current Expiration": option.get("Expiration", "N/A"),
+                            "Current Strike": option["Strike"],
+                            "Current Premium": option["Market Price"],
+                            "New Expiration": better_option["Expiration"],
+                            "New Strike": better_option["Strike"],
+                            "New Premium": better_option["Last"],
+                            "New Volume": better_option["Volume"],
+                            "New Annualized Return (%)": better_option["Ann.TV%"],
+                            "New Distance OTM (%)": better_option["Dist.%"]
+                        })
             continue
 
         # Determine recommendation
@@ -50,10 +101,10 @@ def evaluate_portfolio(file_path):
             print(f"\n{ticker}: Not fully covered. Recommending selling calls.")
             best_calls = analyze_option_chain(
                 ticker_symbol=ticker,
-                min_volume=50,
+                min_volume=10,
                 max_expirations=6,
-                min_annual_tv_pct=12.0,
-                max_otm_pct=5.0,
+                min_annual_tv_pct=10.0,
+                max_otm_pct=10.0,
                 min_days=10,
                 max_results=5
             )
