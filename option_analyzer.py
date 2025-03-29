@@ -140,6 +140,10 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         df_results = pd.DataFrame(results)
         df_results = df_results.sort_values('Ann.TV%', ascending=False)
         
+        # Apply max_results limit
+        if max_results > 0:
+            df_results = df_results.head(max_results)
+        
         # Print results
         print("\nBest Time Value Opportunities (sorted by annualized time value):")
         print("=========================================================")
