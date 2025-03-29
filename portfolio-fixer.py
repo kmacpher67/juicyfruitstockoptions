@@ -60,6 +60,8 @@ def evaluate_portfolio(file_path):
 
         # Find related call options
         related_options = option_positions[option_positions["Financial Instrument Description"].str.contains(ticker, na=False)]
+        print(f"Columns in related_options: {related_options.columns}")
+        print(f"related_options DataFrame:\n{related_options}")
         total_calls_covered = related_options["Position"].abs().sum() * 100  # Each option contract covers 100 shares
 
         # Calculate free shares available for covered calls
@@ -69,6 +71,10 @@ def evaluate_portfolio(file_path):
         if free_shares < 100:
             print(f"\n{ticker}: Not enough free shares for a covered call (Free Shares: {free_shares}). Comparing existing options to alternatives...")
             for _, option in related_options.iterrows():
+                # Debug: Check the columns in related_options
+                print(f"Columns in related_options: {related_options.columns}")
+                print(f"Option row:\n{option}")
+
                 # Analyze better alternatives for the current option
                 better_options = analyze_option_chain(
                     ticker_symbol=ticker,
@@ -84,12 +90,11 @@ def evaluate_portfolio(file_path):
                 if better_options is not None and not better_options.empty:
                     for better_option in better_options.to_dict(orient="records"):
                         recommendations.append({
-                            "Today's Date Time": today_datetime,
                             "Ticker": ticker,
-                            "Current Option Description": option["Financial Instrument Description"],
                             "Recommendation": "Consider Rolling to Better Option",
+                            "Current Option Description": option["Financial Instrument Description"],
                             "Current Expiration": option.get("Expiration", "N/A"),
-                            "Current Strike": option["Strike"],
+                            "Current Strike": option.get("Strike", "N/A"),  # Use fallback if missing
                             "Current Premium": option["Market Price"],
                             "New Expiration": better_option["Expiration"],
                             "New Strike": better_option["Strike"],
