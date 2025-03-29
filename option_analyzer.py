@@ -187,6 +187,7 @@ def main():
     ticker = input("Enter stock ticker symbol (e.g., ORCL): ").upper()
     min_vol = int(input("Enter minimum option volume (default 100): ") or "100")
     portfolio_date = input("Enter portfolio date in YYYYMMDD format (optional): ")
+    min_days = int(input("Enter min_days date Minimum days to expiration 10: ") or "10")
     
     analyze_option_chain(ticker, min_vol, portfolio_date=portfolio_date)
 
