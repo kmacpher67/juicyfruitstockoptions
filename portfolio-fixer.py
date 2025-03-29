@@ -83,7 +83,7 @@ def evaluate_portfolio(file_path):
                     min_annual_tv_pct=10.0,
                     max_otm_pct=10.0,
                     min_days=10,
-                    max_results=5
+                    max_results=3
                 )
 
                 # Check if better options are available
@@ -116,7 +116,7 @@ def evaluate_portfolio(file_path):
                 min_annual_tv_pct=10.0,
                 max_otm_pct=10.0,
                 min_days=10,
-                max_results=5
+                max_results=3
             )
 
             # Check if results are returned
