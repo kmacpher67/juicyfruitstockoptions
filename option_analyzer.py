@@ -43,6 +43,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
     print(f"- Minimum annualized time value: {min_annual_tv_pct}%")
     print(f"- Maximum OTM percentage: {max_otm_pct}%")
     print(f"- Minimum volume: {min_volume}")
+    print(f"- Minimum days to expiration: {min_days}")
     
     try:
         # Get current stock price using simplified method
@@ -54,7 +55,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         print(f"\nCurrent Price: ${current_price:.2f}")
         
         # Calculate price range for near-the-money options
-        max_strike = current_price * (1 + max_otm_pct/100)
+        max_strike = current_price * (1 + max_otm_pct / 100)
         min_strike = current_price * 0.99  # Consider options just slightly ITM
         
         print(f"Analyzing strikes between ${min_strike:.2f} and ${max_strike:.2f}")
@@ -67,8 +68,20 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         if not all_expirations:
             print("No options data available")
             return
-            
-        expirations = all_expirations[:max_expirations]
+        
+        # Filter expiration dates based on min_days
+        today = datetime.now().date()
+        valid_expirations = [
+            expiry for expiry in all_expirations
+            if (pd.to_datetime(expiry).date() - today).days > min_days
+        ]
+        
+        if not valid_expirations:
+            print(f"No expiration dates found with more than {min_days} days to expiration.")
+            return
+        
+        # Limit to max_expirations
+        expirations = valid_expirations[:max_expirations]
         print(f"Analyzing {len(expirations)} expiration dates")
         
         results = []
@@ -96,7 +109,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
             
             # Calculate metrics for each option
             for _, option in ntm_calls.iterrows():
-                days_to_expiry = (pd.to_datetime(expiry) - pd.to_datetime(datetime.now().date())).days
+                days_to_expiry = (pd.to_datetime(expiry) - pd.to_datetime(today)).days
                 
                 if days_to_expiry <= 0:
                     continue
