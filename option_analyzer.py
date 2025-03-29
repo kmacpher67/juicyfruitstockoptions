@@ -155,6 +155,8 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         # Write results to a CSV file
         if portfolio_date:
             output_filename = f"recommendations.{portfolio_date}.csv"
+        elif ticker_symbol:
+            output_filename = f"recommendations.{ticker_symbol}.csv"
         else:
             output_filename = f"recommendations.csv"
         
