@@ -1,6 +1,10 @@
 *# Ignore virtual environment directory
 .venv/
 
+# Ignore my privite files
+portfolio*.csv
+recommendations*.csv
+
 # Other common Python ignores
 __pycache__/
 *.pyc
