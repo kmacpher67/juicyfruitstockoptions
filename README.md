@@ -81,3 +81,38 @@ Ah, I see the issue. The error occurs because Yahoo Finance's API has some rate 
 
 
 
+## Codebase Overview
+
+The following summary was generated in a previous conversation to help new contributors understand the repository.
+
+**General Structure**
+
+- The repository mostly contains stand-alone Python scripts for analyzing stock option chains.
+- Several iterations exist, e.g. `option_analyzer_v2.py` up to `option_analyzer_v5.py`, along with related scripts such as `option_optimizer.py` and `option_time_value_v*.py`.
+- The Dockerfile installs dependencies (yfinance, pandas, numpy) and runs `option_analyzer_v5.py` by default.
+- Shell scripts (`startclaude.sh`, `shellintodocker.sh`) help build and run the Docker container.
+- CSV files (e.g. `recommendations.csv`) capture sample outputs.
+
+**Main Functionality**
+
+- The latest analyzer defines `analyze_option_chain` which fetches option chains via yfinance, filters by parameters like minimum volume, allowable "out-of-the-money" percentage, and computes annualized time value percentages.
+- Results are sorted and displayed, and the function can return a dataframe with the best opportunities.
+- `option_optimizer.py` extends the analyzer with additional filters such as minimum days to expiration and allows iterating over multiple tickers.
+- `portfolio-fixer.py` reads a portfolio CSV, determines covered call positions, and invokes `analyze_option_chain` to suggest rolling or selling options.
+
+**Important Details**
+
+- All scripts rely heavily on the `yfinance` API for fetching market data, with retries implemented in helpers like `get_current_price`.
+- Rate limiting is handled with `time.sleep` calls in the option chain fetch functions.
+- Output CSVs are saved with timestamps for record keeping.
+- The README provides a rough idea of the intended workflow, including how annualized return is computed.
+
+**Next Steps to Learn**
+
+1. **Explore yfinance** – Since all analyses depend on this library, learning its methods for retrieving historical prices and option chains will help adapt or extend the scripts.
+2. **Pandas DataFrame operations** – Filtering, merging, and sorting DataFrames is central to how results are computed and displayed.
+3. **Options terminology** – Understanding concepts like "out of the money," "time value," and annualized returns is key for interpreting the output.
+4. **Docker usage** – The Dockerfile and helper scripts show how to package and run the analyzer in an isolated environment. Familiarity with Docker will help customize or deploy the tool elsewhere.
+5. **Potential refactoring** – The code could be organized into a package with shared modules for fetching data and computing metrics; diving deeper into Python packaging and testing would be a natural next step.
+
+Overall, start by running `option_analyzer_v5.py` (or `option_optimizer.py` for multiple tickers) in the provided Docker container, experiment with the filter parameters, and examine the generated CSV outputs to understand how the tool surfaces high time-value call options.
