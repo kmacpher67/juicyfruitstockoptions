@@ -22,7 +22,7 @@ def get_current_price(ticker):
     return None
 
 
-def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_annual_tv_pct=10.9, max_otm_pct=11.0,
+def analyze_option_chain(ticker_symbol, min_volume=100, max_expirations=6, min_annual_tv_pct=10.9, max_otm_pct=15.0,
                          min_days=10, max_results=5, portfolio_date=None, minimum_bid_amount=0):
     """
     Analyze option chain for a given stock ticker and find best time value opportunities
@@ -30,7 +30,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
     
     Args:
         ticker_symbol (str): Stock symbol
-        min_volume (int): Minimum option volume
+        min_volume (int): Minimum option volume default is 100
         max_expirations (int): Number of expiration dates to analyze
         min_annual_tv_pct (float): Minimum annualized time value percentage
         max_otm_pct (float): Maximum percentage out-of-the-money to consider
@@ -46,6 +46,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
     print(f"- Minimum volume: {min_volume}")
     print(f"- Minimum days to expiration: {min_days}")
     print(f"- Minimum bid amount: {minimum_bid_amount}")
+    print(f"- Max results to display: {max_results}")
     
     try:
         # Get current stock price using simplified method
@@ -58,7 +59,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         
         # Calculate price range for near-the-money options
         max_strike = current_price * (1 + max_otm_pct / 100)
-        min_strike = current_price * 0.99  # Consider options just slightly ITM
+        min_strike = current_price * 0.98  # Consider options just slightly ITM
         
         print(f"Analyzing strikes between ${min_strike:.2f} and ${max_strike:.2f}")
         
@@ -95,7 +96,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
             # Get option chain
             opt = stock.option_chain(expiry)
             calls = opt.calls
-            
+
             # Filter for near-the-money calls
             ntm_calls = calls[
                 (calls['strike'] >= min_strike) & 
@@ -119,14 +120,14 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
                 if days_to_expiry <= 0:
                     continue
                 
-                # Calculate time value
+                # Calculate time value out of the money
                 if option['strike'] > current_price:
                     # OTM option - all premium is time value
                     time_value = option['lastPrice']
                 else:
-                    # ITM option - subtract intrinsic value
+                    # ITM option - subtract intrinsic value (in the money exercise value)
                     intrinsic = max(0, current_price - option['strike'])
-                    time_value = option['lastPrice'] - intrinsic
+                    time_value = option['lastPrice'] + option['strike']
                 
                 # Calculate annualized time value percentage
                 time_value_pct = (time_value / option['strike']) * (365 / days_to_expiry) * 100
@@ -161,6 +162,7 @@ def analyze_option_chain(ticker_symbol, min_volume=5, max_expirations=6, min_ann
         
         # Apply max_results limit
         if max_results > 0:
+            print ("limit max results to", max_results)
             df_results = df_results.head(max_results)
         
         # Print results
@@ -197,10 +199,10 @@ def main():
     min_bid = float(input("Enter minimum bid amount (default 0): ") or "0")
     min_annual_tv_pct = float(input("Enter minimum annualized time value percentage (default 10.9): ") or "10.9")    
     max_expirations = int(input("Enter maximum expiration dates to analyze (default 5): ") or "5")
-    max_otm_pct = float(input("Enter maximum OTM percentage (default 11.0): ") or "11.0")
-    max_results = int(input("Enter maximum number of results to display (default 5): ") or "5")
+    max_otm_pct = float(input("Enter maximum OTM percentage (default 16.0): ") or "16.0")
+    max_results = int(input("Enter maximum number of results to display (default 5): ") or "7")
     
-    analyze_option_chain(ticker, min_vol, min_days=min_days, minimum_bid_amount=min_bid, portfolio_date=portfolio_date)
+    analyze_option_chain(ticker, min_vol, max_expirations, min_annual_tv_pct=min_annual_tv_pct, max_otm_pct=max_otm_pct, min_days=min_days, max_results=max_results, portfolio_date=portfolio_date, minimum_bid_amount=min_bid)
 
 if __name__ == "__main__":
     main()
