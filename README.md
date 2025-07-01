@@ -1,6 +1,8 @@
-
+JUICY FRUIT OPTIONS and IBRK optimization code 
 
 Write a program to find call option chains for a given equity stock for example ORCL Oracle Corp find best time value options for an out of the money strike price becareful of yfinance rate limits (limit option chains) for inputs allow an array of stock tickers to be entered default ["ORCL", "AMZN", "XOM"] prompt for a minimum annualized return on investment in percentage of return, Enter minimum option volume (default 20), Enter maximum number of expiration dates to analyze (default 4), filter on Minimum annualized time value: 11%, Maximum OTM percentage (10%),  and rank the juiciest from top to bottom with a maximum of 15 
+
+Chat Ghepetto and it's CODEX is helping me with this repo, let's see how much shitty code i have to debug after this AI "help"
 
 ### ask to fix annualized return 
 
