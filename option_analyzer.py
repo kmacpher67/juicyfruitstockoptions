@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 import numpy as np
+import traceback
+import time
 
 def get_current_price(ticker):
     """Fetch the current stock price with retries."""
@@ -16,7 +18,7 @@ def get_current_price(ticker):
         except Exception as e:
             if attempt < max_retries - 1:
                 print(f"Retry {attempt + 1} of {max_retries} for price fetch...")
-                time.sleep(1)
+                time.sleep(2 + attempt )
             else:
                 raise Exception(f"Could not fetch price for {ticker} after {max_retries} attempts: {str(e)}")
     return None
@@ -188,7 +190,12 @@ def analyze_option_chain(ticker_symbol, min_volume=100, max_expirations=6, min_a
         return df_results
         
     except Exception as e:
-        print(f"Error in analysis: {e}")
+        tb = traceback.extract_tb(e.__traceback__)
+        if tb:
+            last_call = tb[-1]
+            print(f"Error in analysis: {e} (Line {last_call.lineno} in {last_call.filename})")
+        else:
+            print(f"Error in analysis: {e}")
         return None
 
 def main():
