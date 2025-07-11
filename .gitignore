@@ -1,5 +1,6 @@
-*# Ignore virtual environment directory
+# Ignore virtual environment directories
 .venv/
+venv/
 
 # Ignore my privite files
 portfolio*.csv
