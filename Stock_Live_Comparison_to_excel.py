@@ -14,14 +14,13 @@ def closest_expiration(option_dates, target_days):
     return min(dates, key=lambda d: abs((d - target).days)).strftime("%Y-%m-%d")
 
 
-def get_otm_call_yield(sym, current_price, target_days, otm_pct=6):
+def get_otm_call_yield(chain, current_price, target_days, otm_pct=6):
     """Return the yield and strike for an OTM call near target_days."""
-    exp_date = closest_expiration(sym.options, target_days)
+    exp_date = closest_expiration(chain.options, target_days)
     if not exp_date:
         return None, None
-    chain = sym.option_chain(exp_date)
+    calls = chain.option_chain(exp_date).calls
     target_strike = current_price * (1 + otm_pct / 100)
-    calls = chain.calls
     calls = calls[calls['strike'] >= target_strike]
     if calls.empty:
         return None, None
@@ -30,14 +29,13 @@ def get_otm_call_yield(sym, current_price, target_days, otm_pct=6):
     return round(yield_pct, 2), call['strike']
 
 
-def get_otm_put_price(sym, current_price, target_days, otm_pct=6):
+def get_otm_put_price(chain, current_price, target_days, otm_pct=6):
     """Return the put price for an OTM put near target_days."""
-    exp_date = closest_expiration(sym.options, target_days)
+    exp_date = closest_expiration(chain.options, target_days)
     if not exp_date:
         return None
-    chain = sym.option_chain(exp_date)
+    puts = chain.option_chain(exp_date).puts
     target_strike = current_price * (1 - otm_pct / 100)
-    puts = chain.puts
     puts = puts[puts['strike'] <= target_strike]
     if puts.empty:
         return None
@@ -51,30 +49,36 @@ def get_otm_put_price(sym, current_price, target_days, otm_pct=6):
 tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", "TEM"]
 records = []
 
+# Batch download historical prices for all tickers
+hist = yf.download(tickers, period="1y", group_by='ticker', threads=True)
+# Batch fetch info for all tickers
+tickers_obj = yf.Tickers(" ".join(tickers))
+
 for t in tickers:
-    sym = yf.Ticker(t)
-    print(f"Fetching data for {t}...", sym)
     tries = 0
     success = False
     while tries < 3 and not success:
         try:
-            time.sleep(1 + tries * 2)  # Increase sleep each try: 1s, 3s, 5s
-            info = sym.info
-            hist = sym.history(period="1y")
-            yoy = (hist['Close'][-1] - hist['Close'][0]) / hist['Close'][0] * 100
+            time.sleep(1 + tries * 2)
+            info = tickers_obj.tickers[t].info
+            ticker_hist = hist[t] if t in hist else None
+            if ticker_hist is not None and not ticker_hist.empty:
+                yoy = (ticker_hist['Close'][-1] - ticker_hist['Close'][0]) / ticker_hist['Close'][0] * 100
+                prev_close = ticker_hist['Close'][-2]
+            else:
+                yoy = None
+                prev_close = None
 
             current_price = info.get("regularMarketPrice") or info.get("currentPrice")
-            prev_close = (info.get("regularMarketPreviousClose") or
-                          info.get("previousClose") or
-                          hist['Close'][-2])
             day_change = None
             if current_price and prev_close:
                 day_change = (current_price - prev_close) / prev_close * 100
 
-            call3, _ = get_otm_call_yield(sym, current_price, 90)
-            call6, strike6 = get_otm_call_yield(sym, current_price, 180)
-            call12, _ = get_otm_call_yield(sym, current_price, 365)
-            put_price = get_otm_put_price(sym, current_price, 365)
+            chain = tickers_obj.tickers[t]
+            call3, _ = get_otm_call_yield(chain, current_price, 90)
+            call6, strike6 = get_otm_call_yield(chain, current_price, 180)
+            call12, _ = get_otm_call_yield(chain, current_price, 365)
+            put_price = get_otm_put_price(chain, current_price, 365)
             analyst_target = info.get("targetMeanPrice")
 
             records.append({
@@ -83,7 +87,7 @@ for t in tickers:
                 "1D % Change": f"{day_change:.2f}%" if day_change is not None else None,
                 "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
                 "P/E": info.get("trailingPE"),
-                "YoY Price %": f"{yoy:.1f}%",
+                "YoY Price %": f"{yoy:.1f}%" if yoy is not None else None,
                 "Ex-Div Date": info.get("exDividendDate"),
                 "Div Yield": info.get("dividendYield"),
                 "Analyst 1-yr Target": analyst_target,
@@ -117,7 +121,7 @@ for t in tickers:
                 "Example 6-mo Strike": None,
                 "Error": str(e)
             })
-            success = True  # Don't retry for other errors
+            success = True
 
     if not success:
         print(f"Skipping {t} after 3 rate limit retries.")
