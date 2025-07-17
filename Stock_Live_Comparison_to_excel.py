@@ -146,6 +146,7 @@ for t in tickers:
         except YFRateLimitError as e:
             print(f"Rate limit hit for {t}, retrying...")
             tries += 1
+            # Optionally keep the 409 check here for immediate fallback
             if hasattr(e, 'response') and getattr(e.response, 'status_code', None) == 409:
                 print(f"YFinance 409 error for {t}, using Polygon API fallback.")
                 polygon_data = get_polygon_data(t)
@@ -172,25 +173,11 @@ for t in tickers:
             })
             success = True
 
+    # Fallback to Polygon after 3 unsuccessful tries
     if not success:
-        print(f"Skipping {t} after 3 rate limit retries.")
-        records.append({
-            "Ticker": t,
-            "Current Price": None,
-            "1D % Change": None,
-            "Market Cap (T$)": None,
-            "P/E": None,
-            "YoY Price %": None,
-            "Ex-Div Date": None,
-            "Div Yield": None,
-            "Analyst 1-yr Target": None,
-            "1-yr 6% OTM PUT Price": None,
-            "3-mo Call Yield": None,
-            "6-mo Call Yield": None,
-            "1-yr Call Yield": None,
-            "Example 6-mo Strike": None,
-            "Error": "Rate limit exceeded"
-        })
+        print(f"YFinance failed for {t} after 3 tries, using Polygon API fallback.")
+        polygon_data = get_polygon_data(t)
+        records.append(polygon_data)
 
 df = pd.DataFrame(records)
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
