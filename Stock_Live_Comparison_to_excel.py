@@ -52,7 +52,7 @@ def get_latest_spreadsheet(base_name="AI_Stock_Live_Comparison_"):
     file_time = datetime.fromtimestamp(os.path.getmtime(latest_file))
     return latest_file, file_time
 
-tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", "TEM"]
+tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", "TEM", "V"]
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"AI_Stock_Live_Comparison_{date_str}.xlsx"
 
