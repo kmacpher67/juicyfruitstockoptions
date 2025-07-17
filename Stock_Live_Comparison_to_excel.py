@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import time
+import datetime
 
 #
 # retrieves live market cap, price, P/E, and YoY return via yfinance, and builds the spreadsheet automatically:
@@ -34,5 +35,7 @@ for t in tickers:
     })
 
 df = pd.DataFrame(records)
-df.to_excel("AI_Stock_Live_Comparison.xlsx", index=False)
-print("Spreadsheet generated: AI_Stock_Live_Comparison.xlsx")
+date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f"AI_Stock_Live_Comparison_{date_str}.xlsx"
+df.to_excel(filename, index=False)
+print(f"Spreadsheet generated: {filename}")
