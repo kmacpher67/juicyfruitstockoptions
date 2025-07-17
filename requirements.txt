@@ -4,3 +4,4 @@ numpy
 requests
 os
 openpyxl
+boto3

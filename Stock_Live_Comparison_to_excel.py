@@ -1,9 +1,8 @@
+import requests
 import yfinance as yf
 import pandas as pd
 import time
 from datetime import datetime
-from yfinance.exceptions import YFRateLimitError
-import requests
 import os
 import openpyxl
 from openpyxl.styles import Font, Alignment
@@ -50,22 +49,31 @@ def get_otm_put_price(chain, current_price, target_days, otm_pct=6):
 
 
 def get_polygon_data(ticker):
+    # Get fundamentals
     url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey={POLYGON_API_KEY}"
     resp = requests.get(url)
     info = resp.json().get('results', {})
-
+    # Get last trade price
     price_url = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={POLYGON_API_KEY}"
     price_resp = requests.get(price_url)
     price_data = price_resp.json().get('results', {})
     current_price = price_data.get('price')
-
+    # Format Ex-Div Date
+    ex_div_raw = info.get("ex_dividend_date")
+    if ex_div_raw:
+        try:
+            ex_div_date = datetime.strptime(ex_div_raw, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except Exception:
+            ex_div_date = str(ex_div_raw)
+    else:
+        ex_div_date = None
     return {
         "Ticker": ticker,
         "Current Price": current_price,
         "Market Cap (T$)": info.get("market_cap") / 1e12 if info.get("market_cap") else None,
         "P/E": info.get("pe_ratio"),
         "YoY Price %": None,
-        "Ex-Div Date": info.get("exDividendDate"),
+        "Ex-Div Date": ex_div_date,
         "Div Yield": info.get("dividend_yield"),
         "Analyst 1-yr Target": None,
         "1-yr 6% OTM PUT Price": None,
@@ -73,111 +81,78 @@ def get_polygon_data(ticker):
         "6-mo Call Yield": None,
         "1-yr Call Yield": None,
         "Example 6-mo Strike": None,
-        "Error": "Polygon fallback"
+        "Error": None
     }
 
-#
-# retrieves live market cap, price, P/E, and YoY return via yfinance, and builds the spreadsheet automatically:
-#
+
+def get_yfinance_data(ticker):
+    try:
+        sym = yf.Ticker(ticker)
+        info = sym.info
+        hist = sym.history(period="1y")
+        yoy = (hist['Close'][-1] - hist['Close'][0]) / hist['Close'][0] * 100 if not hist.empty else None
+        prev_close = hist['Close'][-2] if not hist.empty else None
+        current_price = info.get("regularMarketPrice") or info.get("currentPrice")
+        day_change = None
+        if current_price and prev_close:
+            day_change = (current_price - prev_close) / prev_close * 100
+        ex_div_raw = info.get("exDividendDate")
+        if ex_div_raw:
+            try:
+                ex_div_date = datetime.fromtimestamp(ex_div_raw).strftime("%Y-%m-%d")
+            except Exception:
+                ex_div_date = str(ex_div_raw)
+        else:
+            ex_div_date = None
+        return {
+            "Ticker": ticker,
+            "Current Price": current_price,
+            "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
+            "P/E": info.get("trailingPE"),
+            "YoY Price %": f"{yoy:.1f}%" if yoy is not None else None,
+            "Ex-Div Date": ex_div_date,
+            "Div Yield": info.get("dividendYield"),
+            "Analyst 1-yr Target": info.get("targetMeanPrice"),
+            "1-yr 6% OTM PUT Price": None,
+            "3-mo Call Yield": None,
+            "6-mo Call Yield": None,
+            "1-yr Call Yield": None,
+            "Example 6-mo Strike": None,
+            "Error": None
+        }
+    except Exception as e:
+        return {
+            "Ticker": ticker,
+            "Current Price": None,
+            "Market Cap (T$)": None,
+            "P/E": None,
+            "YoY Price %": None,
+            "Ex-Div Date": None,
+            "Div Yield": None,
+            "Analyst 1-yr Target": None,
+            "1-yr 6% OTM PUT Price": None,
+            "3-mo Call Yield": None,
+            "6-mo Call Yield": None,
+            "1-yr Call Yield": None,
+            "Example 6-mo Strike": None,
+            "Error": str(e)
+        }
+
 
 tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", "TEM"]
 records = []
 
-# Batch download historical prices for all tickers
-hist = yf.download(tickers, period="1y", group_by='ticker', threads=True)
-# Batch fetch info for all tickers
-tickers_obj = yf.Tickers(" ".join(tickers))
-
 for t in tickers:
-    tries = 0
-    success = False
-    while tries < 3 and not success:
-        try:
-            time.sleep(1 + tries * 2)
-            info = tickers_obj.tickers[t].info
-            ticker_hist = hist[t] if t in hist else None
-            if ticker_hist is not None and not ticker_hist.empty:
-                yoy = (ticker_hist['Close'][-1] - ticker_hist['Close'][0]) / ticker_hist['Close'][0] * 100
-                prev_close = ticker_hist['Close'][-2]
-            else:
-                yoy = None
-                prev_close = None
-
-            current_price = info.get("regularMarketPrice") or info.get("currentPrice")
-            day_change = None
-            if current_price and prev_close:
-                day_change = (current_price - prev_close) / prev_close * 100
-
-            chain = tickers_obj.tickers[t]
-            call3, _ = get_otm_call_yield(chain, current_price, 90)
-            call6, strike6 = get_otm_call_yield(chain, current_price, 180)
-            call12, _ = get_otm_call_yield(chain, current_price, 365)
-            put_price = get_otm_put_price(chain, current_price, 365)
-            analyst_target = info.get("targetMeanPrice")
-
-            ex_div_raw = info.get("exDividendDate")
-            if ex_div_raw:
-                try:
-                    # If it's a timestamp (int/float), convert to date string
-                    ex_div_date = datetime.fromtimestamp(ex_div_raw).strftime("%Y-%m-%d")
-                except Exception:
-                    ex_div_date = str(ex_div_raw)
-            else:
-                ex_div_date = None
-
-            records.append({
-                "Ticker": t,
-                "Current Price": current_price,
-                "1D % Change": f"{day_change:.2f}%" if day_change is not None else None,
-                "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
-                "P/E": info.get("trailingPE"),
-                "YoY Price %": f"{yoy:.1f}%" if yoy is not None else None,
-                "Ex-Div Date": ex_div_date,
-                "Div Yield": info.get("dividendYield"),
-                "Analyst 1-yr Target": analyst_target,
-                "1-yr 6% OTM PUT Price": put_price,
-                "3-mo Call Yield": call3,
-                "6-mo Call Yield": call6,
-                "1-yr Call Yield": call12,
-                "Example 6-mo Strike": strike6,
-                "Error": None
-            })
-            success = True
-        except YFRateLimitError as e:
-            print(f"Rate limit hit for {t}, retrying...")
-            tries += 1
-            # Optionally keep the 409 check here for immediate fallback
-            if hasattr(e, 'response') and getattr(e.response, 'status_code', None) == 409:
-                print(f"YFinance 409 error for {t}, using Polygon API fallback.")
-                polygon_data = get_polygon_data(t)
-                records.append(polygon_data)
-                success = True
-        except Exception as e:
-            print(f"Error fetching data for {t}: {e}")
-            records.append({
-                "Ticker": t,
-                "Current Price": None,
-                "1D % Change": None,
-                "Market Cap (T$)": None,
-                "P/E": None,
-                "YoY Price %": None,
-                "Ex-Div Date": None,
-                "Div Yield": None,
-                "Analyst 1-yr Target": None,
-                "1-yr 6% OTM PUT Price": None,
-                "3-mo Call Yield": None,
-                "6-mo Call Yield": None,
-                "1-yr Call Yield": None,
-                "Example 6-mo Strike": None,
-                "Error": str(e)
-            })
-            success = True
-
-    # Fallback to Polygon after 3 unsuccessful tries
-    if not success:
-        print(f"YFinance failed for {t} after 3 tries, using Polygon API fallback.")
-        polygon_data = get_polygon_data(t)
-        records.append(polygon_data)
+    try:
+        data = get_polygon_data(t)
+        # If Polygon returns no price, fallback to yfinance
+        if data["Current Price"] is None:
+            print(f"Polygon data missing for {t}, using yfinance fallback.")
+            data = get_yfinance_data(t)
+    except Exception as e:
+        print(f"Polygon error for {t}: {e}, using yfinance fallback.")
+        data = get_yfinance_data(t)
+    records.append(data)
 
 df = pd.DataFrame(records)
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
