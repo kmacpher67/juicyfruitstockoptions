@@ -5,6 +5,8 @@ from datetime import datetime
 from yfinance.exceptions import YFRateLimitError
 import requests
 import os
+import openpyxl
+from openpyxl.styles import Font, Alignment
 
 POLYGON_API_KEY = os.environ.get('POLYGON_API_KEY')
 
@@ -63,7 +65,7 @@ def get_polygon_data(ticker):
         "Market Cap (T$)": info.get("market_cap") / 1e12 if info.get("market_cap") else None,
         "P/E": info.get("pe_ratio"),
         "YoY Price %": None,
-        "Ex-Div Date": info.get("ex_dividend_date"),
+        "Ex-Div Date": info.get("exDividendDate"),
         "Div Yield": info.get("dividend_yield"),
         "Analyst 1-yr Target": None,
         "1-yr 6% OTM PUT Price": None,
@@ -113,6 +115,16 @@ for t in tickers:
             put_price = get_otm_put_price(chain, current_price, 365)
             analyst_target = info.get("targetMeanPrice")
 
+            ex_div_raw = info.get("exDividendDate")
+            if ex_div_raw:
+                try:
+                    # If it's a timestamp (int/float), convert to date string
+                    ex_div_date = datetime.fromtimestamp(ex_div_raw).strftime("%Y-%m-%d")
+                except Exception:
+                    ex_div_date = str(ex_div_raw)
+            else:
+                ex_div_date = None
+
             records.append({
                 "Ticker": t,
                 "Current Price": current_price,
@@ -120,7 +132,7 @@ for t in tickers:
                 "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
                 "P/E": info.get("trailingPE"),
                 "YoY Price %": f"{yoy:.1f}%" if yoy is not None else None,
-                "Ex-Div Date": info.get("exDividendDate"),
+                "Ex-Div Date": ex_div_date,
                 "Div Yield": info.get("dividendYield"),
                 "Analyst 1-yr Target": analyst_target,
                 "1-yr 6% OTM PUT Price": put_price,
@@ -184,4 +196,14 @@ df = pd.DataFrame(records)
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"AI_Stock_Live_Comparison_{date_str}.xlsx"
 df.to_excel(filename, index=False)
+
+# Format header row: bold and wrap text, and set row height to auto
+wb = openpyxl.load_workbook(filename)
+ws = wb.active
+for cell in ws[1]:
+    cell.font = Font(bold=True)
+    cell.alignment = Alignment(wrap_text=True)
+ws.row_dimensions[1].height = None  # Let Excel auto-adjust row height
+wb.save(filename)
 print(f"Spreadsheet generated: {filename}")
+# filepath: /home/kenmac/personal/juicyfruitstockoptions/Stock_Live_Comparison_to_excel.py
