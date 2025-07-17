@@ -6,8 +6,12 @@ from datetime import datetime
 import os
 import openpyxl
 from openpyxl.styles import Font, Alignment
+import boto3
+from io import StringIO
 
 POLYGON_API_KEY = os.environ.get('POLYGON_API_KEY')
+POLYGON_S3_KEY = os.environ.get('POLYGON_S3_KEY')
+POLYGON_S3_SECRET = os.environ.get('POLYGON_S3_SECRET')
 
 
 def closest_expiration(option_dates, target_days):
@@ -48,6 +52,41 @@ def get_otm_put_price(chain, current_price, target_days, otm_pct=6):
     return put['lastPrice']
 
 
+def get_polygon_s3_daily_prices(ticker, date_from="2023-01-01", date_to=None):
+    """
+    Download daily prices for a ticker from Polygon S3 flat file API using boto3.
+    Returns a DataFrame or None if not available.
+    """
+    bucket = "flatfiles"
+    object_key = f"stocks/daily/{ticker.upper()}.csv"
+    print (POLYGON_S3_KEY, POLYGON_S3_SECRET)
+    try:
+
+        session = boto3.Session(
+            aws_access_key_id='cd042cd4-b524-4c42-b31d-23d7f5f9d0ba',
+          aws_secret_access_key='enuk99JbTkgm6jzhNmwJ9gnzdBWAI0Pq',
+        )
+        s3 = boto3.client(
+            "s3",
+            endpoint_url='https://files.polygon.io',
+            aws_access_key_id=POLYGON_S3_KEY,
+            aws_secret_access_key=POLYGON_S3_SECRET,
+            config=Config(signature_version='s3v4'),
+            region_name="us-east-1"
+        )
+        obj = s3.get_object(Bucket=bucket, Key=object_key)
+        df = pd.read_csv(StringIO(obj['Body'].read().decode()))
+        df['date'] = pd.to_datetime(df['date'])
+        if date_to:
+            df = df[(df['date'] >= date_from) & (df['date'] <= date_to)]
+        else:
+            df = df[df['date'] >= date_from]
+        return df
+    except Exception as e:
+        print(f"Error fetching S3 daily prices for {ticker}: {e}")
+        return None
+
+
 def get_polygon_data(ticker):
     # Get fundamentals
     url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey={POLYGON_API_KEY}"
@@ -72,7 +111,7 @@ def get_polygon_data(ticker):
         "Current Price": current_price,
         "Market Cap (T$)": info.get("market_cap") / 1e12 if info.get("market_cap") else None,
         "P/E": info.get("pe_ratio"),
-        "YoY Price %": None,
+        "YoY Price %": None,  # Will be filled from S3
         "Ex-Div Date": ex_div_date,
         "Div Yield": info.get("dividend_yield"),
         "Analyst 1-yr Target": None,
@@ -143,8 +182,19 @@ tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", 
 records = []
 
 for t in tickers:
+    # Try Polygon S3 for historical prices first
+    s3_hist = get_polygon_s3_daily_prices(t)
+    yoy = None
+    if s3_hist is not None and not s3_hist.empty:
+        try:
+            yoy = (s3_hist['close'].iloc[-1] - s3_hist['close'].iloc[0]) / s3_hist['close'].iloc[0] * 100
+        except Exception:
+            yoy = None
     try:
         data = get_polygon_data(t)
+        # Fill YoY Price % from S3 if available
+        if yoy is not None:
+            data["YoY Price %"] = f"{yoy:.1f}%"
         # If Polygon returns no price, fallback to yfinance
         if data["Current Price"] is None:
             print(f"Polygon data missing for {t}, using yfinance fallback.")
