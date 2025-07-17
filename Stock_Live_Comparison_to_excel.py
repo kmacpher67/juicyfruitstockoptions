@@ -116,7 +116,7 @@ if tickers_to_fetch:
                 chain = tickers_obj.tickers[t]
                 call3, _ = get_otm_call_yield(chain, current_price, 90)
                 call6, strike6 = get_otm_call_yield(chain, current_price, 180)
-                call12, _ = get_otm_call_yield(chain, current_price, 365)
+                call12, call12_strike = get_otm_call_yield(chain, current_price, 365)
                 put_price = get_otm_put_price(chain, current_price, 365)
                 analyst_target = info.get("targetMeanPrice")
 
@@ -129,6 +129,16 @@ if tickers_to_fetch:
                 else:
                     ex_div_date = None
 
+                # Calculate annual yield for 1yr 6% OTM put (premium/current price)
+                annual_yield_put = None
+                if put_price and current_price:
+                    annual_yield_put = round((put_price / current_price) * 100, 2)
+
+                # Calculate annual yield for 1yr call (premium/current price)
+                annual_yield_call = None
+                if call12 and current_price:
+                    annual_yield_call = round((call12 / current_price) * 100, 2)
+
                 records.append({
                     "Ticker": t,
                     "Current Price": current_price,
@@ -140,9 +150,11 @@ if tickers_to_fetch:
                     "Div Yield": info.get("dividendYield"),
                     "Analyst 1-yr Target": analyst_target,
                     "1-yr 6% OTM PUT Price": put_price,
+                    "Annual Yield Put Prem": annual_yield_put,  # <-- new column
                     "3-mo Call Yield": call3,
                     "6-mo Call Yield": call6,
                     "1-yr Call Yield": call12,
+                    "Annual Yield Call Prem": annual_yield_call,  # <-- new column
                     "Example 6-mo Strike": strike6,
                     "Error": None,
                     "Last Update": now.strftime("%Y-%m-%d %H:%M:%S")
@@ -161,9 +173,11 @@ if tickers_to_fetch:
                     "Div Yield": None,
                     "Analyst 1-yr Target": None,
                     "1-yr 6% OTM PUT Price": None,
+                    "Annual Yield Put Prem": None,
                     "3-mo Call Yield": None,
                     "6-mo Call Yield": None,
                     "1-yr Call Yield": None,
+                    "Annual Yield Call Prem": None,
                     "Example 6-mo Strike": None,
                     "Error": str(e),
                     "Last Update": now.strftime("%Y-%m-%d %H:%M:%S")
@@ -182,9 +196,11 @@ if tickers_to_fetch:
                 "Div Yield": None,
                 "Analyst 1-yr Target": None,
                 "1-yr 6% OTM PUT Price": None,
+                "Annual Yield Put Prem": None,
                 "3-mo Call Yield": None,
                 "6-mo Call Yield": None,
                 "1-yr Call Yield": None,
+                "Annual Yield Call Prem": None,
                 "Example 6-mo Strike": None,
                 "Error": "Max retries exceeded",
                 "Last Update": now.strftime("%Y-%m-%d %H:%M:%S")
