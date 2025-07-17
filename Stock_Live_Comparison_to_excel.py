@@ -3,6 +3,10 @@ import pandas as pd
 import time
 from datetime import datetime
 from yfinance.exceptions import YFRateLimitError
+import requests
+import os
+
+POLYGON_API_KEY = os.environ.get('POLYGON_API_KEY')
 
 
 def closest_expiration(option_dates, target_days):
@@ -41,6 +45,34 @@ def get_otm_put_price(chain, current_price, target_days, otm_pct=6):
         return None
     put = puts.iloc[-1]
     return put['lastPrice']
+
+
+def get_polygon_data(ticker):
+    url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey={POLYGON_API_KEY}"
+    resp = requests.get(url)
+    info = resp.json().get('results', {})
+
+    price_url = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={POLYGON_API_KEY}"
+    price_resp = requests.get(price_url)
+    price_data = price_resp.json().get('results', {})
+    current_price = price_data.get('price')
+
+    return {
+        "Ticker": ticker,
+        "Current Price": current_price,
+        "Market Cap (T$)": info.get("market_cap") / 1e12 if info.get("market_cap") else None,
+        "P/E": info.get("pe_ratio"),
+        "YoY Price %": None,
+        "Ex-Div Date": info.get("ex_dividend_date"),
+        "Div Yield": info.get("dividend_yield"),
+        "Analyst 1-yr Target": None,
+        "1-yr 6% OTM PUT Price": None,
+        "3-mo Call Yield": None,
+        "6-mo Call Yield": None,
+        "1-yr Call Yield": None,
+        "Example 6-mo Strike": None,
+        "Error": "Polygon fallback"
+    }
 
 #
 # retrieves live market cap, price, P/E, and YoY return via yfinance, and builds the spreadsheet automatically:
@@ -99,9 +131,14 @@ for t in tickers:
                 "Error": None
             })
             success = True
-        except YFRateLimitError:
+        except YFRateLimitError as e:
             print(f"Rate limit hit for {t}, retrying...")
             tries += 1
+            if hasattr(e, 'response') and getattr(e.response, 'status_code', None) == 409:
+                print(f"YFinance 409 error for {t}, using Polygon API fallback.")
+                polygon_data = get_polygon_data(t)
+                records.append(polygon_data)
+                success = True
         except Exception as e:
             print(f"Error fetching data for {t}: {e}")
             records.append({
