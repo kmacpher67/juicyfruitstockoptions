@@ -223,15 +223,32 @@ if tickers_to_fetch:
         df = pd.concat([df_existing, df_new], ignore_index=True)
     else:
         df = pd.DataFrame(records)
-    df.to_excel(filename, index=False)
-else:
-    # If no update needed, just save/load the existing df
-    df = df_existing
-    df.to_excel(filename, index=False)
 
-# Format header row: bold and wrap text, and set row height to auto
+# After creating/merging the DataFrame and before saving to Excel
+# Add a computed formula column after "Annual Yield Call Prem"
+put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
+call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
+ratio_col_name = "Put/Call Yield Ratio"
+
+# Insert the column with empty values
+df.insert(call_col, ratio_col_name, "")
+
+# Save to Excel
+df.to_excel(filename, index=False)
+
+# Add Excel formula for each row in the new column
 wb = openpyxl.load_workbook(filename)
 ws = wb.active
+for i in range(2, ws.max_row + 1):
+    put_cell = ws.cell(row=i, column=put_col)
+    call_cell = ws.cell(row=i, column=call_col)
+    ratio_cell = ws.cell(row=i, column=call_col + 1)
+    # Excel columns are 1-indexed, so use column letters
+    put_letter = openpyxl.utils.get_column_letter(put_col)
+    call_letter = openpyxl.utils.get_column_letter(call_col)
+    ratio_cell.value = f"=IFERROR({put_letter}{i}/{call_letter}{i},\"\")"
+
+# Format header row: bold and wrap text, and set row height to auto
 for cell in ws[1]:
     cell.font = Font(bold=True)
     cell.alignment = Alignment(wrap_text=True)
