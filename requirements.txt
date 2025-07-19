@@ -2,6 +2,5 @@ yfinance
 pandas
 numpy
 requests
-os
 openpyxl
 boto3
