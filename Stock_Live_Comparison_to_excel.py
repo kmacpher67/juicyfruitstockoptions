@@ -52,7 +52,15 @@ def get_latest_spreadsheet(base_name="AI_Stock_Live_Comparison_"):
     file_time = datetime.fromtimestamp(os.path.getmtime(latest_file))
     return latest_file, file_time
 
-tickers = ["AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL", "TEM", "V"]
+tickers = [
+    "AMD","MSFT","NVDA","META","AMZN","GOOG","AAPL","TSLA","IBM","ORCL",
+    "TEM", "V", "GEV", "CPRX",
+    "CRWD", "CVS", "FMNB", "GD", "JPM", "KMB", "MRVL", "NEE", "OKE", "SLB", "STLD", "TMUS"
+]
+
+# Remove duplicates while preserving order
+tickers = list(dict.fromkeys(tickers))
+
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"AI_Stock_Live_Comparison_{date_str}.xlsx"
 
@@ -92,6 +100,7 @@ else:
 
 if tickers_to_fetch:
     hist = yf.download(tickers_to_fetch, period="1y", group_by='ticker', threads=True)
+    time.sleep(2)  # Sleep to avoid hitting API limits
     tickers_obj = yf.Tickers(" ".join(tickers_to_fetch))
     for t in tickers_to_fetch:
         tries = 0
