@@ -83,8 +83,8 @@ class StockLiveComparison:
         yoy = None
         prev_close = None
         if ticker_hist is not None and not ticker_hist.empty:
-            yoy = (ticker_hist['Close'][-1] - ticker_hist['Close'][0]) / ticker_hist['Close'][0] * 100
-            prev_close = ticker_hist['Close'][-2]
+            yoy = (ticker_hist['Close'].iloc[-1] - ticker_hist['Close'].iloc[0]) / ticker_hist['Close'].iloc[0] * 100
+            prev_close = ticker_hist['Close'].iloc[-2]
 
         current_price = info.get("regularMarketPrice") or info.get("currentPrice")
         day_change = None
@@ -173,11 +173,24 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def add_ratio_column(self, df):
-        put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
-        call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
+        """Add Put/Call Yield Ratio column to DataFrame, catching errors and printing them."""
         ratio_col_name = "Put/Call Yield Ratio"
-        df.insert(call_col, ratio_col_name, "")
-        return df, put_col, call_col
+        try:
+            put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
+            call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
+            # Only insert if not already present
+            if ratio_col_name not in df.columns:
+                df.insert(call_col, ratio_col_name, "")
+            # Add formulas or values as needed (example: fill with NaN for now)
+            df[ratio_col_name] = df.apply(
+                lambda row: row["Annual Yield Put Prem"] / row["Annual Yield Call Prem"]
+                if row["Annual Yield Call Prem"] not in [0, None, ""] and row["Annual Yield Put Prem"] not in [None, ""] else None,
+                axis=1
+            )
+            return df, put_col, call_col
+        except Exception as e:
+            print(f"Error in add_ratio_column: {e}")
+            return df, None, None
 
     # ------------------------------------------------------------------
     def save_to_excel(self, df, put_col, call_col):
