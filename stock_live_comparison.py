@@ -236,6 +236,9 @@ class StockLiveComparison:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(wrap_text=True)
         ws.row_dimensions[1].height = None
+
+        ws.freeze_panes = "A2"  # Freeze the first row
+
         wb.save(self.filename)
 
     # ------------------------------------------------------------------
