@@ -193,7 +193,37 @@ class StockLiveComparison:
             return df, None, None
 
     # ------------------------------------------------------------------
+    def upsert_ratio_column(self, df, put_col_name="Annual Yield Put Prem", call_col_name="Annual Yield Call Prem", ratio_col_name="Put/Call Yield Ratio"):
+        """Upsert the Put/Call Yield Ratio column, print errors, and continue."""
+        try:
+            if ratio_col_name in df.columns:
+                print(f'Column "{ratio_col_name}" already exists. Updating values.')
+            else:
+                # Insert after call_col_name
+                if call_col_name in df.columns:
+                    call_col = df.columns.get_loc(call_col_name) + 1
+                    df.insert(call_col, ratio_col_name, None)
+                    print(f'Column "{ratio_col_name}" inserted.')
+                else:
+                    df[ratio_col_name] = None
+                    print(f'Column "{ratio_col_name}" added at end (call column not found).')
+
+            # Update values
+            df[ratio_col_name] = df.apply(
+                lambda row: (
+                    row[put_col_name] / row[call_col_name]
+                    if row[call_col_name] not in [0, None, ""] and row[put_col_name] not in [None, ""] else None
+                ),
+                axis=1
+            )
+            return df
+        except Exception as e:
+            print(f"Error in upsert_ratio_column: {e}")
+            return df
+
+    # ------------------------------------------------------------------
     def save_to_excel(self, df, put_col, call_col):
+        df = self.sort_dataframe_for_excel(df)
         df.to_excel(self.filename, index=False)
         wb = openpyxl.load_workbook(self.filename)
         ws = wb.active
@@ -207,6 +237,19 @@ class StockLiveComparison:
             cell.alignment = Alignment(wrap_text=True)
         ws.row_dimensions[1].height = None
         wb.save(self.filename)
+
+    # ------------------------------------------------------------------
+    def sort_dataframe_for_excel(self, df):
+        """Sort the DataFrame by Last Update (descending) and Ticker (ascending)."""
+        try:
+            if "Last Update" in df.columns and "Ticker" in df.columns:
+                df = df.sort_values(by=["Last Update", "Ticker"], ascending=[False, True])
+            else:
+                print("Warning: 'Last Update' or 'Ticker' column missing. Skipping sort.")
+            return df
+        except Exception as e:
+            print(f"Error in sort_dataframe_for_excel: {e}")
+            return df
 
     # ------------------------------------------------------------------
     def run(self):

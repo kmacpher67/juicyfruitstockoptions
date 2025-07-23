@@ -4,6 +4,17 @@ Write a program to find call option chains for a given equity stock for example 
 
 Chat Ghepetto and it's CODEX is helping me with this repo, let's see how much shitty code i have to debug after this AI "help"
 
+### option analyzer v4 
+
+```
+**Usage Example:**
+```bash
+python option_analyzer_v4.py ORCL MSFT AAPL --min_volume 50 --max_expirations 3
+```
+This allows you to pass one or more tickers via the command line.import argparse
+
+
+
 ### ask to fix annualized return 
 
 how did you calculate the annualized return? seems a bit high? for example i see ticker expirationDate strike lastPrice timeValue annualizedReturn percentOTM volume openInterest daysToExpiration 11 ORCL 2025-02-28 170.0 2.52 2.52 5214.29 1.31 376.0 566.0 7 having a return of 77% lastprice = 2.52 / 170 *365/7 *100 = 77.294%

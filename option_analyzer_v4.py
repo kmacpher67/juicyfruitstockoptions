@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 import time
+import argparse
 
 def get_current_price(ticker):
     """Get current stock price with retries"""
@@ -117,5 +118,23 @@ def analyze_option_chain(ticker_symbol="ORCL", min_volume=100, max_expirations=2
         print(f"Error in analysis: {str(e)}")
         return None
 
+def main():
+    parser = argparse.ArgumentParser(description="Analyze option chains for given stock tickers.")
+    parser.add_argument("tickers", nargs="+", help="Stock ticker symbols (e.g. ORCL MSFT AAPL)")
+    parser.add_argument("--min_volume", type=int, default=100, help="Minimum option volume")
+    parser.add_argument("--max_expirations", type=int, default=2, help="Number of expiration dates to analyze")
+    parser.add_argument("--min_annual_tv_pct", type=float, default=9.9, help="Minimum annualized time value percentage")
+    parser.add_argument("--max_otm_pct", type=float, default=5.0, help="Maximum percentage out-of-the-money to consider")
+    args = parser.parse_args()
+
+    for ticker in args.tickers:
+        analyze_option_chain(
+            ticker_symbol=ticker,
+            min_volume=args.min_volume,
+            max_expirations=args.max_expirations,
+            min_annual_tv_pct=args.min_annual_tv_pct,
+            max_otm_pct=args.max_otm_pct
+        )
+
 if __name__ == "__main__":
-    analyze_option_chain("ORCL", min_volume=50, max_expirations=2)
+    main()

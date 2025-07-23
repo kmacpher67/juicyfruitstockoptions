@@ -36,3 +36,18 @@ def test_get_otm_call_and_put_yields(monkeypatch):
     assert call_yield == 1.0
     assert strike == 106
     assert put_price == 2.0
+
+def test_sort_dataframe_for_excel():
+    import pandas as pd
+    from stock_live_comparison import StockLiveComparison
+    comp = StockLiveComparison(["AAPL", "MSFT"])
+    df = pd.DataFrame({
+        "Ticker": ["MSFT", "AAPL", "MSFT"],
+        "Last Update": ["2024-07-22 10:00:00", "2024-07-23 09:00:00", "2024-07-23 11:00:00"],
+        "Other": [1, 2, 3]
+    })
+    sorted_df = comp.sort_dataframe_for_excel(df)
+    # Check that the first row is the newest update
+    assert sorted_df.iloc[0]["Last Update"] == "2024-07-23 11:00:00"
+    # Check that within same Last Update, Ticker is sorted ascending
+    assert list(sorted_df["Ticker"]) == ["MSFT", "AAPL", "MSFT"]
