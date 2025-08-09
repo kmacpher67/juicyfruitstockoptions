@@ -1,7 +1,7 @@
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pandas as pd
 import yfinance as yf
@@ -10,11 +10,14 @@ import yfinance as yf
 class BaseOptionAnalyzer(ABC):
     """Shared utilities for option analysis."""
 
+    def __init__(self, yf_module=yf):
+        self.yf = yf_module
+
     def get_current_price(self, ticker: str, max_retries: int = 3) -> float:
         """Fetch the current stock price with retries."""
         for attempt in range(max_retries):
             try:
-                stock = yf.Ticker(ticker)
+                stock = self.yf.Ticker(ticker)
                 price = stock.history(period="1d")["Close"].iloc[-1]
                 if price:
                     return price
@@ -42,35 +45,22 @@ class OptionChainAnalyzer(BaseOptionAnalyzer):
         min_annual_tv_pct: float = 9.9,
         max_otm_pct: float = 5.0,
     ) -> Optional[pd.DataFrame]:
-        print(f"\nFetching data for {ticker_symbol}...")
-        print(f"Filtering for options with:")
-        print(f"- Minimum annualized time value: {min_annual_tv_pct}%")
-        print(f"- Maximum OTM percentage: {max_otm_pct}%")
-        print(f"- Minimum volume: {min_volume}")
-
         current_price = self.get_current_price(ticker_symbol)
-        print(f"\nCurrent Price: ${current_price:.2f}")
-
         max_strike = current_price * (1 + max_otm_pct / 100)
         min_strike = current_price * 0.99
-        print(f"Analyzing strikes between ${min_strike:.2f} and ${max_strike:.2f}")
 
-        stock = yf.Ticker(ticker_symbol)
+        stock = self.yf.Ticker(ticker_symbol)
         all_expirations = stock.options
         if not all_expirations:
-            print("No options data available")
             return None
         expirations = all_expirations[:max_expirations]
-        print(f"Analyzing {len(expirations)} expiration dates")
 
         results = []
         for expiry in expirations:
-            print(f"\nProcessing {expiry}...")
             calls = stock.option_chain(expiry).calls
             ntm_calls = calls[(calls["strike"] >= min_strike) & (calls["strike"] <= max_strike)]
             ntm_calls = ntm_calls[ntm_calls["volume"] >= min_volume]
             if ntm_calls.empty:
-                print(f"No suitable options found for {expiry}")
                 continue
             for _, option in ntm_calls.iterrows():
                 days_to_expiry = (
@@ -104,20 +94,37 @@ class OptionChainAnalyzer(BaseOptionAnalyzer):
                         }
                     )
         if not results:
-            print("\nNo options found matching the criteria")
             return None
         df_results = pd.DataFrame(results).sort_values("Ann.TV%", ascending=False)
-        print("\nBest Time Value Opportunities (sorted by annualized time value):")
-        print("=========================================================")
-        pd.set_option("display.float_format", lambda x: "%.2f" % x)
-        pd.set_option("display.max_columns", None)
-        pd.set_option("display.width", None)
-        print(df_results.to_string(index=False))
         return df_results
 
 
 class TimeValueAnalyzer(BaseOptionAnalyzer):
     """Analyze multiple tickers for out-of-the-money call time value."""
+
+    @staticmethod
+    def calculate_time_value(row: pd.Series) -> float:
+        """Return the time value for a single option row."""
+        intrinsic = max(0, row["stockPrice"] - row["strike"])
+        return row["lastPrice"] - intrinsic
+
+    def get_option_chain(self, ticker: str) -> Tuple[pd.DataFrame, float, str]:
+        stock = self.yf.Ticker(ticker)
+        current_price = stock.info.get("regularMarketPrice")
+        dates = stock.options[:3]
+        all_calls: List[pd.DataFrame] = []
+        for date in dates:
+            try:
+                calls = stock.option_chain(date).calls
+                calls["expirationDate"] = date
+                calls["stockPrice"] = current_price
+                all_calls.append(calls)
+                time.sleep(1)
+            except Exception as e:
+                print(f"Error getting option chain for {ticker} {date}: {e}")
+        if not all_calls:
+            return pd.DataFrame(), current_price, ticker
+        return pd.concat(all_calls), current_price, ticker
 
     def analyze(
         self, tickers: Optional[List[str]] = None, min_time_value: float = 0.10
@@ -125,39 +132,21 @@ class TimeValueAnalyzer(BaseOptionAnalyzer):
         tickers = tickers or ["ORCL", "AMZN", "XOM"]
         all_opportunities = []
         for ticker in tickers:
-            print(f"\nAnalyzing {ticker}...")
-            stock = yf.Ticker(ticker)
-            current_price = stock.info.get("regularMarketPrice")
-            dates = stock.options[:3]
-            all_calls = []
-            for date in dates:
-                try:
-                    calls = stock.option_chain(date).calls
-                    calls["expirationDate"] = date
-                    calls["stockPrice"] = current_price
-                    all_calls.append(calls)
-                    time.sleep(1)
-                except Exception as e:
-                    print(f"Error getting option chain for {ticker} {date}: {e}")
-            if not all_calls:
+            option_chain, current_price, ticker_name = self.get_option_chain(ticker)
+            if option_chain.empty:
                 continue
-            chain = pd.concat(all_calls)
-            otm_calls = chain[chain["strike"] > current_price].copy()
+            otm_calls = option_chain[option_chain["strike"] > current_price].copy()
             if otm_calls.empty:
                 continue
-            otm_calls["timeValue"] = otm_calls.apply(
-                lambda r: r["lastPrice"] - max(0, r["stockPrice"] - r["strike"]),
-                axis=1,
-            )
+            otm_calls["timeValue"] = otm_calls.apply(self.calculate_time_value, axis=1)
             good = otm_calls[otm_calls["timeValue"] >= min_time_value].copy()
             if not good.empty:
-                good["ticker"] = ticker
+                good["ticker"] = ticker_name
                 good["percentOTM"] = (
                     (good["strike"] - current_price) / current_price * 100
                 )
                 all_opportunities.append(good)
         if not all_opportunities:
-            print("No opportunities found matching criteria")
             return None
         all_df = pd.concat(all_opportunities)
         result = all_df[

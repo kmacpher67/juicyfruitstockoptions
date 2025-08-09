@@ -30,162 +30,192 @@ def get_latest_portfolio_file(directory):
     latest_file = max(files_with_dates, key=lambda x: x[1])[0]
     return os.path.join(directory, latest_file)
 
-def evaluate_portfolio(file_path):
-    """Evaluate the portfolio and provide recommendations."""
-    # Read the portfolio CSV file, skipping the first row and the last 5 rows
-    portfolio = pd.read_csv(file_path, skiprows=1, skipfooter=5, engine='python')
+def read_portfolio(file_path):
+    """Load portfolio CSV, skipping header/footer rows."""
+    return pd.read_csv(file_path, skiprows=1, skipfooter=5, engine="python")
 
-    print(f"portfolio: {portfolio}")
 
-    # Filter for stock and option positions using the 'Security Type' column
+def filter_positions(portfolio):
+    """Split portfolio into stock and option positions."""
     stock_positions = portfolio[portfolio["Security Type"] == "STK"]
     option_positions = portfolio[portfolio["Security Type"] == "OPT"]
+    return stock_positions, option_positions
 
-    recommendations = []
 
-    print("stock=" + str(stock_positions))
-    print("option=" + str(option_positions))
+def find_related_options(option_positions, ticker):
+    """Return options rows related to ticker."""
+    return option_positions[
+        option_positions["Financial Instrument Description"].str.contains(ticker, na=False)
+    ]
 
-    # Get today's date and time
-    today_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Evaluate each stock position
-    for _, stock in stock_positions.iterrows():
-        ticker = stock["Financial Instrument Description"]
-        shares = stock["Position"]
-        current_price = get_current_price(ticker)
-        if not current_price:
-            print(f"Skipping {ticker} due to missing price data.")
-            continue
+def calculate_coverage(shares, related_options):
+    """Calculate shares covered by options and remaining free shares."""
+    total_calls_covered = related_options["Position"].abs().sum() * 100
+    free_shares = shares - total_calls_covered
+    return total_calls_covered, free_shares
 
-        # Find related call options
-        related_options = option_positions[option_positions["Financial Instrument Description"].str.contains(ticker, na=False)]
-        print(f"Columns in related_options: {related_options.columns}")
-        print(f"related_options DataFrame:\n{related_options}")
-        total_calls_covered = related_options["Position"].abs().sum() * 100  # Each option contract covers 100 shares
 
-        # Calculate free shares available for covered calls
-        free_shares = shares - total_calls_covered
+def analyze_existing_options(ticker, related_options, today_datetime):
+    """Analyze if existing options should be rolled."""
+    recs = []
+    for _, option in related_options.iterrows():
+        better_options = analyze_option_chain(
+            ticker_symbol=ticker,
+            min_volume=10,
+            max_expirations=6,
+            min_annual_tv_pct=10.0,
+            max_otm_pct=10.0,
+            min_days=10,
+            max_results=3,
+        )
 
-        # If there are fewer than 100 free shares, compare existing options to better alternatives
-        if free_shares < 100:
-            print(f"\n{ticker}: Not enough free shares for a covered call (Free Shares: {free_shares}). Comparing existing options to alternatives...")
-            for _, option in related_options.iterrows():
-                # Debug: Check the columns in related_options
-                print(f"Columns in related_options: {related_options.columns}")
-                print(f"Option row:\n{option}")
+        current_expiration = option.get("Expiration", "N/A")
+        current_strike = option.get("Strike", "N/A")
+        current_premium = option.get("Market Price", "N/A")
+        current_volume = option.get("Volume", "N/A")
+        current_annualized_return = option.get("Ann.TV%", "N/A")
+        current_distance_otm = option.get("Dist.%", "N/A")
 
-                # Analyze better alternatives for the current option
-                better_options = analyze_option_chain(
-                    ticker_symbol=ticker,
-                    min_volume=10,
-                    max_expirations=6,
-                    min_annual_tv_pct=10.0,
-                    max_otm_pct=10.0,
-                    min_days=10,
-                    max_results=3
-                )
-
-                # Extract current option details
-                current_expiration = option.get("Expiration", "N/A")
-                current_strike = option.get("Strike", "N/A")
-                current_premium = option.get("Market Price", "N/A")
-                current_volume = option.get("Volume", "N/A")
-                current_annualized_return = option.get("Ann.TV%", "N/A")
-                current_distance_otm = option.get("Dist.%", "N/A")
-
-                # Check if better options are available
-                if better_options is not None and not better_options.empty:
-                    for better_option in better_options.to_dict(orient="records"):
-                        recommendations.append({
-                            "Today's Date Time": today_datetime,
-                            "Ticker": ticker,
-                            "Current Option Description": option["Financial Instrument Description"],
-                            "Current Expiration": current_expiration,
-                            "Current Strike": current_strike,
-                            "Current Premium": current_premium,
-                            "Current Volume": current_volume,
-                            "Current Annualized Return (%)": current_annualized_return,
-                            "Current Distance OTM (%)": current_distance_otm,
-                            "Recommendation": "Consider Rolling to Better Option",
-                            "New Expiration": better_option["Expiration"],
-                            "New Strike": better_option["Strike"],
-                            "New Premium": better_option["Last"],
-                            "New Volume": better_option["Volume"],
-                            "New Annualized Return (%)": better_option["Ann.TV%"],
-                            "New Distance OTM (%)": better_option["Dist.%"]
-                        })
-            continue
-
-        # Determine recommendation
-        if total_calls_covered < shares:
-            # Not fully covered, recommend selling calls
-            print(f"\n{ticker}: Not fully covered. Recommending selling calls.")
-            best_calls = analyze_option_chain(
-                ticker_symbol=ticker,
-                min_volume=10,
-                max_expirations=6,
-                min_annual_tv_pct=10.0,
-                max_otm_pct=10.0,
-                min_days=10,
-                max_results=3
-            )
-
-            # Check if results are returned
-            if best_calls is not None and not best_calls.empty:
-                for call in best_calls.to_dict(orient="records"):
-                    recommendations.append({
+        if better_options is not None and not better_options.empty:
+            for better_option in better_options.to_dict(orient="records"):
+                recs.append(
+                    {
                         "Today's Date Time": today_datetime,
                         "Ticker": ticker,
-                        "Recommendation": "Sell Covered Call",
-                        "Expiration": call["Expiration"],
-                        "Strike": call["Strike"],
-                        "Premium": call["Last"],
-                        "Volume": call["Volume"],
-                        "Annualized Return (%)": call["Ann.TV%"],
-                        "Distance OTM (%)": call["Dist.%"]
-                    })
-            else:
-                print(f"No suitable options found for {ticker}.")
-        elif total_calls_covered > shares:
-            # Over-covered, recommend buying back calls
-            print(f"\n{ticker}: Over-covered. Recommending buying back calls.")
-            for _, option in related_options.iterrows():
-                recommendations.append({
-                    "Today's Date Time": today_datetime,
-                    "Ticker": ticker,
-                    "Current Option Description": option["Financial Instrument Description"],
-                    "Recommendation": "Buy Back Call",
-                    "Expiration": option["Expiration"],
-                    "Strike": option["Strike"],
-                    "Premium": option["Market Price"],
-                    "Volume": option["Volume"],
-                    "Annualized Return (%)": None,
-                    "Distance OTM (%)": None
-                })
-        else:
-            # Fully covered, recommend rolling or holding
-            print(f"\n{ticker}: Fully covered. Recommending rolling or holding.")
-            for _, option in related_options.iterrows():
-                recommendations.append({
-                    "Today's Date Time": today_datetime,
-                    "Ticker": ticker,
-                    "Current Option Description": option["Financial Instrument Description"],
-                    "Recommendation": "Roll or Hold",
-                    "Expiration": option["Expiration"],
-                    "Strike": option["Strike"],
-                    "Premium": option["Market Price"],
-                    "Volume": option["Volume"],
-                    "Annualized Return (%)": None,
-                    "Distance OTM (%)": None
-                })
+                        "Current Option Description": option[
+                            "Financial Instrument Description"
+                        ],
+                        "Current Expiration": current_expiration,
+                        "Current Strike": current_strike,
+                        "Current Premium": current_premium,
+                        "Current Volume": current_volume,
+                        "Current Annualized Return (%)": current_annualized_return,
+                        "Current Distance OTM (%)": current_distance_otm,
+                        "Recommendation": "Consider Rolling to Better Option",
+                        "New Expiration": better_option["Expiration"],
+                        "New Strike": better_option["Strike"],
+                        "New Premium": better_option["Last"],
+                        "New Volume": better_option["Volume"],
+                        "New Annualized Return (%)": better_option["Ann.TV%"],
+                        "New Distance OTM (%)": better_option["Dist.%"],
+                    }
+                )
+    return recs
 
-    # Write recommendations to a CSV file
-    portfolio_date = file_path.split(".")[1]  # Extract the date from the filename
+
+def recommend_selling_calls(ticker, today_datetime):
+    """Recommend selling covered calls for a ticker."""
+    recs = []
+    best_calls = analyze_option_chain(
+        ticker_symbol=ticker,
+        min_volume=10,
+        max_expirations=6,
+        min_annual_tv_pct=10.0,
+        max_otm_pct=10.0,
+        min_days=10,
+        max_results=3,
+    )
+    if best_calls is not None and not best_calls.empty:
+        for call in best_calls.to_dict(orient="records"):
+            recs.append(
+                {
+                    "Today's Date Time": today_datetime,
+                    "Ticker": ticker,
+                    "Recommendation": "Sell Covered Call",
+                    "Expiration": call["Expiration"],
+                    "Strike": call["Strike"],
+                    "Premium": call["Last"],
+                    "Volume": call["Volume"],
+                    "Annualized Return (%)": call["Ann.TV%"],
+                    "Distance OTM (%)": call["Dist.%"],
+                }
+            )
+    else:
+        print(f"No suitable options found for {ticker}.")
+    return recs
+
+
+def recommend_buy_back_calls(ticker, related_options, today_datetime):
+    """Advise buying back options when too many calls are outstanding."""
+    recs = []
+    for _, option in related_options.iterrows():
+        recs.append(
+            {
+                "Today's Date Time": today_datetime,
+                "Ticker": ticker,
+                "Current Option Description": option[
+                    "Financial Instrument Description"
+                ],
+                "Recommendation": "Buy Back Call",
+                "Expiration": option["Expiration"],
+                "Strike": option["Strike"],
+                "Premium": option["Market Price"],
+                "Volume": option["Volume"],
+                "Annualized Return (%)": None,
+                "Distance OTM (%)": None,
+            }
+        )
+    return recs
+
+
+def recommend_roll_or_hold(ticker, related_options, today_datetime):
+    """Suggest rolling existing options or holding current coverage."""
+    recs = []
+    for _, option in related_options.iterrows():
+        recs.append(
+            {
+                "Today's Date Time": today_datetime,
+                "Ticker": ticker,
+                "Current Option Description": option[
+                    "Financial Instrument Description"
+                ],
+                "Recommendation": "Roll or Hold",
+                "Expiration": option["Expiration"],
+                "Strike": option["Strike"],
+                "Premium": option["Market Price"],
+                "Volume": option["Volume"],
+                "Annualized Return (%)": None,
+                "Distance OTM (%)": None,
+            }
+        )
+    return recs
+
+
+def evaluate_stock_position(stock, option_positions, today_datetime):
+    """Evaluate a single stock row and return recommendations."""
+    ticker = stock["Financial Instrument Description"]
+    shares = stock["Position"]
+    current_price = get_current_price(ticker)
+    if not current_price:
+        print(f"Skipping {ticker} due to missing price data.")
+        return []
+
+    related_options = find_related_options(option_positions, ticker)
+    total_calls_covered, free_shares = calculate_coverage(shares, related_options)
+
+    if free_shares < 100:
+        print(
+            f"\n{ticker}: Not enough free shares for a covered call (Free Shares: {free_shares}). Comparing existing options to alternatives..."
+        )
+        return analyze_existing_options(ticker, related_options, today_datetime)
+
+    if total_calls_covered < shares:
+        print(f"\n{ticker}: Not fully covered. Recommending selling calls.")
+        return recommend_selling_calls(ticker, today_datetime)
+    elif total_calls_covered > shares:
+        print(f"\n{ticker}: Over-covered. Recommending buying back calls.")
+        return recommend_buy_back_calls(ticker, related_options, today_datetime)
+    else:
+        print(f"\n{ticker}: Fully covered. Recommending rolling or holding.")
+        return recommend_roll_or_hold(ticker, related_options, today_datetime)
+
+
+def write_recommendations(recommendations, file_path):
+    """Write recommendations to CSV based on portfolio file name."""
+    portfolio_date = file_path.split(".")[1]
     output_filename = f"recommendations.{portfolio_date}.csv"
     output_path = os.path.join(os.getcwd(), output_filename)
-
-    # Convert recommendations to a DataFrame and write to CSV
     if recommendations:
         df_recommendations = pd.DataFrame(recommendations)
         df_recommendations.to_csv(output_path, index=False)
@@ -193,6 +223,20 @@ def evaluate_portfolio(file_path):
     else:
         print("\nNo recommendations to write.")
 
+
+def evaluate_portfolio(file_path):
+    """Evaluate the portfolio and provide recommendations."""
+    portfolio = read_portfolio(file_path)
+    stock_positions, option_positions = filter_positions(portfolio)
+    today_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    recommendations = []
+
+    for _, stock in stock_positions.iterrows():
+        recommendations.extend(
+            evaluate_stock_position(stock, option_positions, today_datetime)
+        )
+
+    write_recommendations(recommendations, file_path)
     return recommendations
 
 if __name__ == "__main__":

@@ -1,3 +1,8 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 import pandas as pd
 from stock_live_comparison import StockLiveComparison
 
