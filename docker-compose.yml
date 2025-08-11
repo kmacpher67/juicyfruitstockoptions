@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: stocklive_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo_data:/data/db  # Local folder for MongoDB data persistence
+    environment:
+      MONGO_INITDB_DATABASE: stocklive
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocklive_app
+    volumes:
+      - .:/app  # Mount your project files into the container
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/stocklive
+    command: ["sleep", "infinity"]  # Keeps the container running for interactive use
