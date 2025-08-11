@@ -102,3 +102,22 @@ def test_upsert_ratio_column_idempotent_and_error_handling(capfd):
     df6 = comp.upsert_ratio_column(df5)
     out, _ = capfd.readouterr()
     assert "Error in upsert_ratio_column:" in out
+
+def test_upsert_to_mongo_idempotent(monkeypatch):
+    import pandas as pd
+    from stock_live_comparison import StockLiveComparison
+    from Ai_Stock_Database import AiStockDatabase
+
+    # Use a test DB
+    monkeypatch.setenv("MONGO_URI", "mongodb://localhost:27017/test_stocklive")
+    comp = StockLiveComparison(["AAPL"])
+    db = AiStockDatabase(db_name="test_stocklive", collection_name="test_stock_data")
+    db.collection.delete_many({})  # Clean up before test
+
+    df = pd.DataFrame([
+        {"Ticker": "AAPL", "Last Update": "2024-07-23 10:00:00", "Price": 100},
+        {"Ticker": "AAPL", "Last Update": "2024-07-23 10:00:00", "Price": 100}
+    ])
+    comp.upsert_to_mongo(df)
+    # Should only be one record for AAPL at that Last Update
+    assert db.collection.count_documents({"Ticker": "AAPL", "Last Update": "2024-07-23 10:00:00"}) == 1
