@@ -227,6 +227,8 @@ class StockLiveComparison:
         df.to_excel(self.filename, index=False)
         wb = openpyxl.load_workbook(self.filename)
         ws = wb.active
+        ws.row_dimensions[1].height = None
+
         for i in range(2, ws.max_row + 1):
             put_letter = openpyxl.utils.get_column_letter(put_col)
             call_letter = openpyxl.utils.get_column_letter(call_col)
@@ -235,7 +237,6 @@ class StockLiveComparison:
         for cell in ws[1]:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(wrap_text=True)
-        ws.row_dimensions[1].height = None
 
         ws.freeze_panes = "A2"  # Freeze the first row
 
@@ -285,7 +286,7 @@ class StockLiveComparison:
 if __name__ == "__main__":
     tickers = [
         "AMD", "MSFT", "NVDA", "META", "AMZN", "GOOG", "AAPL", "TSLA", "IBM", "ORCL",
-        "TEM", "V", "GEV", "CPRX", "CRWD", "CVS", "FMNB", "GD", "JPM", "KMB", "MRVL", "NEE", "OKE", "SLB", "STLD", "TMUS",
+        "TEM", "V", "GEV", "CPRX", "CRWD", "CVS", "FMNB", "GD", "JPM", "KMB", "MRVL", "NEE", "OKE", "SLB", "STLD", "TMUS", "V"
     ]
     comp = StockLiveComparison(tickers)
     comp.run()
