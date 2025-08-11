@@ -6,6 +6,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment
 import glob
 import os
+from Ai_Stock_Database import AiStockDatabase
 
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
@@ -256,6 +257,25 @@ class StockLiveComparison:
             return df
 
     # ------------------------------------------------------------------
+    def upsert_to_mongo(self, df):
+        """
+        Upsert each row of the DataFrame to MongoDB using Ticker and Last Update as unique keys.
+        Prints errors but does not crash the program.
+        """
+        try:
+            db = AiStockDatabase()
+            records = df.to_dict(orient="records")
+            for record in records:
+                try:
+                    # Use Ticker and Last Update as unique key for idempotency
+                    db.upsert_stock_record(record, key_fields=("Ticker", "Last Update"))
+                except Exception as e:
+                    print(f"Error upserting record for {record.get('Ticker')}: {e}")
+            print(f"Upserted {len(records)} records to MongoDB.")
+        except Exception as e:
+            print(f"Error connecting to MongoDB: {e}")
+
+    # ------------------------------------------------------------------
     def run(self):
         latest_file = self.latest_file
         if latest_file:
@@ -281,6 +301,8 @@ class StockLiveComparison:
             df = pd.DataFrame(self.records)
             df, put_col, call_col = self.add_ratio_column(df)
         self.save_to_excel(df, put_col, call_col)
+        self.upsert_to_mongo(df)
+        
         print(f"Spreadsheet generated: {self.filename}")
 
 if __name__ == "__main__":
