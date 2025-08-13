@@ -3,6 +3,8 @@
 echo "docker build run script"
 # run it danno, @TO-DO add prod vs dev stsart modes. 
 
+pip install -r requirements.txt
+
 now="$(date)"
 echo "docker build run script for smstext maps $now"
 # npm run start
@@ -24,32 +26,31 @@ docker container ls
 
 sleep 2
 
-export b=$(basename "$PWD")"_smstest_1"
+export b=$(basename "$PWD")"stocklive_app"
 echo $b
 export containerid=$(docker inspect --format="{{.Id}}" $b)
 echo $containerid
+# Check to see if the app is already running if so, try restarting it
 if [ -z "$containerid" ]; 
     then 
     echo "container $vm_container doesn't exist starting ....:   docker-compose up --build -d  ";
     docker-compose up --build -d 
 fi
 
-echo "starting sed commands ... "
-#sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/src/*.js 
-#sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/src/App.vue 
-#sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/dist/js/* 
 
-sleep 1
-echo "cd usermap npm run build vuejs app"
-cd usermap
-npm run build:dev
-cd ..
-sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/dist/js/*
-sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/dist/*
-sleep 1
+
+# sleep 1
+# start or build a js app (future TODO)
+# echo "cd usermap npm run build vuejs app"
+# cd usermap
+# npm run build:dev
+# cd ..
+# sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/dist/js/*
+# sed -i "s/GOOGLE_MAPS_API_KEY_REPLACE/$GOOGLE_MAPS_API_KEY/g" usermap/dist/*
+# sleep 1
 
 echo "starting docker container restart"
-export b=$(basename "$PWD")"_smstest_1"
+export b=$(basename "$PWD")"stocklive_app"
 echo $b
 export containerid=$(docker inspect --format="{{.Id}}" $b)
 echo $containerid
