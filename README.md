@@ -10,6 +10,41 @@ Install dependencies with:
 pip install -r requirements.txt
 ```
 
+## Directory Layout
+
+```
+app/
+├── zen_garden.py           # FastAPI entrypoint with scheduler
+├── api/
+│   └── routes.py           # REST endpoints to trigger jobs
+├── auth/
+│   └── users.py            # fastapi-users configuration
+├── scheduler/
+│   └── jobs.py             # APScheduler jobs
+├── services/
+│   ├── portfolio_fixer.py
+│   └── stock_live_comparison.py
+└── utils/
+    ├── excel_exporter.py
+    └── mongo_client.py
+```
+
+Run the API and scheduler with:
+
+```bash
+python app/zen_garden.py
+```
+
+### Docker
+
+Build and launch the API together with MongoDB using Docker:
+
+```bash
+./docker-run-stock-app.sh
+```
+
+The service will be available at http://localhost:8000.
+
 ## Modules
 
 ### `option_analyzer_v5.py`
@@ -59,4 +94,5 @@ Run the unit tests with:
 ```bash
 pytest -q
 ```
+
 
