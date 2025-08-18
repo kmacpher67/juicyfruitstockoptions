@@ -1,11 +1,10 @@
+from pathlib import Path
 import yfinance as yf
 import pandas as pd
 import time
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment
-import glob
-import os
 from Ai_Stock_Database import AiStockDatabase
 
 class StockLiveComparison:
@@ -15,20 +14,20 @@ class StockLiveComparison:
         self.tickers = list(dict.fromkeys(tickers))
         self.max_age_hours = max_age_hours
         self.records = []
+        self.output_dir = Path(".")
         self.now = datetime.now()
-        date_str = self.now.strftime("%Y%m%d_%H%M%S")
-        self.filename = f"AI_Stock_Live_Comparison_{date_str}.xlsx"
-        self.latest_file, _ = self.get_latest_spreadsheet()
+        self.filename = None
+        self.latest_file = None
 
     # ------------------------------------------------------------------
     @staticmethod
-    def get_latest_spreadsheet(base_name="AI_Stock_Live_Comparison_"):
-        files = glob.glob(f"{base_name}*.xlsx")
+    def get_latest_spreadsheet(directory: Path, base_name="AI_Stock_Live_Comparison_"):
+        files = list(directory.glob(f"{base_name}*.xlsx"))
         if not files:
             return None, None
-        files.sort(key=os.path.getmtime, reverse=True)
+        files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
         latest_file = files[0]
-        file_time = datetime.fromtimestamp(os.path.getmtime(latest_file))
+        file_time = datetime.fromtimestamp(latest_file.stat().st_mtime)
         return latest_file, file_time
 
     # ------------------------------------------------------------------
@@ -140,9 +139,24 @@ class StockLiveComparison:
     def fetch_data(self, tickers_to_fetch):
         if not tickers_to_fetch:
             return []
-        hist = yf.download(tickers_to_fetch, period="1y", group_by='ticker', threads=True)
+        try:
+            hist = yf.download(
+                tickers_to_fetch, period="1y", group_by="ticker", threads=True
+            )
+        except Exception:
+            hist = {}
         time.sleep(2)
-        tickers_obj = yf.Tickers(" ".join(tickers_to_fetch))
+        try:
+            tickers_obj = yf.Tickers(" ".join(tickers_to_fetch))
+        except Exception as e:
+            return [
+                {
+                    "Ticker": t,
+                    "Error": str(e),
+                    "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for t in tickers_to_fetch
+            ]
         records = []
         for t in tickers_to_fetch:
             tries = 0
@@ -173,20 +187,45 @@ class StockLiveComparison:
         return pd.concat([df_existing, df_new], ignore_index=True)
 
     # ------------------------------------------------------------------
+    def get_missing_or_outdated_tickers(self, df_existing):
+        """Return tickers missing from the DataFrame or older than max_age_hours."""
+        missing = []
+        for t in self.tickers:
+            row = df_existing[df_existing["Ticker"] == t]
+            if row.empty:
+                missing.append(t)
+                continue
+            try:
+                last = pd.to_datetime(row.iloc[0]["Last Update"])
+                if pd.isna(last) or (
+                    (self.now - last).total_seconds() / 3600 >= self.max_age_hours
+                ):
+                    missing.append(t)
+            except Exception:
+                missing.append(t)
+        return missing
+
+    # ------------------------------------------------------------------
     def add_ratio_column(self, df):
         """Add Put/Call Yield Ratio column to DataFrame, catching errors and printing them."""
         ratio_col_name = "Put/Call Yield Ratio"
         try:
+            if "Annual Yield Put Prem" not in df.columns:
+                df["Annual Yield Put Prem"] = None
+            if "Annual Yield Call Prem" not in df.columns:
+                df["Annual Yield Call Prem"] = None
             put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
             call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
-            # Only insert if not already present
             if ratio_col_name not in df.columns:
-                df.insert(call_col, ratio_col_name, "")
-            # Add formulas or values as needed (example: fill with NaN for now)
+                df.insert(call_col, ratio_col_name, None)
             df[ratio_col_name] = df.apply(
-                lambda row: row["Annual Yield Put Prem"] / row["Annual Yield Call Prem"]
-                if row["Annual Yield Call Prem"] not in [0, None, ""] and row["Annual Yield Put Prem"] not in [None, ""] else None,
-                axis=1
+                lambda row: (
+                    row["Annual Yield Put Prem"] / row["Annual Yield Call Prem"]
+                    if row["Annual Yield Call Prem"] not in [0, None, ""]
+                    and row["Annual Yield Put Prem"] not in [None, ""]
+                    else None
+                ),
+                axis=1,
             )
             return df, put_col, call_col
         except Exception as e:
@@ -277,13 +316,16 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def run(self):
+        self.now = datetime.now()
+        self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+        self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
+
         latest_file = self.latest_file
         if latest_file:
             df_existing = pd.read_excel(latest_file)
             if "Last Update" not in df_existing.columns:
                 df_existing["Last Update"] = None
-            ticker_status = {row["Ticker"]: self.is_recent(row) for _, row in df_existing.iterrows() if row["Ticker"] in self.tickers}
-            missing_or_old = [t for t in self.tickers if t not in ticker_status or not ticker_status[t]]
+            missing_or_old = self.get_missing_or_outdated_tickers(df_existing)
             if not missing_or_old:
                 df = df_existing
                 put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
@@ -299,6 +341,10 @@ class StockLiveComparison:
             tickers_to_fetch = self.tickers
             self.records = self.fetch_data(tickers_to_fetch)
             df = pd.DataFrame(self.records)
+            if df.empty:
+                df = pd.DataFrame(
+                    columns=["Ticker", "Annual Yield Put Prem", "Annual Yield Call Prem", "Last Update"]
+                )
             df, put_col, call_col = self.add_ratio_column(df)
         self.save_to_excel(df, put_col, call_col)
         self.upsert_to_mongo(df)
