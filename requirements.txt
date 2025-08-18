@@ -10,3 +10,4 @@ fastapi
 uvicorn
 apscheduler
 fastapi-users[beanie]
+mongomock
