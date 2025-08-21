@@ -8,5 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Launch FastAPI app with Uvicorn
+ENV PYTHONPATH=/app
 CMD ["uvicorn", "app.zen_garden:app", "--host", "0.0.0.0", "--port", "8000"]
 

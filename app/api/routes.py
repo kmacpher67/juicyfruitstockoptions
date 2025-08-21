@@ -6,11 +6,15 @@ from services.stock_live_comparison import run_stock_live_comparison
 router = APIRouter()
 
 
-@router.post("/run/portfolio-fixer")
+@router.get("/run/portfolio-fixer")
 def run_portfolio_fixer_endpoint():
     return run_portfolio_fixer()
 
 
-@router.post("/run/stock-live-comparison")
+@router.get("/run/portfolio-fixer")
+def run_portfolio_fixer_endpoint():
+    return run_portfolio_fixer()
+
+@router.get("/run/stock-live-comparison")
 def run_stock_live_comparison_endpoint():
     return run_stock_live_comparison()

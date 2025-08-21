@@ -3,7 +3,7 @@ from fastapi import FastAPI
 
 from api.routes import router
 from scheduler.jobs import schedule_jobs
-from auth.users import fastapi_users, auth_backend
+from auth.users import fastapi_users, auth_backend, UserRead, UserCreate
 
 app = FastAPI(title="Stock Automation API")
 app.include_router(router)
@@ -11,7 +11,9 @@ app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/auth/jwt", tags=["auth"]
 )
 app.include_router(
-    fastapi_users.get_register_router(), prefix="/auth", tags=["auth"]
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"]
 )
 
 

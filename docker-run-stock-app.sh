@@ -6,7 +6,7 @@ set -euo pipefail
 
 pip install -r requirements.txt
 
-docker-compose up --build -d
+docker compose up --build -d
 
 sleep 5
 # Run docker container ls to show operator that the container is running detached
