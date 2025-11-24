@@ -202,7 +202,7 @@ def main():
     ticker = input("Enter stock ticker symbol (e.g., ORCL): ").upper()
     min_vol = int(input("Enter minimum option volume (default 100): ") or "100")
     portfolio_date = input("Enter portfolio date in YYYYMMDD format (optional): ")
-    min_days = int(input("Enter minimum days to expiration (default 10): ") or "10")
+    min_days = int(input("Enter minimum days to expiration (default 6): ") or "6")
     min_bid = float(input("Enter minimum bid amount (default 0): ") or "0")
     min_annual_tv_pct = float(input("Enter minimum annualized time value percentage (default 10.9): ") or "10.9")    
     max_expirations = int(input("Enter maximum expiration dates to analyze (default 5): ") or "5")
