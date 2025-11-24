@@ -141,7 +141,11 @@ class StockLiveComparison:
             return []
         try:
             hist = yf.download(
-                tickers_to_fetch, period="1y", group_by="ticker", threads=True
+                tickers_to_fetch,
+                period="1y",
+                group_by="ticker",
+                threads=True,
+                auto_adjust=False,  # explicit to avoid FutureWarning (set True if you want adjusted prices)
             )
         except Exception:
             hist = {}
