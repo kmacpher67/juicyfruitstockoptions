@@ -357,11 +357,11 @@ class StockLiveComparison:
 
 if __name__ == "__main__":
     tickers = sorted(list({
-        "^IXIC", "^SPX", "^IXIC", "^DJI",
-        "AAPL", "AMAT", "AMD", "AMZN", "AVGO" "CPRX", "CRWD", "CVS", "CVX", "CRWV"
+        "^IXIC", "^SPX", "^DJI",
+        "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "CPRX", "CRWD", "CVS", "CVX", "CRWV",
         "FMNB", "F", "GD", "GEV", "GOOG", "GOOGL",  
         "IBM", "IONQ", "JPM", "KMB", "LAC", "META", 
-        "MRVL", "MSFT", "MU" "NEE", "NVDA",
+        "MRVL", "MSFT", "MU", "NEE", "NVDA",
         "OKE", "ORCL", "PLTR", "SLB", "STLD", "TEM", 
         "TMUS", "TSLA", "V", "VSAT", "VST", "WMT", "XOM"
     }))
