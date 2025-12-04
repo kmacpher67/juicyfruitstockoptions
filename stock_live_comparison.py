@@ -137,6 +137,7 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def fetch_data(self, tickers_to_fetch):
+        tickers_to_fetch = StockLiveComparison.unique_tickers(tickers_to_fetch)
         if not tickers_to_fetch:
             return []
         try:
@@ -149,7 +150,7 @@ class StockLiveComparison:
             )
         except Exception:
             hist = {}
-        time.sleep(2)
+        time.sleep(1)
         try:
             tickers_obj = yf.Tickers(" ".join(tickers_to_fetch))
         except Exception as e:
@@ -319,11 +320,23 @@ class StockLiveComparison:
             print(f"Error connecting to MongoDB: {e}")
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def unique_tickers(tickers):
+        """Return a list of unique tickers, preserving order."""
+        # variable tickers_to_fetch in your code is a native Python list, not a pandas Series.
+        seen = set()
+        unique = []
+        for t in tickers:
+            if t not in seen:
+                unique.append(t)
+                seen.add(t)
+        return unique
+
     def run(self):
         self.now = datetime.now()
         self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
         self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
-
+        print(f"Latest spreadsheet: {self.latest_file}")
         latest_file = self.latest_file
         if latest_file:
             df_existing = pd.read_excel(latest_file)
@@ -365,5 +378,7 @@ if __name__ == "__main__":
         "OKE", "ORCL", "PLTR", "SLB", "STLD", "TEM", 
         "TMUS", "TSLA", "V", "VSAT", "VST", "WMT", "XOM"
     }))
+    print(f"Processing {tickers} tickers...")
+
     comp = StockLiveComparison(tickers)
     comp.run()

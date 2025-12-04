@@ -121,3 +121,9 @@ def test_upsert_to_mongo_idempotent(monkeypatch):
     comp.upsert_to_mongo(df)
     # Should only be one record for AAPL at that Last Update
     assert db.collection.count_documents({"Ticker": "AAPL", "Last Update": "2024-07-23 10:00:00"}) == 1
+
+def test_unique_tickers():
+    from stock_live_comparison import StockLiveComparison
+    tickers = ["AAPL", "MSFT", "AAPL", "GOOG", "MSFT", "TSLA"]
+    result = StockLiveComparison.unique_tickers(tickers)
+    assert result == ["AAPL", "MSFT", "GOOG", "TSLA"]
