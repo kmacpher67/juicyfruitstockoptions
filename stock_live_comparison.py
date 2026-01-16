@@ -130,7 +130,7 @@ class StockLiveComparison:
             "6-mo Call Yield": call6,
             "1-yr Call Yield": call12,
             "Annual Yield Call Prem": annual_yield_call,
-            "Example 6-mo Strike": strike6,
+            "6-mo Call Strike": strike6,
             "Error": None,
             "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -350,11 +350,15 @@ class StockLiveComparison:
             else:
                 self.records = df_existing.to_dict(orient='records')
                 tickers_to_fetch = missing_or_old
+                print(f"Fetching data for {len(tickers_to_fetch)} tickers: {tickers_to_fetch}")
                 fetched = self.fetch_data(tickers_to_fetch)
+                print(f"fetched: {fetched}")
                 self.records.extend(fetched)
+                print(f"self.records for {len(self.records)} records: {self.records}")
                 df = self.merge_with_existing(df_existing, tickers_to_fetch)
                 df, put_col, call_col = self.add_ratio_column(df)
         else:
+            print("No existing spreadsheet found. Fetching all data.")
             tickers_to_fetch = self.tickers
             self.records = self.fetch_data(tickers_to_fetch)
             df = pd.DataFrame(self.records)
@@ -370,7 +374,7 @@ class StockLiveComparison:
 
 if __name__ == "__main__":
     tickers = sorted(list({
-        "^IXIC", "^SPX", "^DJI",
+        "^IXIC", "^SPX", "SPXS", "^DJI",
         "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "CPRX", "CRWD", "CVS", "CVX", "CRWV",
         "FMNB", "F", "GD", "GEV", "GOOG", "GOOGL",  
         "IBM", "IONQ", "JPM", "KMB", "LAC", "META", 
