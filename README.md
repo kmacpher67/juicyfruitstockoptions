@@ -1,6 +1,7 @@
 # Juicy Fruit Stock Options
 
-Utilities for analysing equity call options and covered call positions.
+
+Utilities for analysing equity call options, covered call positions, and stock price trends versus moving averages.
 
 ## Setup
 
@@ -29,11 +30,34 @@ app/
     └── mongo_client.py
 ```
 
-Run the API and scheduler with:
+
+## Stock Live Comparison Script
+
+This script collects stock metrics, calculates moving averages (30, 60, 120, 200 days), and exports to Excel and MongoDB.
+
+### Usage
 
 ```bash
-python app/zen_garden.py
+python stock_live_comparison.py [--highlight-threshold 0.1]
 ```
+
+- `--highlight-threshold`: Set the percentage (as a decimal) for highlighting moving average cells. Default is 0.05 (5%).
+
+### Features
+- Calculates 30, 60, 120, and 200-day moving averages for each stock using a simple rolling window.
+- Displays the percentage delta ((Current - SMA) / SMA) in `MA_XX_highlight` columns.
+    - **Green**: Current price is at least the threshold below the average.
+    - **Red**: Current price is at least the threshold above the average.
+- Moving averages and highlight status are also stored in MongoDB.
+
+### Example
+
+To use a 10% threshold for highlighting:
+
+```bash
+python stock_live_comparison.py --highlight-threshold 0.10
+```
+
 
 ### Docker
 

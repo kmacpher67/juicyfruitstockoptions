@@ -10,14 +10,34 @@ from Ai_Stock_Database import AiStockDatabase
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
 
-    def __init__(self, tickers, max_age_hours=4):
+    def __init__(self, tickers, max_age_hours=4, highlight_threshold=0.05):
         self.tickers = list(dict.fromkeys(tickers))
         self.max_age_hours = max_age_hours
+        self.highlight_threshold = highlight_threshold  # e.g. 0.05 for 5%
         self.records = []
         self.output_dir = Path(".")
         self.now = datetime.now()
         self.filename = None
         self.latest_file = None
+    @staticmethod
+    def calculate_moving_averages(hist, windows=(30, 60, 120, 200)):
+        """Return a dict of moving averages for the given windows from a price series."""
+        result = {f"MA_{w}": None for w in windows}
+        if hist is None or hist.empty:
+            return result
+        closes = hist['Close']
+        for w in windows:
+            if len(closes) >= w:
+                # Use pandas rolling window for standard SMA calculation
+                result[f"MA_{w}"] = round(closes.rolling(window=w).mean().iloc[-1], 2)
+        return result
+
+    def calculate_ma_delta(self, current_price, avg):
+        """Return the percentage delta: (current_price - avg) / avg."""
+        if avg is None or current_price is None or avg == 0:
+            return None
+        delta = (current_price - avg) / avg
+        return round(delta, 4)  # Return as float, e.g. 0.0521 for 5.21%
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -114,7 +134,13 @@ class StockLiveComparison:
         if call12 and current_price:
             annual_yield_call = round((call12 / current_price) * 100, 2)
 
-        return {
+        # Moving averages and highlight status
+        ma_windows = (30, 60, 120, 200)
+        ma_dict = self.calculate_moving_averages(ticker_hist, windows=ma_windows)
+        highlight_dict = {f"MA_{w}_highlight": self.calculate_ma_delta(current_price, ma_dict[f"MA_{w}"])
+                  for w in ma_windows}
+
+        record = {
             "Ticker": ticker,
             "Current Price": current_price,
             "1D % Change": f"{day_change:.2f}%" if day_change is not None else None,
@@ -134,6 +160,10 @@ class StockLiveComparison:
             "Error": None,
             "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
         }
+        # Add moving averages and highlight info
+        record.update(ma_dict)
+        record.update(highlight_dict)
+        return record
 
     # ------------------------------------------------------------------
     def fetch_data(self, tickers_to_fetch):
@@ -193,19 +223,41 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def get_missing_or_outdated_tickers(self, df_existing):
-        """Return tickers missing from the DataFrame or older than max_age_hours."""
+        """Return tickers missing form the DataFrame, older than max_age_hours, or having missing MA data."""
         missing = []
+        ma_cols = ["MA_30", "MA_60", "MA_120", "MA_200"]
+        
         for t in self.tickers:
             row = df_existing[df_existing["Ticker"] == t]
             if row.empty:
                 missing.append(t)
                 continue
             try:
+                # Check age
                 last = pd.to_datetime(row.iloc[0]["Last Update"])
                 if pd.isna(last) or (
                     (self.now - last).total_seconds() / 3600 >= self.max_age_hours
                 ):
                     missing.append(t)
+                    continue
+                
+                # Check for missing Moving Averages (NaN)
+                # If any MA column is missing or NaN, consider it outdated to force re-fetch
+                for ma in ma_cols:
+                    if ma not in row.columns or pd.isna(row.iloc[0][ma]):
+                        missing.append(t)
+                        break
+                else:
+                    # Check for legacy "green"/"red" strings in highlight columns
+                    # Only check if the previous check didn't already mark it as missing
+                    for ma in ma_cols:
+                        hl_col = f"{ma}_highlight"
+                        if hl_col in row.columns:
+                            val = row.iloc[0][hl_col]
+                            if isinstance(val, str) and val in ["green", "red"]:
+                                missing.append(t)
+                                break
+                        
             except Exception:
                 missing.append(t)
         return missing
@@ -274,11 +326,49 @@ class StockLiveComparison:
         ws = wb.active
         ws.row_dimensions[1].height = None
 
+        # Ratio formula
         for i in range(2, ws.max_row + 1):
             put_letter = openpyxl.utils.get_column_letter(put_col)
             call_letter = openpyxl.utils.get_column_letter(call_col)
             ratio_cell = ws.cell(row=i, column=call_col + 1)
             ratio_cell.value = f"=IFERROR({put_letter}{i}/{call_letter}{i},\"\")"
+
+        # Ensure all MA columns exist in DataFrame and Excel, even if None
+        ma_windows = [30, 60, 120, 200]
+        for w in ma_windows:
+            col_name = f"MA_{w}"
+            if col_name not in df.columns:
+                df[col_name] = None
+        # Re-save to Excel to ensure columns are present
+        df.to_excel(self.filename, index=False)
+        wb = openpyxl.load_workbook(self.filename)
+        ws = wb.active
+        for w in ma_windows:
+            col_name = f"MA_{w}"
+            if col_name in df.columns:
+                col_idx = df.columns.get_loc(col_name) + 1
+                for i in range(2, ws.max_row + 1):
+                    avg_cell = ws.cell(row=i, column=col_idx)
+                    price_cell = ws.cell(row=i, column=df.columns.get_loc("Current Price") + 1)
+                    try:
+                        avg = avg_cell.value
+                        price = price_cell.value
+                        if avg is not None and price is not None:
+                            if price <= avg * (1 - self.highlight_threshold):
+                                avg_cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
+                            elif price >= avg * (1 + self.highlight_threshold):
+                                avg_cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
+                    except Exception:
+                        pass
+            
+            # Format highlight column as percentage
+            hl_col_name = f"MA_{w}_highlight"
+            if hl_col_name in df.columns:
+                hl_col_idx = df.columns.get_loc(hl_col_name) + 1
+                for i in range(2, ws.max_row + 1):
+                    cell = ws.cell(row=i, column=hl_col_idx)
+                    cell.number_format = '0.0%'
+
         for cell in ws[1]:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(wrap_text=True)
@@ -304,6 +394,7 @@ class StockLiveComparison:
     def upsert_to_mongo(self, df):
         """
         Upsert each row of the DataFrame to MongoDB using Ticker and Last Update as unique keys.
+        Includes moving averages and highlight status.
         Prints errors but does not crash the program.
         """
         try:
@@ -372,17 +463,26 @@ class StockLiveComparison:
         
         print(f"Spreadsheet generated: {self.filename}")
 
-if __name__ == "__main__":
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="Stock Live Comparison")
+    parser.add_argument('--highlight-threshold', type=float, default=0.05, help='Highlight threshold as a decimal (default 0.05 for 5%)')
+    args = parser.parse_args()
+
     tickers = sorted(list({
         "^IXIC", "^SPX", "SPXS", "^DJI",
         "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "CPRX", "CRWD", "CVS", "CVX", "CRWV",
         "FMNB", "F", "GD", "GEV", "GOOG", "GOOGL",  
-        "IBM", "IONQ", "JPM", "KMB", "LAC", "META", 
-        "MRVL", "MSFT", "MU", "NEE", "NVDA",
+        "IBM", "IONQ", "JPM", "KMB", "KO", "LAC", "META", 
+        "MO", "MRVL", "MSFT", "MU", "NEE", "NVDA",
         "OKE", "ORCL", "PLTR", "SLB", "STLD", "TEM", 
         "TMUS", "TSLA", "V", "VSAT", "VST", "WMT", "XOM"
     }))
     print(f"Processing {tickers} tickers...")
 
-    comp = StockLiveComparison(tickers)
+    comp = StockLiveComparison(tickers, highlight_threshold=args.highlight_threshold)
     comp.run()
+
+if __name__ == "__main__":
+    main()

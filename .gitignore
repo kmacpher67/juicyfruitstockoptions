@@ -6,6 +6,9 @@ venv/
 portfolio*.csv
 recommendations*.csv
 
+# Except for this file
+!tests/portfolio.testunder.csv
+
 # Other common Python ignores
 __pycache__/
 *.pyc

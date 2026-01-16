@@ -44,9 +44,9 @@ def test_get_missing_or_outdated_tickers():
     recent_time = now.strftime("%Y-%m-%d %H:%M:%S")
     # Simulate existing DataFrame
     df_existing = pd.DataFrame([
-        {"Ticker": "AAPL", "Last Update": recent_time},
-        {"Ticker": "MSFT", "Last Update": old_time},
-        {"Ticker": "GOOG", "Last Update": None},
+        {"Ticker": "AAPL", "Last Update": recent_time, "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100},
+        {"Ticker": "MSFT", "Last Update": old_time, "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100},
+        {"Ticker": "GOOG", "Last Update": None, "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100},
     ])
     missing_or_old = comp.get_missing_or_outdated_tickers(df_existing)
     # Only MSFT and GOOG should be considered missing or outdated
@@ -127,3 +127,51 @@ def test_unique_tickers():
     tickers = ["AAPL", "MSFT", "AAPL", "GOOG", "MSFT", "TSLA"]
     result = StockLiveComparison.unique_tickers(tickers)
     assert result == ["AAPL", "MSFT", "GOOG", "TSLA"]
+
+def test_get_missing_or_outdated_includes_nan_ma():
+    from stock_live_comparison import StockLiveComparison
+    comp = StockLiveComparison(["AAPL"])
+    now = datetime.now()
+    recent_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Simulate DataFrame where valid time exists but MAs are missing (NaN)
+    df_existing = pd.DataFrame([
+        {
+            "Ticker": "AAPL", 
+            "Last Update": recent_time,
+            "MA_30": None,   # Missing
+            "MA_60": 150.0,  # Present
+            "MA_120": float("nan"), # Missing
+            "MA_200": 140.0
+        }
+    ])
+    
+    missing_or_old = comp.get_missing_or_outdated_tickers(df_existing)
+    # Should automatically include AAPL because MA_30 and MA_120 are missing/NaN
+    assert "AAPL" in missing_or_old
+
+def test_get_missing_or_outdated_detects_legacy_strings():
+    from stock_live_comparison import StockLiveComparison
+    comp = StockLiveComparison(["AAPL"])
+    now = datetime.now()
+    recent_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Simulate DataFrame with recent update but legacy "red"/"green" strings
+    df_existing = pd.DataFrame([
+        {
+            "Ticker": "AAPL", 
+            "Last Update": recent_time,
+            "MA_30": 100, 
+            "MA_60": 100, 
+            "MA_120": 100, 
+            "MA_200": 100,
+            "MA_30_highlight": "red",     # Legacy string
+            "MA_60_highlight": "green",   # Legacy string
+            "MA_120_highlight": 0.05,     # Correct format
+            "MA_200_highlight": 0.05
+        }
+    ])
+    
+    missing_or_old = comp.get_missing_or_outdated_tickers(df_existing)
+    # Should include AAPL because it has "red"/"green" strings
+    assert "AAPL" in missing_or_old
