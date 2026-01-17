@@ -320,29 +320,41 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def save_to_excel(self, df, put_col, call_col):
+        # Ensure all MA columns exist in DataFrame before saving
+        ma_windows = [30, 60, 120, 200]
+        for w in ma_windows:
+            col_name = f"MA_{w}"
+            if col_name not in df.columns:
+                df[col_name] = None
+
         df = self.sort_dataframe_for_excel(df)
         df.to_excel(self.filename, index=False)
         wb = openpyxl.load_workbook(self.filename)
         ws = wb.active
         ws.row_dimensions[1].height = None
 
-        # Ratio formula
+        if "Ticker" in df.columns:
+            ticker_col_idx = df.columns.get_loc("Ticker") + 1
+        else:
+            ticker_col_idx = None
+
+        # Ratio formula and Hyperlinks
         for i in range(2, ws.max_row + 1):
             put_letter = openpyxl.utils.get_column_letter(put_col)
             call_letter = openpyxl.utils.get_column_letter(call_col)
             ratio_cell = ws.cell(row=i, column=call_col + 1)
             ratio_cell.value = f"=IFERROR({put_letter}{i}/{call_letter}{i},\"\")"
 
-        # Ensure all MA columns exist in DataFrame and Excel, even if None
-        ma_windows = [30, 60, 120, 200]
-        for w in ma_windows:
-            col_name = f"MA_{w}"
-            if col_name not in df.columns:
-                df[col_name] = None
-        # Re-save to Excel to ensure columns are present
-        df.to_excel(self.filename, index=False)
-        wb = openpyxl.load_workbook(self.filename)
-        ws = wb.active
+            # Add Google Finance Hyperlink to Ticker Column
+            if ticker_col_idx:
+                ticker_cell = ws.cell(row=i, column=ticker_col_idx)
+                ticker_val = ticker_cell.value
+                if ticker_val:
+                    url = f"https://www.google.com/finance?q={str(ticker_val)}"
+                    # print(f"DEBUG: Ticker found '{ticker_val}', adding hyperlink: {url}")
+                    ticker_cell.hyperlink = url
+                    ticker_cell.style = "Hyperlink"
+
         for w in ma_windows:
             col_name = f"MA_{w}"
             if col_name in df.columns:
@@ -423,41 +435,94 @@ class StockLiveComparison:
                 seen.add(t)
         return unique
 
+    @staticmethod
+    def get_default_tickers():
+        """Return the default list of tickers to track."""
+        return sorted(list({
+            "^IXIC", "^SPX", "SPXS", "^DJI",
+            "AA", "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "BHP", "BMY", "CCJ", "CEG", "COPP",
+            "CPRX", "CRWD", "CRWV", "CVS", "CVX", "D", "DUK", "ENB", "ETN",
+            "F", "FDX", "FMNB", "GD", "GE", "GEV", "GOOG", "GOOGL", "FCX", 
+            "IBM", "IONQ", "JNJ", "JPM", "KMB", "KO", "LAC", "LRCX", "MCD", "META",
+            "MO", "MRVL", "MSFT", "MU", "NEE", "NNE", "NUE", "NVDA",
+            "OKE", "OLN", "ORCL", "PAAS", "PFE", "PLTR", "RIO", "SLB", "SMG", "SMR", "STLD",
+            "SCCO", "TEM", "TMUS", "TSLA", "TSM", "UPS", 
+            "V", "VLO", "VSAT", "VST", "WM", "WMT", "XOM"
+        }))
+
     def run(self):
         self.now = datetime.now()
         self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
         self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
         print(f"Latest spreadsheet: {self.latest_file}")
-        latest_file = self.latest_file
-        if latest_file:
-            df_existing = pd.read_excel(latest_file)
+        
+        final_records = []
+        put_col = None
+        call_col = None
+        
+        if self.latest_file:
+            df_existing = pd.read_excel(self.latest_file)
             if "Last Update" not in df_existing.columns:
                 df_existing["Last Update"] = None
+            
             missing_or_old = self.get_missing_or_outdated_tickers(df_existing)
+            
+            # Start with existing records converted to list of dicts
+            existing_records = df_existing.to_dict(orient='records')
+            
             if not missing_or_old:
-                df = df_existing
-                put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
-                call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
+                print("All tickers are up to date.")
+                final_records = existing_records
+                put_col = df_existing.columns.get_loc("Annual Yield Put Prem") + 1
+                call_col = df_existing.columns.get_loc("Annual Yield Call Prem") + 1
             else:
-                self.records = df_existing.to_dict(orient='records')
                 tickers_to_fetch = missing_or_old
                 print(f"Fetching data for {len(tickers_to_fetch)} tickers: {tickers_to_fetch}")
-                fetched = self.fetch_data(tickers_to_fetch)
-                print(f"fetched: {fetched}")
-                self.records.extend(fetched)
-                print(f"self.records for {len(self.records)} records: {self.records}")
-                df = self.merge_with_existing(df_existing, tickers_to_fetch)
-                df, put_col, call_col = self.add_ratio_column(df)
+                
+                # Filter out records that are about to be updated
+                # We keep only records for tickers NOT in tickers_to_fetch
+                preserved_records = [
+                    r for r in existing_records 
+                    if r.get("Ticker") not in tickers_to_fetch
+                ]
+                
+                fetched_records = self.fetch_data(tickers_to_fetch)
+                print(f"fetched: {len(fetched_records)} records")
+                
+                # Combine preserved existing records with new fetched records
+                final_records = preserved_records + fetched_records
+                
         else:
             print("No existing spreadsheet found. Fetching all data.")
             tickers_to_fetch = self.tickers
-            self.records = self.fetch_data(tickers_to_fetch)
-            df = pd.DataFrame(self.records)
-            if df.empty:
-                df = pd.DataFrame(
-                    columns=["Ticker", "Annual Yield Put Prem", "Annual Yield Call Prem", "Last Update"]
-                )
-            df, put_col, call_col = self.add_ratio_column(df)
+            final_records = self.fetch_data(tickers_to_fetch)
+
+        # Create DataFrame from final combined list
+        df = pd.DataFrame(final_records)
+        if df.empty:
+             df = pd.DataFrame(
+                columns=["Ticker", "Annual Yield Put Prem", "Annual Yield Call Prem", "Last Update"]
+            )
+            
+        # Deduplicate: Keep only the latest record for each Ticker
+        if "Last Update" in df.columns and "Ticker" in df.columns:
+            # Ensure Last Update is datetime for sorting
+            df["Last Update"] = pd.to_datetime(df["Last Update"], errors='coerce')
+            df = df.sort_values(by=["Last Update", "Ticker"], ascending=[False, True])
+            initial_count = len(df)
+            df = df.drop_duplicates(subset=["Ticker"], keep="first")
+            final_count = len(df)
+            if initial_count != final_count:
+                print(f"Removed {initial_count - final_count} duplicate records. Keeping {final_count} unique tickers.")
+            # Convert Last Update back to string for consistency/Excel if needed, though datetime is fine.
+            # But the current format is string "%Y-%m-%d %H:%M:%S".
+            df["Last Update"] = df["Last Update"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Ensure we have column indices for formatting
+        # If we didn't get them from existing DF, calculate them now
+        # Note: add_ratio_column handles adding columns if missing
+        df, put_col, call_col = self.add_ratio_column(df)
+            
         self.save_to_excel(df, put_col, call_col)
         self.upsert_to_mongo(df)
         
@@ -470,15 +535,7 @@ def main():
     parser.add_argument('--highlight-threshold', type=float, default=0.05, help='Highlight threshold as a decimal (default 0.05 for 5%)')
     args = parser.parse_args()
 
-    tickers = sorted(list({
-        "^IXIC", "^SPX", "SPXS", "^DJI",
-        "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "CPRX", "CRWD", "CVS", "CVX", "CRWV",
-        "FMNB", "F", "GD", "GEV", "GOOG", "GOOGL",  
-        "IBM", "IONQ", "JPM", "KMB", "KO", "LAC", "META", 
-        "MO", "MRVL", "MSFT", "MU", "NEE", "NVDA",
-        "OKE", "ORCL", "PLTR", "SLB", "STLD", "TEM", 
-        "TMUS", "TSLA", "V", "VSAT", "VST", "WMT", "XOM"
-    }))
+    tickers = StockLiveComparison.get_default_tickers()
     print(f"Processing {tickers} tickers...")
 
     comp = StockLiveComparison(tickers, highlight_threshold=args.highlight_threshold)

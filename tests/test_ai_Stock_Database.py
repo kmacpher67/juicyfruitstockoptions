@@ -1,3 +1,5 @@
+from Ai_Stock_Database import AiStockDatabase
+
 def test_upsert_and_setup(tmp_path, monkeypatch):
     # Use a test database
     monkeypatch.setenv("MONGO_URI", "mongodb://localhost:27017/test_stocklive")

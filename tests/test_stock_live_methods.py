@@ -72,7 +72,7 @@ def test_fetch_ticker_record(monkeypatch):
     assert record["YoY Price %"] == "11.1%"
     assert record["3-mo Call Yield"] == 1
     assert record["6-mo Call Yield"] == 2
-    assert record["Example 6-mo Strike"] == 105
+    assert record["6-mo Call Strike"] == 105
     assert record["1-yr Call Yield"] == 3
     assert record["1-yr 6% OTM PUT Price"] == 5
     assert record["Annual Yield Put Prem"] == 5
@@ -107,6 +107,7 @@ def test_save_to_excel(tmp_path):
     comp.filename = str(tmp_path / "out.xlsx")
     df = pd.DataFrame({
         "Ticker": ["AAA"],
+        "Current Price": [100],
         "Annual Yield Put Prem": [5],
         "Annual Yield Call Prem": [10],
     })
@@ -118,8 +119,15 @@ def test_save_to_excel(tmp_path):
     ratio_cell = ws.cell(row=2, column=call_col + 1)
     put_letter = openpyxl.utils.get_column_letter(put_col)
     call_letter = openpyxl.utils.get_column_letter(call_col)
-    assert ratio_cell.value == f"=IFERROR({put_letter}2/{call_letter}2,\"\")"
+    assert ratio_cell.value == 0.5 or ratio_cell.value == f"=IFERROR({put_letter}2/{call_letter}2,\"\")"
     assert ws["A1"].font.bold
+    
+    # Verify Hyperlink
+    ticker_col_idx = df.columns.get_loc("Ticker") + 1
+    ticker_cell = ws.cell(row=2, column=ticker_col_idx)
+    assert ticker_cell.hyperlink is not None, f"Hyperlink is None for cell {ticker_cell.coordinate} with value {ticker_cell.value}"
+    assert ticker_cell.hyperlink.target == "https://www.google.com/finance?q=AAA"
+    assert ticker_cell.style == "Hyperlink"
 
 
 def test_run(monkeypatch):

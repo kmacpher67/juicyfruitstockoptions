@@ -113,10 +113,16 @@ directly, e.g. `python option_optimizer.py`.
 
 ## Testing
 
-Run the unit tests with:
+A `pytest.ini` file is provided to configure the test runner, specifically to exclude the `mongo_data` directory.
+
+Run all tests with:
 
 ```bash
-pytest -q
+pytest
 ```
 
+Run a specific test file:
 
+```bash
+pytest test_stock_ticker_list.py
+```
