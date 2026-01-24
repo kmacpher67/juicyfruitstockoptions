@@ -447,7 +447,7 @@ class StockLiveComparison:
             "MO", "MRVL", "MSFT", "MU", "NEE", "NNE", "NUE", "NVDA",
             "OKE", "OLN", "ORCL", "PAAS", "PFE", "PLTR", "RIO", "SLB", "SMG", "SMR", "STLD",
             "SCCO", "TEM", "TMUS", "TSLA", "TSM", "UPS", 
-            "V", "VLO", "VSAT", "VST", "WM", "WMT", "XOM"
+            "V", "VZ", "VLO", "VSAT", "VST", "WM", "WMT", "XOM"
         }))
 
     def run(self):
