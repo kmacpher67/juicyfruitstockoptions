@@ -2,6 +2,7 @@ from pathlib import Path
 import yfinance as yf
 import pandas as pd
 import time
+import logging
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment
@@ -18,7 +19,32 @@ class StockLiveComparison:
         self.output_dir = Path(".")
         self.now = datetime.now()
         self.filename = None
+        self.filename = None
         self.latest_file = None
+        self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def setup_logging(log_file="stock_live_comparison.log"):
+        """Configure logging to file (DEBUG) and console (INFO)."""
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+        
+        # Create formatters
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_formatter = logging.Formatter('%(message)s')
+        
+        # File Handler
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+        
+        # Console Handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
+
     @staticmethod
     def calculate_moving_averages(hist, windows=(30, 60, 120, 200)):
         """Return a dict of moving averages for the given windows from a price series."""
@@ -38,6 +64,20 @@ class StockLiveComparison:
             return None
         delta = (current_price - avg) / avg
         return round(delta, 4)  # Return as float, e.g. 0.0521 for 5.21%
+
+    @staticmethod
+    def generate_yf_option_url(ticker, date_str):
+        """Generate Yahoo Finance option chain URL with straddle view for a specific date."""
+        if not date_str or not ticker:
+            return None
+        try:
+            # Convert YYYY-MM-DD to unix timestamp at UTC midnight
+            from datetime import timezone
+            dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            timestamp = int(dt.timestamp())
+            return f"https://finance.yahoo.com/quote/{ticker}/options/?date={timestamp}&straddle=true"
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -63,28 +103,28 @@ class StockLiveComparison:
     def get_otm_call_yield(self, chain, current_price, target_days, otm_pct=6):
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
-            return None, None
+            return None, None, None
         calls = chain.option_chain(exp_date).calls
         target_strike = current_price * (1 + otm_pct / 100)
         calls = calls[calls['strike'] >= target_strike]
         if calls.empty:
-            return None, None
+            return None, None, None
         call = calls.iloc[0]
         yield_pct = (call['lastPrice'] / current_price) * 100
-        return round(yield_pct, 2), call['strike']
+        return round(yield_pct, 2), call['strike'], exp_date
 
     # ------------------------------------------------------------------
     def get_otm_put_price(self, chain, current_price, target_days, otm_pct=6):
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
-            return None
+            return None, None
         puts = chain.option_chain(exp_date).puts
         target_strike = current_price * (1 - otm_pct / 100)
         puts = puts[puts['strike'] <= target_strike]
         if puts.empty:
-            return None
+            return None, None
         put = puts.iloc[-1]
-        return put['lastPrice']
+        return put['lastPrice'], exp_date
 
     # ------------------------------------------------------------------
     def is_recent(self, row):
@@ -111,10 +151,10 @@ class StockLiveComparison:
         if current_price and prev_close:
             day_change = (current_price - prev_close) / prev_close * 100
 
-        call3, _ = self.get_otm_call_yield(chain, current_price, 90)
-        call6, strike6 = self.get_otm_call_yield(chain, current_price, 180)
-        call12, _ = self.get_otm_call_yield(chain, current_price, 365)
-        put_price = self.get_otm_put_price(chain, current_price, 365)
+        call3, _, call_date3 = self.get_otm_call_yield(chain, current_price, 90)
+        call6, strike6, call_date6 = self.get_otm_call_yield(chain, current_price, 180)
+        call12, _, call_date12 = self.get_otm_call_yield(chain, current_price, 365)
+        put_price, put_date12 = self.get_otm_put_price(chain, current_price, 365)
         analyst_target = info.get("targetMeanPrice")
 
         ex_div_raw = info.get("exDividendDate")
@@ -159,6 +199,10 @@ class StockLiveComparison:
             "6-mo Call Strike": strike6,
             "Error": None,
             "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
+            "_PutExpDate_365": put_date12,
+            "_CallExpDate_365": call_date12,
+            "_CallExpDate_90": call_date3,
+            "_CallExpDate_180": call_date6,
         }
         # Add moving averages and highlight info
         record.update(ma_dict)
@@ -170,6 +214,7 @@ class StockLiveComparison:
         tickers_to_fetch = StockLiveComparison.unique_tickers(tickers_to_fetch)
         if not tickers_to_fetch:
             return []
+        logging.info(f"Downloading historical data for {len(tickers_to_fetch)} tickers...")
         try:
             hist = yf.download(
                 tickers_to_fetch,
@@ -177,6 +222,7 @@ class StockLiveComparison:
                 group_by="ticker",
                 threads=True,
                 auto_adjust=False,  # explicit to avoid FutureWarning (set True if you want adjusted prices)
+                progress=True
             )
         except Exception:
             hist = {}
@@ -198,6 +244,12 @@ class StockLiveComparison:
             success = False
             while tries < 3 and not success:
                 try:
+                    logging.debug(f"Processing ticker {t} (Attempt {tries + 1}/3)...")
+                    # Visual interaction for console (optional, keeps user happy)
+                    # print(f"Processing {t}...", end="\r", flush=True) 
+                    # Actually logging.info might be too noisy if list is long, but user asked for visuals.
+                    # Best to stick to requested debug log for now, relying on YF progress bar for download.
+                    
                     time.sleep(1 + tries * 2)
                     info = tickers_obj.tickers[t].info
                     ticker_hist = hist[t] if t in hist else None
@@ -248,15 +300,20 @@ class StockLiveComparison:
                         missing.append(t)
                         break
                 else:
-                    # Check for legacy "green"/"red" strings in highlight columns
-                    # Only check if the previous check didn't already mark it as missing
-                    for ma in ma_cols:
-                        hl_col = f"{ma}_highlight"
-                        if hl_col in row.columns:
-                            val = row.iloc[0][hl_col]
-                            if isinstance(val, str) and val in ["green", "red"]:
-                                missing.append(t)
-                                break
+                    # Check for missing Expiration Date fields (Validation for YF Links)
+                    # Use _PutExpDate_365 as a proxy for all new date fields
+                    if "_PutExpDate_365" not in row.columns or pd.isna(row.iloc[0]["_PutExpDate_365"]):
+                         missing.append(t)
+                    else:
+                        # Check for legacy "green"/"red" strings in highlight columns
+                        # Only check if the previous check didn't already mark it as missing
+                        for ma in ma_cols:
+                            hl_col = f"{ma}_highlight"
+                            if hl_col in row.columns:
+                                val = row.iloc[0][hl_col]
+                                if isinstance(val, str) and val in ["green", "red"]:
+                                    missing.append(t)
+                                    break
                         
             except Exception:
                 missing.append(t)
@@ -286,7 +343,7 @@ class StockLiveComparison:
             )
             return df, put_col, call_col
         except Exception as e:
-            print(f"Error in add_ratio_column: {e}")
+            logging.error(f"Error in add_ratio_column: {e}")
             return df, None, None
 
     # ------------------------------------------------------------------
@@ -294,16 +351,16 @@ class StockLiveComparison:
         """Upsert the Put/Call Yield Ratio column, print errors, and continue."""
         try:
             if ratio_col_name in df.columns:
-                print(f'Column "{ratio_col_name}" already exists. Updating values.')
+                logging.debug(f'Column "{ratio_col_name}" already exists. Updating values.')
             else:
                 # Insert after call_col_name
                 if call_col_name in df.columns:
                     call_col = df.columns.get_loc(call_col_name) + 1
                     df.insert(call_col, ratio_col_name, None)
-                    print(f'Column "{ratio_col_name}" inserted.')
+                    logging.debug(f'Column "{ratio_col_name}" inserted.')
                 else:
                     df[ratio_col_name] = None
-                    print(f'Column "{ratio_col_name}" added at end (call column not found).')
+                    logging.debug(f'Column "{ratio_col_name}" added at end (call column not found).')
 
             # Update values
             df[ratio_col_name] = df.apply(
@@ -315,7 +372,7 @@ class StockLiveComparison:
             )
             return df
         except Exception as e:
-            print(f"Error in upsert_ratio_column: {e}")
+            logging.error(f"Error in upsert_ratio_column: {e}")
             return df
 
     # ------------------------------------------------------------------
@@ -353,7 +410,45 @@ class StockLiveComparison:
                     url = f"https://www.google.com/finance?q={str(ticker_val)}"
                     # print(f"DEBUG: Ticker found '{ticker_val}', adding hyperlink: {url}")
                     ticker_cell.hyperlink = url
+                    ticker_cell.hyperlink = url
                     ticker_cell.style = "Hyperlink"
+
+                    ticker_cell.hyperlink = url
+                    ticker_cell.style = "Hyperlink"
+
+            # Add Yahoo Finance Option Chain Hyperlinks to Yield Columns
+            # Define mapping of visible column name -> record key for expiration date
+            link_map = {
+                "1-yr 6% OTM PUT Price": "_PutExpDate_365",
+                "1-yr Call Yield": "_CallExpDate_365",
+                "3-mo Call Yield": "_CallExpDate_90",
+                "6-mo Call Yield": "_CallExpDate_180",
+                "6-mo Call Strike": "_CallExpDate_180",
+            }
+            
+            # Pre-calculate column indices to avoid repeated lookups
+            col_indices = {}
+            for col_name, date_key in link_map.items():
+                if col_name in df.columns:
+                     # 1-based index for openpyxl corresponding to DF column
+                     col_indices[df.columns.get_loc(col_name) + 1] = date_key
+
+            # Apply links row by row
+            if col_indices:
+                for col_idx, date_key in col_indices.items():
+                    # Row i in Excel corresponds to df index i-2
+                    if 0 <= i-2 < len(df):
+                        row_data = df.iloc[i-2]
+                        exp_date = row_data.get(date_key)
+                        ticker = row_data.get("Ticker")
+                        
+                        if exp_date and ticker:
+                            yf_url = self.generate_yf_option_url(ticker, exp_date)
+                            if yf_url:
+                                cell = ws.cell(row=i, column=col_idx)
+                                if cell.value:
+                                    cell.hyperlink = yf_url
+                                    cell.style = "Hyperlink"
 
         for w in ma_windows:
             col_name = f"MA_{w}"
@@ -395,11 +490,12 @@ class StockLiveComparison:
         try:
             if "Last Update" in df.columns and "Ticker" in df.columns:
                 df = df.sort_values(by=["Last Update", "Ticker"], ascending=[False, True])
+                df = df.sort_values(by=["Last Update", "Ticker"], ascending=[False, True])
             else:
-                print("Warning: 'Last Update' or 'Ticker' column missing. Skipping sort.")
+                logging.warning("Warning: 'Last Update' or 'Ticker' column missing. Skipping sort.")
             return df
         except Exception as e:
-            print(f"Error in sort_dataframe_for_excel: {e}")
+            logging.error(f"Error in sort_dataframe_for_excel: {e}")
             return df
 
     # ------------------------------------------------------------------
@@ -417,10 +513,10 @@ class StockLiveComparison:
                     # Use Ticker and Last Update as unique key for idempotency
                     db.upsert_stock_record(record, key_fields=("Ticker", "Last Update"))
                 except Exception as e:
-                    print(f"Error upserting record for {record.get('Ticker')}: {e}")
-            print(f"Upserted {len(records)} records to MongoDB.")
+                    logging.error(f"Error upserting record for {record.get('Ticker')}: {e}")
+            logging.info(f"Upserted {len(records)} records to MongoDB.")
         except Exception as e:
-            print(f"Error connecting to MongoDB: {e}")
+            logging.error(f"Error connecting to MongoDB: {e}")
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -441,20 +537,21 @@ class StockLiveComparison:
         return sorted(list({
             "^IXIC", "^SPX", "SPXS", "^DJI",
             "AA", "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "BHP", "BMY", "CCJ", "CEG", "COPP",
-            "CPRX", "CRWD", "CRWV", "CVS", "CVX", "D", "DUK", "ENB", "ETN",
+            "CPRX", "CRWD", "CRWV", "CVS", "CVX", "D", "DUK", "ENB", "ERO", "ETN",
             "F", "FDX", "FMNB", "GD", "GE", "GEV", "GOOG", "GOOGL", "FCX", 
-            "IBM", "IONQ", "JNJ", "JPM", "KMB", "KO", "LAC", "LRCX", "MCD", "META",
+            "IBM", "INTC", "IONQ", "JNJ", "JPM", "KMB", "KO", "LAC", "LRCX", "MCD", "META",
             "MO", "MRVL", "MSFT", "MU", "NEE", "NNE", "NUE", "NVDA",
             "OKE", "OLN", "ORCL", "PAAS", "PFE", "PLTR", "RIO", "SLB", "SMG", "SMR", "STLD",
-            "SCCO", "TEM", "TMUS", "TSLA", "TSM", "UPS", 
+            "SCCO", "T", "TECH", "TEM", "TMUS", "TSLA", "TSM", "UPS", 
             "V", "VZ", "VLO", "VSAT", "VST", "WM", "WMT", "XOM"
         }))
 
     def run(self):
         self.now = datetime.now()
         self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+        self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
         self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
-        print(f"Latest spreadsheet: {self.latest_file}")
+        logging.info(f"Latest spreadsheet: {self.latest_file}")
         
         final_records = []
         put_col = None
@@ -471,13 +568,13 @@ class StockLiveComparison:
             existing_records = df_existing.to_dict(orient='records')
             
             if not missing_or_old:
-                print("All tickers are up to date.")
+                logging.info("All tickers are up to date.")
                 final_records = existing_records
                 put_col = df_existing.columns.get_loc("Annual Yield Put Prem") + 1
                 call_col = df_existing.columns.get_loc("Annual Yield Call Prem") + 1
             else:
                 tickers_to_fetch = missing_or_old
-                print(f"Fetching data for {len(tickers_to_fetch)} tickers: {tickers_to_fetch}")
+                logging.info(f"Fetching data for {len(tickers_to_fetch)} tickers: {tickers_to_fetch}")
                 
                 # Filter out records that are about to be updated
                 # We keep only records for tickers NOT in tickers_to_fetch
@@ -487,13 +584,13 @@ class StockLiveComparison:
                 ]
                 
                 fetched_records = self.fetch_data(tickers_to_fetch)
-                print(f"fetched: {len(fetched_records)} records")
+                logging.info(f"fetched: {len(fetched_records)} records")
                 
                 # Combine preserved existing records with new fetched records
                 final_records = preserved_records + fetched_records
                 
         else:
-            print("No existing spreadsheet found. Fetching all data.")
+            logging.info("No existing spreadsheet found. Fetching all data.")
             tickers_to_fetch = self.tickers
             final_records = self.fetch_data(tickers_to_fetch)
 
@@ -513,7 +610,7 @@ class StockLiveComparison:
             df = df.drop_duplicates(subset=["Ticker"], keep="first")
             final_count = len(df)
             if initial_count != final_count:
-                print(f"Removed {initial_count - final_count} duplicate records. Keeping {final_count} unique tickers.")
+                logging.info(f"Removed {initial_count - final_count} duplicate records. Keeping {final_count} unique tickers.")
             # Convert Last Update back to string for consistency/Excel if needed, though datetime is fine.
             # But the current format is string "%Y-%m-%d %H:%M:%S".
             df["Last Update"] = df["Last Update"].dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -526,7 +623,7 @@ class StockLiveComparison:
         self.save_to_excel(df, put_col, call_col)
         self.upsert_to_mongo(df)
         
-        print(f"Spreadsheet generated: {self.filename}")
+        logging.info(f"Spreadsheet generated: {self.filename}")
 
 import argparse
 
@@ -535,8 +632,9 @@ def main():
     parser.add_argument('--highlight-threshold', type=float, default=0.05, help='Highlight threshold as a decimal (default 0.05 for 5%)')
     args = parser.parse_args()
 
+    StockLiveComparison.setup_logging()
     tickers = StockLiveComparison.get_default_tickers()
-    print(f"Processing {tickers} tickers...")
+    logging.info(f"Processing {tickers} tickers...")
 
     comp = StockLiveComparison(tickers, highlight_threshold=args.highlight_threshold)
     comp.run()
