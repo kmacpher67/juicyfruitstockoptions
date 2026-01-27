@@ -5,6 +5,8 @@ venv/
 # Ignore my privite files
 portfolio*.csv
 recommendations*.csv
+report-results/*.xlsx
+*.log
 
 # Except for this file
 !tests/portfolio.testunder.csv

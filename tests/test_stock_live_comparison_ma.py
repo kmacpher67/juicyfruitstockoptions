@@ -46,8 +46,8 @@ def test_fetch_ticker_record_adds_ma_and_highlight(monkeypatch):
     }
     
     # Mock option methods to avoid chain issues
-    monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None))
-    monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: None)
+    monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
     
     record = comp.fetch_ticker_record('TST', info, hist, chain=None)
     assert 'MA_30' in record and 'MA_200' in record

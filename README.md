@@ -42,12 +42,17 @@ python stock_live_comparison.py [--highlight-threshold 0.1]
 ```
 
 - `--highlight-threshold`: Set the percentage (as a decimal) for highlighting moving average cells. Default is 0.05 (5%).
+- **Output**: Files are saved to the `report-results/` directory by default.
 
 ### Features
-- Calculates 30, 60, 120, and 200-day moving averages for each stock using a simple rolling window.
-- Displays the percentage delta ((Current - SMA) / SMA) in `MA_XX_highlight` columns.
-    - **Green**: Current price is at least the threshold below the average.
-    - **Red**: Current price is at least the threshold above the average.
+- Calculates 30, 60, 120, and 200-day Simple Moving Averages (SMA) for each stock.
+- **EMA (20-day)**: Exponential Moving Average, weighted to recent prices.
+- **HMA (20-day)**: Hull Moving Average, reduces lag.
+- **TSMOM (60-day)**: Time Series Momentum, volatility-scaled.
+- **Call/Put Skew**: Ratio of Annual Call Yield to Annual Put Yield.
+- Displays the percentage delta in highlight columns:
+    - **Green**: Bullish signal (Price > EMA/HMA, TSMOM > 2%, or Skew > 1.1).
+    - **Red**: Bearish signal (Price < EMA/HMA, TSMOM < -2%, or Skew < 0.8).
 - Moving averages and highlight status are also stored in MongoDB.
 
 ### Example

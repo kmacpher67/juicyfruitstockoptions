@@ -16,7 +16,9 @@ class StockLiveComparison:
         self.max_age_hours = max_age_hours
         self.highlight_threshold = highlight_threshold  # e.g. 0.05 for 5%
         self.records = []
-        self.output_dir = Path(".")
+        self.output_dir = Path("report-results")
+        if not self.output_dir.exists():
+            self.output_dir.mkdir(parents=True, exist_ok=True)
         self.now = datetime.now()
         self.filename = None
         self.filename = None
@@ -174,11 +176,24 @@ class StockLiveComparison:
         if call12 and current_price:
             annual_yield_call = round((call12 / current_price) * 100, 2)
 
+        # New Indicators: EMA, HMA, TSMOM
+        ema_20 = self.calculate_ema(ticker_hist['Close'], span=20) if ticker_hist is not None else None
+        hma_20 = self.calculate_hma(ticker_hist['Close'], window=20) if ticker_hist is not None else None
+        # TSMOM 60-day lookback (Updated from 45)
+        tsmom_60 = self.calculate_tsmom(ticker_hist['Close'], lookback=60) if ticker_hist is not None else None
+
         # Moving averages and highlight status
         ma_windows = (30, 60, 120, 200)
         ma_dict = self.calculate_moving_averages(ticker_hist, windows=ma_windows)
         highlight_dict = {f"MA_{w}_highlight": self.calculate_ma_delta(current_price, ma_dict[f"MA_{w}"])
                   for w in ma_windows}
+        
+        # Calculate highlights for new indicators
+        ema_20_highlight = self.calculate_ma_delta(current_price, ema_20)
+        # HMA Highlight: Price - HMA (diff)
+        hma_20_highlight = current_price - hma_20 if hma_20 is not None and current_price is not None else None
+        # TSMOM Highlight: Just the value itself 
+        tsmom_60_highlight = tsmom_60
 
         record = {
             "Ticker": ticker,
@@ -187,6 +202,12 @@ class StockLiveComparison:
             "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
             "P/E": info.get("trailingPE"),
             "YoY Price %": f"{yoy:.1f}%" if yoy is not None else None,
+            "EMA_20": ema_20,
+            "HMA_20": hma_20,
+            "TSMOM_60": tsmom_60,
+            "EMA_20_highlight": ema_20_highlight,
+            "HMA_20_highlight": hma_20_highlight,
+            "TSMOM_60_highlight": tsmom_60_highlight,
             "Ex-Div Date": ex_div_date,
             "Div Yield": info.get("dividendYield"),
             "Analyst 1-yr Target": analyst_target,
@@ -208,6 +229,57 @@ class StockLiveComparison:
         record.update(ma_dict)
         record.update(highlight_dict)
         return record
+
+    @staticmethod
+    def calculate_ema(series, span=20):
+        """Calculate Exponential Moving Average."""
+        if series is None or series.empty or len(series) < span:
+            return None
+        return round(series.ewm(span=span, adjust=False).mean().iloc[-1], 2)
+
+    @staticmethod
+    def weighted_moving_average(series, window):
+        """Calculate Weighted Moving Average (helper for HMA)."""
+        import numpy as np
+        weights = np.arange(1, window + 1)
+        return series.rolling(window).apply(
+            lambda x: np.dot(x, weights) / weights.sum(), 
+            raw=True
+        )
+
+    def calculate_hma(self, series, window=20):
+        """Calculate Hull Moving Average."""
+        import numpy as np
+        if series is None or series.empty or len(series) < window:
+            return None
+        try:
+            # Step 1: WMA(n/2)
+            wma_half = self.weighted_moving_average(series, window // 2)
+            # Step 2: WMA(n)
+            wma_full = self.weighted_moving_average(series, window)
+            # Step 3: 2 * WMA(n/2) - WMA(n)
+            raw_hma = (2 * wma_half) - wma_full
+            # Step 4: WMA(sqrt(n))
+            lag = int(np.sqrt(window))
+            hma = self.weighted_moving_average(raw_hma, lag)
+            return round(hma.iloc[-1], 2)
+        except Exception as e:
+            return None
+
+    @staticmethod
+    def calculate_tsmom(series, lookback=60):
+        """Calculate Time Series Momentum (Return) over lookback period (default 60 days)."""
+        if series is None or series.empty or len(series) <= lookback:
+            return None
+        try:
+            # (Price_t / Price_{t-lookback}) - 1
+            current = series.iloc[-1]
+            past = series.iloc[-(lookback + 1)] # ensure we use t-lookback
+            if past == 0:
+                return None
+            return round((current / past) - 1, 4)
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------
     def fetch_data(self, tickers_to_fetch):
@@ -274,10 +346,14 @@ class StockLiveComparison:
         return pd.concat([df_existing, df_new], ignore_index=True)
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def get_missing_or_outdated_tickers(self, df_existing):
         """Return tickers missing form the DataFrame, older than max_age_hours, or having missing MA data."""
         missing = []
         ma_cols = ["MA_30", "MA_60", "MA_120", "MA_200"]
+        # Include new indicators in validity check
+        new_cols = ["EMA_20", "HMA_20", "TSMOM_60"]
+        all_required_cols = ma_cols + new_cols
         
         for t in self.tickers:
             row = df_existing[df_existing["Ticker"] == t]
@@ -293,10 +369,10 @@ class StockLiveComparison:
                     missing.append(t)
                     continue
                 
-                # Check for missing Moving Averages (NaN)
-                # If any MA column is missing or NaN, consider it outdated to force re-fetch
-                for ma in ma_cols:
-                    if ma not in row.columns or pd.isna(row.iloc[0][ma]):
+                # Check for missing Moving Averages and New Indicators (NaN)
+                # If any required column is missing or NaN, consider it outdated to force re-fetch
+                for col in all_required_cols:
+                    if col not in row.columns or pd.isna(row.iloc[0][col]):
                         missing.append(t)
                         break
                 else:
@@ -320,9 +396,10 @@ class StockLiveComparison:
         return missing
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def add_ratio_column(self, df):
-        """Add Put/Call Yield Ratio column to DataFrame, catching errors and printing them."""
-        ratio_col_name = "Put/Call Yield Ratio"
+        """Add Call/Put Skew column to DataFrame, catching errors and printing them."""
+        ratio_col_name = "Call/Put Skew"
         try:
             if "Annual Yield Put Prem" not in df.columns:
                 df["Annual Yield Put Prem"] = None
@@ -334,9 +411,9 @@ class StockLiveComparison:
                 df.insert(call_col, ratio_col_name, None)
             df[ratio_col_name] = df.apply(
                 lambda row: (
-                    row["Annual Yield Put Prem"] / row["Annual Yield Call Prem"]
-                    if row["Annual Yield Call Prem"] not in [0, None, ""]
-                    and row["Annual Yield Put Prem"] not in [None, ""]
+                    row["Annual Yield Call Prem"] / row["Annual Yield Put Prem"]
+                    if row["Annual Yield Put Prem"] not in [0, None, ""]
+                    and row["Annual Yield Call Prem"] not in [None, ""]
                     else None
                 ),
                 axis=1,
@@ -347,8 +424,8 @@ class StockLiveComparison:
             return df, None, None
 
     # ------------------------------------------------------------------
-    def upsert_ratio_column(self, df, put_col_name="Annual Yield Put Prem", call_col_name="Annual Yield Call Prem", ratio_col_name="Put/Call Yield Ratio"):
-        """Upsert the Put/Call Yield Ratio column, print errors, and continue."""
+    def upsert_ratio_column(self, df, put_col_name="Annual Yield Put Prem", call_col_name="Annual Yield Call Prem", ratio_col_name="Call/Put Skew"):
+        """Upsert the Call/Put Skew column, print errors, and continue."""
         try:
             if ratio_col_name in df.columns:
                 logging.debug(f'Column "{ratio_col_name}" already exists. Updating values.')
@@ -365,8 +442,8 @@ class StockLiveComparison:
             # Update values
             df[ratio_col_name] = df.apply(
                 lambda row: (
-                    row[put_col_name] / row[call_col_name]
-                    if row[call_col_name] not in [0, None, ""] and row[put_col_name] not in [None, ""] else None
+                    row[call_col_name] / row[put_col_name]
+                    if row[put_col_name] not in [0, None, ""] and row[call_col_name] not in [None, ""] else None
                 ),
                 axis=1
             )
@@ -377,12 +454,31 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def save_to_excel(self, df, put_col, call_col):
-        # Ensure all MA columns exist in DataFrame before saving
+        # Ensure all MA and new columns exist in DataFrame before saving
         ma_windows = [30, 60, 120, 200]
-        for w in ma_windows:
-            col_name = f"MA_{w}"
-            if col_name not in df.columns:
-                df[col_name] = None
+        new_cols = ["EMA_20", "HMA_20", "TSMOM_60"]
+        all_cols = new_cols + [f"MA_{w}" for w in ma_windows]
+        
+        for col in all_cols:
+            if col not in df.columns:
+                df[col] = None
+
+        # Reorder columns: Place new columns before MA_30
+        initial_cols = [c for c in df.columns if c not in all_cols]
+        # Find insertion point after "YoY Price %"
+        ordered_cols = []
+        if "YoY Price %" in initial_cols:
+             idx = initial_cols.index("YoY Price %") + 1
+             ordered_cols = initial_cols[:idx] + new_cols + [f"MA_{w}" for w in ma_windows] + initial_cols[idx:]
+        else:
+             ordered_cols = initial_cols + new_cols + [f"MA_{w}" for w in ma_windows]
+             
+        # Filter and fill
+        ordered_cols = [c for c in ordered_cols if c in df.columns]
+        remaining = [c for c in df.columns if c not in ordered_cols]
+        ordered_cols.extend(remaining)
+        
+        df = df[ordered_cols]
 
         df = self.sort_dataframe_for_excel(df)
         df.to_excel(self.filename, index=False)
@@ -395,12 +491,18 @@ class StockLiveComparison:
         else:
             ticker_col_idx = None
 
+        # Re-calc indices after reorder
+        put_col = df.columns.get_loc("Annual Yield Put Prem") + 1 if "Annual Yield Put Prem" in df.columns else None
+        call_col = df.columns.get_loc("Annual Yield Call Prem") + 1 if "Annual Yield Call Prem" in df.columns else None
+        ratio_col = df.columns.get_loc("Call/Put Skew") + 1 if "Call/Put Skew" in df.columns else None
+
         # Ratio formula and Hyperlinks
         for i in range(2, ws.max_row + 1):
-            put_letter = openpyxl.utils.get_column_letter(put_col)
-            call_letter = openpyxl.utils.get_column_letter(call_col)
-            ratio_cell = ws.cell(row=i, column=call_col + 1)
-            ratio_cell.value = f"=IFERROR({put_letter}{i}/{call_letter}{i},\"\")"
+            if ratio_col and put_col and call_col:
+                put_letter = openpyxl.utils.get_column_letter(put_col)
+                call_letter = openpyxl.utils.get_column_letter(call_col)
+                ratio_cell = ws.cell(row=i, column=ratio_col)
+                ratio_cell.value = f"=IFERROR({call_letter}{i}/{put_letter}{i},\"\")"
 
             # Add Google Finance Hyperlink to Ticker Column
             if ticker_col_idx:
@@ -450,23 +552,41 @@ class StockLiveComparison:
                                     cell.hyperlink = yf_url
                                     cell.style = "Hyperlink"
 
+        # Call/Put Skew Conditional Formatting
+        if ratio_col:
+            for i in range(2, ws.max_row + 1):
+                cell = ws.cell(row=i, column=ratio_col)
+                # Check value from DF (since Excel formula isn't evaluated by openpyxl reading)
+                if 0 <= i-2 < len(df):
+                    row_data = df.iloc[i-2]
+                    val = row_data.get("Call/Put Skew")
+                    # Should be a number.
+                    if val is not None and isinstance(val, (int, float)):
+                        if val > 1.1:
+                            cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Green
+                        elif val < 0.8:
+                            cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Red
+
+        # SMA Conditional Formatting
         for w in ma_windows:
             col_name = f"MA_{w}"
             if col_name in df.columns:
                 col_idx = df.columns.get_loc(col_name) + 1
                 for i in range(2, ws.max_row + 1):
                     avg_cell = ws.cell(row=i, column=col_idx)
-                    price_cell = ws.cell(row=i, column=df.columns.get_loc("Current Price") + 1)
-                    try:
-                        avg = avg_cell.value
-                        price = price_cell.value
-                        if avg is not None and price is not None:
-                            if price <= avg * (1 - self.highlight_threshold):
-                                avg_cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
-                            elif price >= avg * (1 + self.highlight_threshold):
-                                avg_cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
-                    except Exception:
-                        pass
+                    price_col_idx = df.columns.get_loc("Current Price") + 1 if "Current Price" in df.columns else None
+                    if price_col_idx:
+                        price_cell = ws.cell(row=i, column=price_col_idx)
+                        try:
+                            avg = avg_cell.value
+                            price = price_cell.value
+                            if avg is not None and price is not None:
+                                if price <= avg * (1 - self.highlight_threshold):
+                                    avg_cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # green
+                                elif price >= avg * (1 + self.highlight_threshold):
+                                    avg_cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red
+                        except Exception:
+                            pass
             
             # Format highlight column as percentage
             hl_col_name = f"MA_{w}_highlight"
@@ -475,6 +595,54 @@ class StockLiveComparison:
                 for i in range(2, ws.max_row + 1):
                     cell = ws.cell(row=i, column=hl_col_idx)
                     cell.number_format = '0.0%'
+
+        # EMA Color Coding (20 day)
+        # Price > 0.5% color green, < -0.5% RED
+        if "EMA_20" in df.columns:
+            ema_col_idx = df.columns.get_loc("EMA_20") + 1
+            hl_col_name = "EMA_20_highlight"
+            
+            for i in range(2, ws.max_row + 1):
+                cell = ws.cell(row=i, column=ema_col_idx)
+                if 0 <= i-2 < len(df) and hl_col_name in df.columns:
+                     val = df.iloc[i-2][hl_col_name]
+                     if val is not None:
+                         if val > 0.005: # > 0.5%
+                             cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Green
+                         elif val < -0.005: # < -0.5%
+                             cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Red
+
+        # HMA Color Coding (20 day)
+        # Price > HMA Green, Price < HMA Red
+        if "HMA_20" in df.columns:
+            hma_col_idx = df.columns.get_loc("HMA_20") + 1
+            hl_col_name = "HMA_20_highlight" # Price - HMA
+            
+            for i in range(2, ws.max_row + 1):
+                cell = ws.cell(row=i, column=hma_col_idx)
+                if 0 <= i-2 < len(df) and hl_col_name in df.columns:
+                     val = df.iloc[i-2][hl_col_name]
+                     if val is not None:
+                         if val > 0:
+                             cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Green
+                         elif val < 0:
+                             cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Red
+        
+        # TSMOM Color Coding (60 day)
+        # Green > 2%, Red < -2%
+        if "TSMOM_60" in df.columns:
+             tsmom_col_idx = df.columns.get_loc("TSMOM_60") + 1
+             # Format as percentage
+             for i in range(2, ws.max_row + 1):
+                cell = ws.cell(row=i, column=tsmom_col_idx)
+                cell.number_format = '0.0%'
+                if 0 <= i-2 < len(df):
+                    val = df.iloc[i-2]["TSMOM_60"] # TSMOM_60_highlight is same as TSMOM_60
+                    if val is not None:
+                        if val > 0.02: # > 2%
+                            cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Green
+                        elif val < -0.02: # < -2%
+                            cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Red
 
         for cell in ws[1]:
             cell.font = Font(bold=True)

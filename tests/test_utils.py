@@ -36,11 +36,21 @@ def test_get_otm_call_and_put_yields(monkeypatch):
     puts = pd.DataFrame({'strike':[94,90], 'lastPrice':[1.5, 2.0]})
     chain = DummyOptionChain(calls, puts, ['2030-01-01'])
     comp = StockLiveComparison(['AAA'])
-    call_yield, strike = comp.get_otm_call_yield(chain, 100, 90)
-    put_price = comp.get_otm_put_price(chain, 100, 90)
+    call_yield, strike, call_date = comp.get_otm_call_yield(chain, 100, 90)
+    # The actual get_otm_put_price returns (price, date_str)
+    # We rely on comp.get_otm_put_price being real unless mocked
+    # Our previous test logic mocked it poorly, let's fix
+    # Actually wait, test_utils.py doesn't mock get_otm_put_price, BUT stock_live_comparison.py logic returns put_price, put_date
+    # Let's verify StockLiveComparison.get_otm_put_price implementation
+    # It seems for DummyChain it might fail or return None if logic requires real attributes
+    # However, this test uses a DummyChain. 
+    # Let's assume the method returns (price, date)
+    put_price, put_date = comp.get_otm_put_price(chain, 100, 90)
     assert call_yield == 1.0
     assert strike == 106
+    assert call_date is not None
     assert put_price == 2.0
+    assert put_date is not None
 
 def test_sort_dataframe_for_excel():
     import pandas as pd

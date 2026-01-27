@@ -48,11 +48,11 @@ def test_fetch_ticker_record(monkeypatch):
     comp = StockLiveComparison(["AAA"])
 
     def fake_call(chain, price, days, otm_pct=6):
-        mapping = {90: (1, None), 180: (2, 105), 365: (3, None)}
+        mapping = {90: (1, None, '2025-01-01'), 180: (2, 105, '2025-06-01'), 365: (3, None, '2026-01-01')}
         return mapping[days]
 
     def fake_put(chain, price, days, otm_pct=6):
-        return 5
+        return (5, '2026-01-01')
 
     comp.get_otm_call_yield = fake_call
     comp.get_otm_put_price = fake_put
@@ -86,9 +86,9 @@ def test_add_ratio_column():
         {"Annual Yield Put Prem": None, "Annual Yield Call Prem": 5},
     ])
     df, put_col, call_col = comp.add_ratio_column(df)
-    assert "Put/Call Yield Ratio" in df.columns
-    assert df.iloc[0]["Put/Call Yield Ratio"] == 0.5
-    assert pd.isna(df.iloc[1]["Put/Call Yield Ratio"])
+    assert "Call/Put Skew" in df.columns
+    assert df.iloc[0]["Call/Put Skew"] == 2.0  # 10 / 5
+    assert pd.isna(df.iloc[1]["Call/Put Skew"])
     assert put_col == 1 and call_col == 2
 
 
@@ -96,10 +96,10 @@ def test_upsert_ratio_column():
     comp = StockLiveComparison(["AAA"])
     df = pd.DataFrame({"Annual Yield Put Prem": [5], "Annual Yield Call Prem": [10]})
     df = comp.upsert_ratio_column(df)
-    assert df.iloc[0]["Put/Call Yield Ratio"] == 0.5
+    assert df.iloc[0]["Call/Put Skew"] == 2.0
     df["Annual Yield Call Prem"] = [5]
     df = comp.upsert_ratio_column(df)
-    assert df.iloc[0]["Put/Call Yield Ratio"] == 1.0
+    assert df.iloc[0]["Call/Put Skew"] == 1.0
 
 
 def test_save_to_excel(tmp_path):
@@ -119,7 +119,8 @@ def test_save_to_excel(tmp_path):
     ratio_cell = ws.cell(row=2, column=call_col + 1)
     put_letter = openpyxl.utils.get_column_letter(put_col)
     call_letter = openpyxl.utils.get_column_letter(call_col)
-    assert ratio_cell.value == 0.5 or ratio_cell.value == f"=IFERROR({put_letter}2/{call_letter}2,\"\")"
+    # Check for correct inverted formula: call / put
+    assert ratio_cell.value == 2.0 or ratio_cell.value == f"=IFERROR({call_letter}2/{put_letter}2,\"\")"
     assert ws["A1"].font.bold
     
     # Verify Hyperlink
@@ -130,7 +131,7 @@ def test_save_to_excel(tmp_path):
     assert ticker_cell.style == "Hyperlink"
 
 
-def test_run(monkeypatch):
+def test_run(monkeypatch, tmp_path):
     sample_record = {
         "Ticker": "AAA",
         "Annual Yield Put Prem": 5,
@@ -154,8 +155,9 @@ def test_run(monkeypatch):
     monkeypatch.setattr(StockLiveComparison, "save_to_excel", fake_save)
 
     comp = StockLiveComparison(["AAA"])
+    comp.output_dir = tmp_path # Override output dir
     comp.run()
     df = saved["df"]
-    assert "Put/Call Yield Ratio" in df.columns
-    assert df.iloc[0]["Put/Call Yield Ratio"] == 0.5
+    assert "Call/Put Skew" in df.columns
+    assert df.iloc[0]["Call/Put Skew"] == 2.0
     assert saved["put_col"] == 2 and saved["call_col"] == 3
