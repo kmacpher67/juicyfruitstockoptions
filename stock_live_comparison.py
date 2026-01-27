@@ -7,6 +7,7 @@ from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment
 from Ai_Stock_Database import AiStockDatabase
+from export_mongo import export_data
 
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
@@ -790,6 +791,13 @@ class StockLiveComparison:
             
         self.save_to_excel(df, put_col, call_col)
         self.upsert_to_mongo(df)
+        
+        # Auto-export backup to JSON for git versioning
+        try:
+            logging.info("Auto-exporting MongoDB data to JSON backup...")
+            export_data()
+        except Exception as e:
+            logging.error(f"Failed to auto-export JSON backup: {e}")
         
         logging.info(f"Spreadsheet generated: {self.filename}")
 

@@ -22,3 +22,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Mongo binary data (use export_mongo.py instead)
+mongo_data/
