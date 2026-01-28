@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { RefreshCw, LogOut, Play, Download, FileText } from 'lucide-react';
+import { RefreshCw, LogOut, Play, Download, FileText, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StockGrid from './StockGrid';
+import SettingsModal from './SettingsModal';
+
+const AVAILABLE_COLUMNS = [
+    { field: "Ticker", headerName: "Ticker" },
+    { field: "Current Price", headerName: "Price" },
+    { field: "Call/Put Skew", headerName: "Call/Put Skew" },
+    { field: "1D % Change", headerName: "Change" },
+    { field: "YoY Price %", headerName: "YoY %" },
+    { field: "TSMOM_60", headerName: "TSMOM 60" },
+    { field: "MA_200", headerName: "200 MA" },
+    { field: "EMA_20", headerName: "EMA 20" },
+    { field: "HMA_20", headerName: "HMA 20" },
+    { field: "Div Yield", headerName: "Div Yield" }
+];
 
 const Dashboard = () => {
     const [data, setData] = useState([]);
@@ -11,6 +25,15 @@ const Dashboard = () => {
     const [selectedReport, setSelectedReport] = useState('');
     const [loading, setLoading] = useState(false);
     const [running, setRunning] = useState(false);
+
+    // Settings State
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [settings, setSettings] = useState({
+        pageSize: 100,
+        sortColumn: 'Ticker',
+        sortOrder: 'asc'
+    });
+
     const { logout, user } = useAuth();
     const navigate = useNavigate();
 
@@ -130,6 +153,11 @@ const Dashboard = () => {
         navigate('/login');
     }
 
+    const handleSaveSettings = (newSettings) => {
+        setSettings(newSettings);
+        setIsSettingsOpen(false);
+    };
+
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
             <header className="flex justify-between items-center mb-8">
@@ -138,6 +166,9 @@ const Dashboard = () => {
                 </h1>
                 <div className="flex items-center gap-4">
                     <span className="text-gray-400">Welcome, {user?.username}</span>
+                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors">
+                        <Settings className="h-5 w-5" />
+                    </button>
                     <button onClick={handleLogout} className="p-2 hover:bg-gray-800 rounded">
                         <LogOut className="h-5 w-5 text-red-400" />
                     </button>
@@ -198,9 +229,21 @@ const Dashboard = () => {
                 {data.length === 0 && !loading ? (
                     <div className="text-center text-gray-500 py-12">Select a report to view data.</div>
                 ) : (
-                    <StockGrid data={data} />
+                    <StockGrid
+                        data={data}
+                        pageSize={settings.pageSize}
+                        defaultSort={{ colId: settings.sortColumn, sortOrder: settings.sortOrder }}
+                    />
                 )}
             </div>
+
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                onSave={handleSaveSettings}
+                currentSettings={settings}
+                columns={AVAILABLE_COLUMNS}
+            />
         </div>
     );
 };
