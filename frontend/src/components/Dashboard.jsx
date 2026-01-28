@@ -1,42 +1,104 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { RefreshCw, TrendingUp, TrendingDown, LogOut } from 'lucide-react';
+import { RefreshCw, LogOut, Play, Download, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import StockGrid from './StockGrid';
 
 const Dashboard = () => {
     const [data, setData] = useState([]);
+    const [reports, setReports] = useState([]);
+    const [selectedReport, setSelectedReport] = useState('');
     const [loading, setLoading] = useState(false);
+    const [running, setRunning] = useState(false);
     const { logout, user } = useAuth();
     const navigate = useNavigate();
 
-    const fetchData = async () => {
+    // Initial Load
+    useEffect(() => {
+        loadReports();
+    }, []);
+
+    // When report selection changes, load that report's data
+    useEffect(() => {
+        if (selectedReport) {
+            loadReportData(selectedReport);
+        }
+    }, [selectedReport]);
+
+    const loadReports = async () => {
+        try {
+            const response = await api.get('/reports');
+            const fileList = response.data;
+            setReports(fileList);
+
+            // Auto-select latest if available
+            if (fileList.length > 0) {
+                setSelectedReport(fileList[0]);
+            } else {
+                // Fallback: Try to load from MongoDB if no reports exist? 
+                // Or just show empty. The user generally wants to see the LAST RUN.
+                // We'll leave data empty or fetch from /stocks as fallback
+                loadLiveStocks();
+            }
+        } catch (error) {
+            console.error("Failed to load reports list:", error);
+        }
+    };
+
+    const loadLiveStocks = async () => {
         setLoading(true);
         try {
-            // In a real app, we might want to separate "Fetching" from "Triggering Run"
-            // For now, we call the run endpoint which returns the fresh data
-            // However, the backend currently returns {"status": "success", "file": ...} not the actual data list
-            // We need to update the backend to return data, OR we need a new endpoint.
-            // For now, let's assume we implement a GET /api/stocks endpoint in the backend.
-            // But since I didn't implement that yet, I'll update this component to just show the status for now
-            // or I can quickly add a GET endpoint in the backend. 
-            // Let's stick to the plan: Phase 2 includes "Grid: Display stock data". 
-            // The current backend doesn't serve the JSON data yet via GET.
-            // I will implement a temporary fix: The run endpoint creates a JSON file. 
-            // I should probably add a GET endpoint to the backend to read that JSON.
-
-            // For now, let's try to hit the run endpoint and see if we can get data.
-            // Actually, I'll add a 'refresh' button to trigger run.
-            const response = await api.post('/run/stock-live-comparison');
-            console.log(response.data);
-            // TODO: We need a way to GET the data.
-            // For the demo, I'll mock some data or handle this in the next step.
-            alert("Report Generated: " + response.data.file);
+            const response = await api.get('/stocks');
+            setData(response.data);
         } catch (error) {
-            console.error(error);
-            alert("Failed to fetch data");
+            console.error("Failed to load live stocks:", error);
         } finally {
             setLoading(false);
+        }
+    }
+
+    const loadReportData = async (filename) => {
+        setLoading(true);
+        try {
+            const response = await api.get(`/reports/${filename}/data`);
+            setData(response.data);
+        } catch (error) {
+            console.error(`Failed to load report ${filename}:`, error);
+            alert(`Failed to load data for ${filename}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const runAnalysis = async () => {
+        setRunning(true);
+        try {
+            alert("Analysis started...");
+            await api.post('/run/stock-live-comparison');
+            alert("Analysis Complete. Refreshing reports...");
+            await loadReports(); // Will refresh list and select new latest
+        } catch (error) {
+            console.error(error);
+            alert("Failed to run analysis");
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    const downloadCurrentReport = async () => {
+        if (!selectedReport) return;
+        try {
+            const response = await api.get(`/reports/${selectedReport}/download`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', selectedReport);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            console.error("Download failed:", error);
         }
     };
 
@@ -59,22 +121,62 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="mb-6 flex gap-4">
+            {/* Controls Bar */}
+            <div className="mb-6 flex flex-wrap items-center gap-4 bg-gray-800 p-4 rounded-lg shadow">
+
+                {/* Report Selector */}
+                <div className="flex items-center gap-2">
+                    <FileText className="text-gray-400 h-5 w-5" />
+                    <select
+                        className="bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                        value={selectedReport}
+                        onChange={(e) => setSelectedReport(e.target.value)}
+                    >
+                        {reports.length === 0 && <option value="">No Reports Found</option>}
+                        {reports.map(file => (
+                            <option key={file} value={file}>{file}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="h-6 w-px bg-gray-600 mx-2"></div>
+
                 <button
-                    onClick={fetchData}
+                    onClick={() => selectedReport ? loadReportData(selectedReport) : loadReports()}
                     disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 transition-colors"
                 >
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    {loading ? 'Running Analysis...' : 'Run Live Comparison'}
+                    Refresh
+                </button>
+
+                <button
+                    onClick={downloadCurrentReport}
+                    disabled={!selectedReport}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:bg-gray-600"
+                >
+                    <Download className="h-4 w-4" />
+                    Download
+                </button>
+
+                <div className="flex-grow"></div>
+
+                <button
+                    onClick={runAnalysis}
+                    disabled={running}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 transition-colors"
+                >
+                    <Play className="h-4 w-4" />
+                    {running ? 'Running Analysis...' : 'Run Live Comparison'}
                 </button>
             </div>
 
-            <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
-                <div className="text-center text-gray-400 py-12">
-                    <p>Metrics Dashboard coming soon...</p>
-                    <p className="text-sm mt-2">Check 'report-results' folder for the generated Excel file.</p>
-                </div>
+            <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
+                {data.length === 0 && !loading ? (
+                    <div className="text-center text-gray-500 py-12">Select a report to view data.</div>
+                ) : (
+                    <StockGrid data={data} />
+                )}
             </div>
         </div>
     );
