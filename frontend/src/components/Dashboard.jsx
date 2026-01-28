@@ -74,14 +74,37 @@ const Dashboard = () => {
     const runAnalysis = async () => {
         setRunning(true);
         try {
-            alert("Analysis started...");
-            await api.post('/run/stock-live-comparison');
-            alert("Analysis Complete. Refreshing reports...");
-            await loadReports(); // Will refresh list and select new latest
+            // Start Job
+            const response = await api.post('/run/stock-live-comparison');
+            const jobId = response.data.job_id;
+
+            // Poll Status every 2 seconds
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await api.get(`/jobs/${jobId}`);
+                    const job = statusRes.data;
+
+                    if (job.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setRunning(false);
+                        // alert("Analysis Complete. Refreshing reports...");
+                        await loadReports();
+                    } else if (job.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setRunning(false);
+                        alert(`Analysis Failed: ${job.error}`);
+                    }
+                } catch (err) {
+                    console.error("Polling error", err);
+                    clearInterval(pollInterval);
+                    setRunning(false);
+                    alert("Lost connection to server during polling.");
+                }
+            }, 2000);
+
         } catch (error) {
             console.error(error);
-            alert("Failed to run analysis");
-        } finally {
+            alert("Failed to start analysis");
             setRunning(false);
         }
     };

@@ -1,13 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react'; // React Data Grid Component
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS
 import "ag-grid-community/styles/ag-theme-quartz.css"; // Optional Theme applied to the grid
+
+// Register all Community features
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const StockGrid = ({ data }) => {
 
     // Column Definitions: Defines the columns to be displayed.
     const [colDefs, setColDefs] = useState([
-        { field: "Ticker", filter: true, sortable: true, checkboxSelection: true },
+        { field: "Ticker", filter: true, sortable: true, checkboxSelection: true, pinned: 'left' },
         { field: "Current Price", headerName: "Price", filter: "agNumberColumnFilter", sortable: true, valueFormatter: p => p.value ? `$${parseFloat(p.value).toFixed(2)}` : '' },
         {
             field: "1D % Change", headerName: "Change", cellClassRules: {
@@ -15,16 +19,18 @@ const StockGrid = ({ data }) => {
                 'text-red-400': p => p.value && p.value.includes('-')
             }
         },
-        { field: "MA_200", headerName: "200 MA", filter: "agNumberColumnFilter" },
+        { field: "YoY Price %", headerName: "YoY %" },
         {
-            field: "RSI", filter: "agNumberColumnFilter", cellClassRules: {
-                'font-bold text-red-500': p => p.value > 70,
-                'font-bold text-green-500': p => p.value < 30
+            field: "TSMOM_60", headerName: "TSMOM 60", filter: "agNumberColumnFilter", cellClassRules: {
+                'text-green-400': p => p.value > 0,
+                'text-red-400': p => p.value < 0
             }
         },
+        { field: "MA_200", headerName: "200 MA", filter: "agNumberColumnFilter" },
         { field: "EMA_20", headerName: "EMA 20" },
         { field: "HMA_20", headerName: "HMA 20" },
-        { field: "Call/Put Skew", headerName: "Skew", filter: "agNumberColumnFilter" },
+        { field: "Div Yield", headerName: "Div Yield", valueFormatter: p => p.value ? `${p.value}%` : '' },
+        { field: "Call/Put Skew", headerName: "Call/Put Skew", filter: "agNumberColumnFilter", valueFormatter: p => p.value ? parseFloat(p.value).toFixed(2) : '' },
         { field: "Last Update" }
     ]);
 

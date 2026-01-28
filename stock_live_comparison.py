@@ -399,27 +399,44 @@ class StockLiveComparison:
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     def add_ratio_column(self, df):
-        """Add Call/Put Skew column to DataFrame, catching errors and printing them."""
+        """Add Call/Put Skew column to DataFrame using vectorized operations."""
         ratio_col_name = "Call/Put Skew"
         try:
-            if "Annual Yield Put Prem" not in df.columns:
-                df["Annual Yield Put Prem"] = None
-            if "Annual Yield Call Prem" not in df.columns:
-                df["Annual Yield Call Prem"] = None
-            put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
-            call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
-            if ratio_col_name not in df.columns:
-                df.insert(call_col, ratio_col_name, None)
-            df[ratio_col_name] = df.apply(
-                lambda row: (
-                    row["Annual Yield Call Prem"] / row["Annual Yield Put Prem"]
-                    if row["Annual Yield Put Prem"] not in [0, None, ""]
-                    and row["Annual Yield Call Prem"] not in [None, ""]
-                    else None
-                ),
-                axis=1,
-            )
+            # Ensure columns exist
+            for col in ["Annual Yield Put Prem", "Annual Yield Call Prem"]:
+                if col not in df.columns:
+                    df[col] = None
+
+            # Determine insertion index (after Call Prem)
+            try:
+                call_col = df.columns.get_loc("Annual Yield Call Prem") + 1
+                put_col = df.columns.get_loc("Annual Yield Put Prem") + 1
+            except Exception:
+                # If columns are missing or index fails, just append to end
+                call_col = len(df.columns)
+                put_col = len(df.columns)
+
+            # Convert to numeric, forcing non-numeric to NaN
+            s_call = pd.to_numeric(df["Annual Yield Call Prem"], errors='coerce')
+            s_put = pd.to_numeric(df["Annual Yield Put Prem"], errors='coerce')
+
+            # Calculate Skew (Vectorized)
+            # handle division by zero (result becomes inf, then replace with NaN)
+            skew_series = s_call / s_put
+            skew_series = skew_series.replace([float('inf'), float('-inf')], float('nan'))
+            
+            # Insert or Update Column
+            if ratio_col_name in df.columns:
+                df[ratio_col_name] = skew_series
+            else:
+                # Insert at specific position if safe, else assign
+                if call_col < len(df.columns):
+                    df.insert(call_col, ratio_col_name, skew_series)
+                else:
+                    df[ratio_col_name] = skew_series
+
             return df, put_col, call_col
+
         except Exception as e:
             logging.error(f"Error in add_ratio_column: {e}")
             return df, None, None
@@ -497,25 +514,15 @@ class StockLiveComparison:
         call_col = df.columns.get_loc("Annual Yield Call Prem") + 1 if "Annual Yield Call Prem" in df.columns else None
         ratio_col = df.columns.get_loc("Call/Put Skew") + 1 if "Call/Put Skew" in df.columns else None
 
-        # Ratio formula and Hyperlinks
+        # Hyperlinks ONLY (Removed IFERROR formula overwrite)
         for i in range(2, ws.max_row + 1):
-            if ratio_col and put_col and call_col:
-                put_letter = openpyxl.utils.get_column_letter(put_col)
-                call_letter = openpyxl.utils.get_column_letter(call_col)
-                ratio_cell = ws.cell(row=i, column=ratio_col)
-                ratio_cell.value = f"=IFERROR({call_letter}{i}/{put_letter}{i},\"\")"
-
+            
             # Add Google Finance Hyperlink to Ticker Column
             if ticker_col_idx:
                 ticker_cell = ws.cell(row=i, column=ticker_col_idx)
                 ticker_val = ticker_cell.value
                 if ticker_val:
                     url = f"https://www.google.com/finance?q={str(ticker_val)}"
-                    # print(f"DEBUG: Ticker found '{ticker_val}', adding hyperlink: {url}")
-                    ticker_cell.hyperlink = url
-                    ticker_cell.hyperlink = url
-                    ticker_cell.style = "Hyperlink"
-
                     ticker_cell.hyperlink = url
                     ticker_cell.style = "Hyperlink"
 
