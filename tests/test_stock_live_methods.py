@@ -161,3 +161,142 @@ def test_run(monkeypatch, tmp_path):
     assert "Call/Put Skew" in df.columns
     assert df.iloc[0]["Call/Put Skew"] == 2.0
     assert saved["put_col"] == 2 and saved["call_col"] == 3
+
+
+def test_is_recent():
+    comp = StockLiveComparison([])
+    # Mock 'now' to be consistent
+    base_time = pd.Timestamp("2025-01-01 12:00:00")
+    comp.now = base_time
+    
+    # Recent: 1 hour ago
+    row_recent = {"Last Update": "2025-01-01 11:00:00"}
+    assert comp.is_recent(row_recent) is True
+    
+    # Old: 25 hours ago (default max_age_hours is 24 probably? checking code...)
+    # Actually code has self.max_age_hours, let's assume default unless init changes it.
+    # Looking at class init, it might default to something. Let's start with a safe check.
+    # If not set in init, we'll see. But typically it's 4 hours or similar.
+    # Let's set it explicitly for test
+    comp.max_age_hours = 4
+    
+    row_old = {"Last Update": "2025-01-01 07:00:00"} # 5 hours ago
+    assert comp.is_recent(row_old) is False
+    
+    # Invalid
+    assert comp.is_recent({}) is False
+    assert comp.is_recent({"Last Update": None}) is False
+
+
+def test_get_missing_or_outdated_tickers():
+    comp = StockLiveComparison(["AAA", "BBB", "CCC"])
+    comp.now = pd.Timestamp("2025-01-01 12:00:00")
+    comp.max_age_hours = 4
+    
+    # AAA: Recent and complete
+    # BBB: Old
+    # CCC: Missing from DF
+    # DDD: Recent but missing columns
+    
+    data = [
+        {
+            "Ticker": "AAA",
+            "Last Update": "2025-01-01 11:00:00",
+            "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
+            "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+            "_PutExpDate_365": "2026-01-01"
+        },
+        {
+            "Ticker": "BBB",
+            "Last Update": "2025-01-01 06:00:00", # 6 hours old
+            "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
+            "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+             "_PutExpDate_365": "2026-01-01"
+        },
+        {
+            "Ticker": "DDD",
+            "Last Update": "2025-01-01 11:00:00",
+            "MA_30": 100, # Missing other MAs
+             "_PutExpDate_365": "2026-01-01"
+        }
+    ]
+    df_existing = pd.DataFrame(data)
+    
+    missing = comp.get_missing_or_outdated_tickers(df_existing)
+    
+    assert "AAA" not in missing
+    assert "BBB" in missing # Old
+    assert "CCC" in missing # Not in DF
+    # DDD is in DF but missing columns, so it should be considered outdated/re-fetch needed
+    # Wait, get_missing_or_outdated_tickers iterates over self.tickers ("AAA", "BBB", "CCC")
+    # DDD is NOT in self.tickers, so it won't be checked effectively unless added.
+    
+    # Let's add DDD to self.tickers to test the missing columns logic
+    comp.tickers.append("DDD")
+    missing = comp.get_missing_or_outdated_tickers(df_existing)
+    assert "DDD" in missing
+
+
+def test_run_merge_logic(monkeypatch, tmp_path, caplog):
+    # Setup
+    comp = StockLiveComparison(["AAA", "NEW"])
+    comp.output_dir = tmp_path
+    
+    # Create "Existing" file
+    existing_df = pd.DataFrame([
+        {
+            "Ticker": "AAA",
+            "Last Update": "2025-01-01 10:00:00",
+            "Annual Yield Put Prem": 5,
+            "Annual Yield Call Prem": 5,
+             "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
+            "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+             "_PutExpDate_365": "2026-01-01"
+        }
+    ])
+    existing_file = tmp_path / "AI_Stock_Live_Comparison_20250101_100000.xlsx"
+    existing_df.to_excel(existing_file, index=False)
+    
+    # Mock get_latest_spreadsheet to return this file
+    def fake_get_latest(directory, base_name="AI_Stock_Live_Comparison_"):
+        return existing_file, pd.Timestamp("2025-01-01 10:00:00")
+    monkeypatch.setattr(comp, "get_latest_spreadsheet", fake_get_latest)
+    
+    # Mock fetch_data to return only "NEW" ticker data
+    def fake_fetch(tickers):
+        return [{
+            "Ticker": "NEW", 
+            "Last Update": "2025-01-02 10:00:00",
+            "Annual Yield Put Prem": 10,
+            "Annual Yield Call Prem": 10
+        }]
+    monkeypatch.setattr(comp, "fetch_data", fake_fetch)
+    
+    # Mock save_to_excel avoid actual excel ops
+    saved_df = []
+    monkeypatch.setattr(comp, "save_to_excel", lambda df, p, c: saved_df.append(df))
+    monkeypatch.setattr(comp, "upsert_to_mongo", lambda df: None)
+    
+    # Mock json export
+    monkeypatch.setattr("stock_live_comparison.export_data", lambda: None)
+    
+    # Mock datetime to control self.now inside run()
+    import datetime
+    class FakeDatetime(datetime.datetime):
+        @classmethod
+        def now(cls):
+            return pd.Timestamp("2025-01-01 11:00:00")
+            
+    monkeypatch.setattr("stock_live_comparison.datetime", FakeDatetime)
+    
+    # Run
+    # Enable logging (optional, keeping for safety if fails again but usually not needed)
+    # caplog.set_level(logging.DEBUG) 
+    
+    comp.run()
+    
+    assert len(saved_df) == 1
+    result = saved_df[0]
+    assert len(result) == 2
+    assert "AAA" in result["Ticker"].values
+    assert "NEW" in result["Ticker"].values

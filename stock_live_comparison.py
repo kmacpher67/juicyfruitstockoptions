@@ -563,9 +563,9 @@ class StockLiveComparison:
                     val = row_data.get("Call/Put Skew")
                     # Should be a number.
                     if val is not None and isinstance(val, (int, float)):
-                        if val > 1.1:
+                        if val > 1.2:
                             cell.fill = openpyxl.styles.PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Green
-                        elif val < 0.8:
+                        elif val < 0.75:
                             cell.fill = openpyxl.styles.PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Red
 
         # SMA Conditional Formatting
