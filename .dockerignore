@@ -1,0 +1,22 @@
+# Version Control
+.git
+.gitignore
+
+# Python / Environment
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+
+# Data & Output (Ignored to prevent huge build context and permission errors)
+mongo_data
+report-results
+mongo_backup.json
+**/node_modules
+
+# Local Config
+.env
+.vscode
