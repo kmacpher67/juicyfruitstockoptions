@@ -37,10 +37,24 @@ const Dashboard = () => {
     const { logout, user } = useAuth();
     const navigate = useNavigate();
 
-    // Initial Load
+    // Initial Load (Reports + Settings)
     useEffect(() => {
         loadReports();
+        loadSettings();
     }, []);
+
+    const loadSettings = async () => {
+        try {
+            const res = await api.get('/settings');
+            // If the API returns valid data, use it.
+            // Our API returns default object if empty, so it's safe.
+            if (res.data) {
+                setSettings(res.data);
+            }
+        } catch (error) {
+            console.error("Failed to load settings:", error);
+        }
+    };
 
     // When report selection changes, load that report's data
     useEffect(() => {
@@ -153,7 +167,14 @@ const Dashboard = () => {
         navigate('/login');
     }
 
-    const handleSaveSettings = (newSettings) => {
+    const handleSaveSettings = async (newSettings) => {
+        // Save to API
+        try {
+            await api.post('/settings', newSettings);
+        } catch (error) {
+            console.error("Failed to save settings to server:", error);
+            // Optionally alert user
+        }
         setSettings(newSettings);
         setIsSettingsOpen(false);
     };

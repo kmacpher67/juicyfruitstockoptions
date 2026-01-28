@@ -100,7 +100,77 @@ def run_stock_live_comparison_endpoint(
     # Add to Background Tasks
     background_tasks.add_task(background_job_wrapper, job.id, run_stock_live_comparison)
     
+    # Add to Background Tasks
+    background_tasks.add_task(background_job_wrapper, job.id, run_stock_live_comparison)
+    
     return {"job_id": job.id, "status": "queued"}
+
+# --- Scheduler Config Endpoints ---
+
+from pydantic import BaseModel
+class ScheduleConfig(BaseModel):
+    hour: int
+    minute: int
+
+@router.get("/schedule", response_model=ScheduleConfig)
+def get_schedule(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    from app.scheduler.jobs import get_schedule_config
+    return get_schedule_config()
+
+@router.post("/schedule")
+def update_schedule(
+    config: ScheduleConfig,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    from app.scheduler.jobs import reschedule_daily_job
+    try:
+        reschedule_daily_job(config.hour, config.minute)
+        return {"status": "success", "message": f"Rescheduled to {config.hour:02d}:{config.minute:02d}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- User Settings Persistence ---
+
+class UserSettings(BaseModel):
+    pageSize: int = 100
+    sortColumn: str = "Ticker"
+    sortOrder: str = "asc"
+
+@router.get("/settings", response_model=UserSettings)
+def get_user_settings(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    try:
+        client = MongoClient(settings.MONGO_URI)
+        db = client["stock_analysis"]
+        # Fetch settings for this user
+        doc = db.user_settings.find_one({"username": current_user.username})
+        if doc:
+            return UserSettings(**doc)
+        # Defaults
+        return UserSettings()
+    except Exception as e:
+        # Default fallback on error
+        return UserSettings()
+
+@router.post("/settings")
+def save_user_settings(
+    user_settings: UserSettings,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    try:
+        client = MongoClient(settings.MONGO_URI)
+        db = client["stock_analysis"]
+        db.user_settings.update_one(
+            {"username": current_user.username},
+            {"$set": user_settings.dict()},
+            upsert=True
+        )
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 @router.get("/reports", response_model=List[str])
 async def list_reports(
