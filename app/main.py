@@ -8,6 +8,19 @@ from app.scheduler.jobs import start_scheduler, stop_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    import logging
+    # Configure logging to file (visible on host via volume mount)
+    logging.basicConfig(
+        filename="stock_portal_debug.log",
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        force=True # Force reconfiguration to override Uvicorn defaults for file output
+    )
+    # Add console handler back so docker logs still work
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    logging.getLogger().addHandler(console)
+    
     start_scheduler()
     yield
     # Shutdown

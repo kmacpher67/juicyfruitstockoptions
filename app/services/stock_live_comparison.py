@@ -6,7 +6,10 @@ from stock_live_comparison import StockLiveComparison
 def run_stock_live_comparison(tickers: List[str] | None = None) -> dict:
     """Run the stock live comparison report and return status information."""
     try:
-        # If tickers is None, StockLiveComparison will use its internal default list
+        # If tickers is None, load default list
+        if tickers is None:
+             tickers = StockLiveComparison.get_default_tickers()
+        
         comp = StockLiveComparison(tickers)
         comp.run()
         return {"status": "success", "file": comp.filename}

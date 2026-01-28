@@ -22,8 +22,12 @@ class AiStockDatabase:
             "MONGO_URI", "mongodb://localhost:27017/stocklive"
         )
         parsed = urlparse(self.mongo_uri)
-        uri_db = parsed.path.lstrip("/") or None
-        self.db_name = db_name or uri_db
+        # Handle cases where path is just "/" or empty
+        path = parsed.path.lstrip("/")
+        uri_db = path if path else None
+        
+        # Default to 'stock_analysis' if not provided in URI
+        self.db_name = db_name or uri_db or "stock_analysis"
         self.collection_name = collection_name or os.environ.get(
             "MONGO_COLLECTION_NAME", "test_stock_data"
         )
