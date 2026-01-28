@@ -11,3 +11,7 @@ uvicorn
 apscheduler
 fastapi-users[beanie]
 mongomock
+pydantic-settings
+python-jose[cryptography]
+passlib[argon2]
+python-multipart

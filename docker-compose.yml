@@ -1,29 +1,45 @@
-version: '3.8'
-
 services:
-  mongo:
-    image: mongo:7
-    container_name: stocklive_mongo
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - ./mongo_data:/data/db  # Local folder for MongoDB data persistence
-    environment:
-      MONGO_INITDB_DATABASE: stocklive
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stocklive_app
-    volumes:
-      - .:/app  # Mount your project files into the container
-    depends_on:
-      - mongo
-    environment:
-      - MONGO_URI=mongodb://mongo:27017/stocklive
+  backend:
+    build: .
+    container_name: stock_portal_backend
     ports:
       - "8000:8000"
-    command: ["uvicorn", "app.zen_garden:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ./app:/app/app # Map app code for hot reload
+      - ./report-results:/app/report-results # Map output folder
+      # We also map the root files that are imported
+      - ./stock_live_comparison.py:/app/stock_live_comparison.py
+      - ./Ai_Stock_Database.py:/app/Ai_Stock_Database.py
+      - ./export_mongo.py:/app/export_mongo.py
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - APP_NAME=JuicyFruit Stock Portal
+      - RUN_TIME=16:00
+      - ADMIN_USER=admin
+      - ADMIN_PASS=admin123
+    depends_on:
+      - mongo
+    restart: always
 
+  mongo:
+    image: mongo:latest
+    container_name: stock_portal_mongo
+    ports:
+      - "27017:27017" # Exposed for local tools if needed
+    volumes:
+      - ./mongo_data:/data/db
+    restart: always
+  # Frontend (Phase 2)
+  frontend:
+    build: ./frontend
+    container_name: stock_portal_frontend
+    ports:
+      - "3000:5173" # Map host 3000 to container 5173 (Vite default)
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevent host node_modules from overwriting container's
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    restart: always

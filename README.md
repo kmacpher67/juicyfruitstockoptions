@@ -15,20 +15,39 @@ pip install -r requirements.txt
 
 ```
 app/
-├── zen_garden.py           # FastAPI entrypoint with scheduler
+├── main.py                 # FastAPI Application entry point
+├── config.py               # Pydantic Settings
+├── models.py               # Data Models
 ├── api/
-│   └── routes.py           # REST endpoints to trigger jobs
 ├── auth/
-│   └── users.py            # fastapi-users configuration
 ├── scheduler/
-│   └── jobs.py             # APScheduler jobs
-├── services/
-│   ├── portfolio_fixer.py
-│   └── stock_live_comparison.py
-└── utils/
-    ├── excel_exporter.py
-    └── mongo_client.py
+└── services/
+frontend/                   # React Frontend (Phase 2)
+docker-compose.yml          # Container configuration
 ```
+
+## Web Portal Architecture (New)
+
+The project has been upgraded to a Dockerized Web Application.
+
+- **Backend**: FastAPI (Python) serving REST endpoints and managing the Scheduler.
+- **Frontend**: React (Vite) for the Dashboard (In Progress).
+- **Database**: MongoDB (Persists to `./mongo_data`).
+- **Scheduler**: Runs daily jobs automatically (configurable in `app/config.py`).
+
+### Quick Start (Web Portal)
+
+1.  **Run with Docker**:
+    ```bash
+    docker-compose up --build
+    ```
+2.  **Access API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+3.  **Admin Login**: `admin` / `admin123` (Default)
+
+---
+
+## Legacy Script Usage
+
 
 
 ## Stock Live Comparison Script
