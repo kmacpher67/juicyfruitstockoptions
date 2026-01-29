@@ -66,10 +66,12 @@ def get_nav_history_stats():
     month_start = datetime(anchor_date.year, anchor_date.month, 1).strftime("%Y-%m-%d")
     
     day_1_ago = (anchor_date - timedelta(days=1)).strftime("%Y-%m-%d")
+    day_7_ago = (anchor_date - timedelta(days=7)).strftime("%Y-%m-%d") # Added 7D
     day_30_ago = (anchor_date - timedelta(days=30)).strftime("%Y-%m-%d")
     year_ago = (anchor_date - timedelta(days=365)).strftime("%Y-%m-%d")
     
     nav_1d = get_nav_at(day_1_ago) or current_nav
+    nav_7d = get_nav_at(day_7_ago) or current_nav # Added 7D
     nav_30d = get_nav_at(day_30_ago) or current_nav
     nav_mtd = get_nav_at(month_start) or current_nav
     nav_ytd = get_nav_at(year_start) or current_nav
@@ -82,6 +84,7 @@ def get_nav_history_stats():
     return {
         "current_nav": current_nav,
         "change_1d": pct(nav_1d, current_nav),
+        "change_7d": pct(nav_7d, current_nav), # Added 7D
         "change_30d": pct(nav_30d, current_nav),
         "change_mtd": pct(nav_mtd, current_nav),
         "change_ytd": pct(nav_ytd, current_nav),

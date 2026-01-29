@@ -43,6 +43,7 @@ const NAVStats = ({ stats }) => {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <StatCard title="Current NAV" value={stats.current_nav} isCurrency={true} />
             <StatCard title="1 Day" value={stats.change_1d} isPercent={true} />
+            <StatCard title="7 Day" value={stats.change_7d} isPercent={true} />
             <StatCard title="30 Day" value={stats.change_30d} isPercent={true} />
             <StatCard title="YTD" value={stats.change_ytd} isPercent={true} />
             <StatCard title="YoY" value={stats.change_yoy} isPercent={true} />

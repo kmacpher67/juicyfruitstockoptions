@@ -387,6 +387,10 @@ def run_ibkr_sync():
             # Partial or Full Failure
             status = "failed" if len(errors) >= 2 else "warning"
             save_sync_status(status, "; ".join(errors))
+    except Exception as e:
+        logging.exception(f"IBKR Sync Critical Failure: {e}")
+        save_sync_status("failed", f"Critical Error: {str(e)}")
+
 
 def parse_and_store_nav(content):
     """Dispatcher for NAV data."""
@@ -506,6 +510,4 @@ def parse_xml_nav(xml_content):
             
     logging.info(f"Processed {count} NAV records (XML).")
                 
-    except Exception as e:
-        logging.exception(f"IBKR Sync Critical Failure: {e}")
-        save_sync_status("failed", f"Critical Error: {str(e)}")
+

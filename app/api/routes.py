@@ -414,3 +414,36 @@ def get_portfolio_holdings(
     report_date = latest.get("report_date")
     data = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
     return data
+
+@router.get("/portfolio/alerts")
+def get_portfolio_alerts(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Run Advanced Options Analysis on current holdings.
+    Returns list of Alert objects (Uncovered, Naked, Profit).
+    """
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+        
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Fetch Latest Holdings
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    if not latest:
+        return []
+        
+    report_date = latest.get("report_date")
+    holdings = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
+    
+    # 2. Analyze
+    from app.services.options_analysis import OptionsAnalyzer
+    analyzer = OptionsAnalyzer(holdings)
+    
+    alerts = []
+    alerts.extend(analyzer.analyze_naked())    # Critical
+    alerts.extend(analyzer.analyze_coverage()) # Opportunity
+    alerts.extend(analyzer.analyze_profit())   # Actionable
+    
+    return alerts

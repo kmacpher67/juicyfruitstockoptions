@@ -7,6 +7,7 @@ import StockGrid from './StockGrid';
 import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
+import AlertsDashboard from './AlertsDashboard';
 
 const AVAILABLE_COLUMNS = [
     { field: "Ticker", headerName: "Ticker" },
@@ -262,6 +263,10 @@ const Dashboard = () => {
             {viewMode === 'PORTFOLIO' ? (
                 <>
                     <NAVStats stats={portfolioStats} />
+                    <div className="mb-4">
+                        {/* Dynamically load Alerts */}
+                        <AlertsDashboard />
+                    </div>
                     <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
                         <PortfolioGrid data={portfolioHoldings} />
                     </div>
