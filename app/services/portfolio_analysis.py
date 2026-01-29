@@ -5,96 +5,88 @@ from app.config import settings
 
 def get_nav_history_stats():
     """
-    Calculate NAV Stats: Current, 30d %, MTD %, YTD %, YoY %.
-    Returns: Dict with stats and history graph data.
+    Calculate NAV Stats using authoritative 'ibkr_nav_history' collection.
+    Aggregates all accounts (Taxable + IRA) for a Total Portfolio View.
     """
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
-    # 1. Get Daily Total NAVs
-    # Aggregate by report_date
-    # 1. Get NAV History (Aggregated by Snapshot)
-    # Group by 'snapshot_id' first to get valid totals for that point in time
+    # Aggregate Total NAV per Date (Summing across all accounts)
     pipeline = [
         {
             "$group": {
-                "_id": "$snapshot_id", # Group by the unique sync batch
-                "total_nav": {"$sum": "$market_value"},
-                "date": {"$first": "$date"},
-                "report_date": {"$first": "$report_date"}
+                "_id": "$report_date", # Group by Date (YYYY-MM-DD)
+                "total_nav": {"$sum": "$total_nav"},
+                "accounts": {"$addToSet": "$account_id"}
             }
         },
-        {"$sort": {"date": 1}} # Sort chronological
+        {"$sort": {"_id": 1}} # Chronological
     ]
     
-    # Each document in 'snapshots' is now a valid Full Portfolio NAV at that time
-    snapshots = list(db.ibkr_holdings.aggregate(pipeline))
+    # List of { _id: "2025-01-01", total_nav: 12345.67 }
+    history = list(db.ibkr_nav_history.aggregate(pipeline))
     
-    if not snapshots:
+    if not history:
         return {
             "current_nav": 0,
             "change_1d": 0, "change_30d": 0, "change_mtd": 0, "change_ytd": 0, "change_yoy": 0,
             "history": []
         }
     
-    # Logic: To create a Daily History (1 point per day), we pick the LAST snapshot of each day.
-    # But for 'history' graph, showing intraday might be noisy? Let's stick to Daily for the stats keys.
+    # Helper to find NAV for a specific date (or closest previous)
+    # Since list is sorted, we can bisect or iterate. Given size (years), simple iter is fine.
     
-    history_map = {} # Key: YYYY-MM-DD
-    for s in snapshots:
-        d_str = s["date"].strftime("%Y-%m-%d") # Use ingestion time
-        history_map[d_str] = s # Overwrites, so ends up with the last one of the day
-        
-    # Convert map back to sorted list
-    daily_history = sorted(history_map.values(), key=lambda x: x["date"])
+    date_map = {d["_id"]: d["total_nav"] for d in history}
+    sorted_dates = sorted(date_map.keys())
     
-    # History for Graph (Daily)
-    history = [{"date": d["date"].strftime("%Y-%m-%d"), "nav": d["total_nav"]} for d in daily_history]
-    
-    # Current is simply the very last snapshot (could be intraday)
-    current_snapshot = snapshots[-1]
-    current = history[-1]
-    
-    def get_pct_change(start_nav, end_nav):
-        if start_nav == 0: return 0.0
-        return ((end_nav - start_nav) / start_nav) * 100
-
-    def find_nav_closest_to(target_date_str):
-        # target_date_str: "YYYY-MM-DD"
-        # Find entry <= target_date
-        # Simple search since list is sorted
-        candidate = None
-        for entry in history:
-            if entry["date"] <= target_date_str:
-                candidate = entry
+    def get_nav_at(target_date_str):
+        # Find exact or closest previous date
+        # target_date_str: YYYY-MM-DD
+        closest_date = None
+        for d in sorted_dates:
+            if d <= target_date_str:
+                closest_date = d
             else:
                 break
-        return candidate.get("nav") if candidate else None
+        return date_map.get(closest_date) if closest_date else None
 
-    now = datetime.utcnow()
-    year_start = datetime(now.year, 1, 1).strftime("%Y-%m-%d")
-    month_start = datetime(now.year, now.month, 1).strftime("%Y-%m-%d")
-    day_30_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-    year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    current_nav = current["nav"]
+    # Current
+    current_date = sorted_dates[-1]
+    current_nav = date_map[current_date]
     
-    # Calculate Changes
-    nav_1d = find_nav_closest_to(yesterday) or current_nav
-    nav_30d = find_nav_closest_to(day_30_ago) or current_nav
-    nav_mtd = find_nav_closest_to(month_start) or current_nav # If data starts mid-month, uses first available
-    nav_ytd = find_nav_closest_to(year_start) or current_nav
-    nav_yoy = find_nav_closest_to(year_ago) or current_nav
+    # Target Dates
+    now = datetime.strptime(current_date, "%Y-%m-%d") # Use data's last date as 'now' anchor? 
+    # Actually, for YTD, we want Jan 1 of the CURRENT year relative to real time, or data time?
+    # Let's use Real Time for "YTD" (Year To Date), allowing for stale data if import missed.
+    # BUT if data ends in 2025 and it's 2026, YTD is 0. 
+    # Let's align "Now" to the latest data point for reporting (avoiding zeros if data is old).
+    
+    anchor_date = now # The date of the last data point
+    year_start = datetime(anchor_date.year, 1, 1).strftime("%Y-%m-%d")
+    month_start = datetime(anchor_date.year, anchor_date.month, 1).strftime("%Y-%m-%d")
+    
+    day_1_ago = (anchor_date - timedelta(days=1)).strftime("%Y-%m-%d")
+    day_30_ago = (anchor_date - timedelta(days=30)).strftime("%Y-%m-%d")
+    year_ago = (anchor_date - timedelta(days=365)).strftime("%Y-%m-%d")
+    
+    nav_1d = get_nav_at(day_1_ago) or current_nav
+    nav_30d = get_nav_at(day_30_ago) or current_nav
+    nav_mtd = get_nav_at(month_start) or current_nav
+    nav_ytd = get_nav_at(year_start) or current_nav
+    nav_yoy = get_nav_at(year_ago) or current_nav
+    
+    def pct(start, end):
+        if not start or start == 0: return 0.0
+        return ((end - start) / start) * 100
 
     return {
         "current_nav": current_nav,
-        "change_1d": get_pct_change(nav_1d, current_nav),
-        "change_30d": get_pct_change(nav_30d, current_nav),
-        "change_mtd": get_pct_change(nav_mtd, current_nav),
-        "change_ytd": get_pct_change(nav_ytd, current_nav),
-        "change_yoy": get_pct_change(nav_yoy, current_nav),
-        "history": history[-90:] # Return last 90 days for sparkline?
+        "change_1d": pct(nav_1d, current_nav),
+        "change_30d": pct(nav_30d, current_nav),
+        "change_mtd": pct(nav_mtd, current_nav),
+        "change_ytd": pct(nav_ytd, current_nav),
+        "change_yoy": pct(nav_yoy, current_nav),
+        "history": [{"date": d["_id"], "nav": d["total_nav"]} for d in history]
     }
 
 def run_portfolio_analysis():

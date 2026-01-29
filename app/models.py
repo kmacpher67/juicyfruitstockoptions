@@ -54,10 +54,12 @@ class IBKRConfig(BaseModel):
     flex_token: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
+    query_id_nav: Optional[str] = None
 
 class IBKRStatus(BaseModel):
     configured: bool
     flex_token_masked: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
+    query_id_nav: Optional[str] = None # Added field
     last_sync: Optional[dict] = None

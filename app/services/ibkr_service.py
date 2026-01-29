@@ -112,6 +112,7 @@ def parse_csv_holdings(csv_str):
         # IBKR CSV keys might be quoted? DictReader handles standard CSV.
         # Map fields. keys are case sensitive based on CSV header.
         if not row.get("Symbol"): continue # Skip empty rows
+        if row.get("Symbol") in ["EOS", "EOA", "EOF"]: continue # Skip IBKR End-of-Section markers
         
         try:
             doc = {
@@ -357,8 +358,19 @@ def run_ibkr_sync():
                 msg = f"Trades Error: {e}"
                 logging.exception(msg)
                 errors.append(msg)
+
+        # 3. Sync NAV History
+        q_nav = config.get("query_id_nav")
+        if q_nav:
+            try:
+                data = fetch_flex_report(q_nav, token, label="nav")
+                parse_and_store_nav(data)
+            except Exception as e:
+                msg = f"NAV Error: {e}"
+                logging.exception(msg)
+                errors.append(msg)
                 
-        # 3. Trigger AI Analysis
+        # 4. Trigger AI Analysis
         try:
             from app.services.portfolio_analysis import run_portfolio_analysis
             run_portfolio_analysis()
@@ -375,6 +387,124 @@ def run_ibkr_sync():
             # Partial or Full Failure
             status = "failed" if len(errors) >= 2 else "warning"
             save_sync_status(status, "; ".join(errors))
+
+def parse_and_store_nav(content):
+    """Dispatcher for NAV data."""
+    if content.strip().startswith(b"<"):
+        parse_xml_nav(content)
+    else:
+        parse_csv_nav(content.decode('utf-8', errors='ignore'))
+
+def parse_csv_nav(csv_str):
+    """Parse IBKR NAV CSV."""
+    import csv
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    lines = csv_str.splitlines()
+    headers = None
+    count = 0
+    
+    for line in lines:
+        line = line.strip()
+        if not line: continue
+        
+        # Identify Header
+        if "ClientAccountID" in line and "EndingValue" in line:
+            reader = csv.reader([line])
+            headers = next(reader)
+            continue
+            
+        if not headers: continue
+        
+        # Parse Row
+        reader = csv.reader([line])
+        try:
+             row_values = next(reader)
+        except StopIteration: continue
+        
+        if len(row_values) != len(headers): continue
+        
+        row = dict(zip(headers, row_values))
+        acct = row.get("ClientAccountID")
+        val = row.get("EndingValue")
+        date_raw = row.get("ToDate") # "20251231" usually
+        
+        if not (acct and val and date_raw): continue
+        
+        try:
+            # IBKR Date Format in CSV often YYYYMMDD
+            if len(date_raw) == 8:
+                date_iso = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
+            else:
+                # Or standard YYYY-MM-DD
+                date_iso = date_raw
+                
+            doc = {
+                "account_id": acct,
+                "report_date": date_iso,
+                "total_nav": float(val),
+                "currency": row.get("CurrencyPrimary", "USD"),
+                "source": "FLEX_CSV",
+                "ingested_at": datetime.utcnow()
+            }
+            
+            db.ibkr_nav_history.update_one(
+                {"account_id": acct, "report_date": date_iso},
+                {"$set": doc},
+                upsert=True
+            )
+            count += 1
+        except Exception:
+            continue
+            
+    logging.info(f"Processed {count} NAV records (CSV).")
+
+def parse_xml_nav(xml_content):
+    """Parse IBKR NAV XML."""
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    root = ET.fromstring(xml_content)
+    count = 0
+    # Schema varies, typically FlexStatement -> EquitySummaryByReportDateInBase
+    # Or just look for generic Equity Summary structure
+    
+    # Try finding EquitySummaryByReportDateInBase
+    for node in root.findall(".//EquitySummaryByReportDateInBase"):
+        data = node.attrib
+        try:
+            acct = data.get("accountId")
+            val = data.get("endingValue") or data.get("total")
+            date_raw = data.get("date") or data.get("reportDate") # 20251231?
+            
+            if not (acct and val and date_raw): continue
+            
+            # Date Parsing
+            if len(date_raw) == 8 and date_raw.isdigit():
+                 date_iso = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
+            else:
+                 date_iso = date_raw
+                 
+            doc = {
+                "account_id": acct,
+                "report_date": date_iso,
+                "total_nav": float(val),
+                "currency": data.get("currency", "USD"),
+                "source": "FLEX_XML",
+                "ingested_at": datetime.utcnow()
+            }
+            
+            db.ibkr_nav_history.update_one(
+                {"account_id": acct, "report_date": date_iso},
+                {"$set": doc},
+                upsert=True
+            )
+            count += 1
+        except Exception:
+            continue
+            
+    logging.info(f"Processed {count} NAV records (XML).")
                 
     except Exception as e:
         logging.exception(f"IBKR Sync Critical Failure: {e}")

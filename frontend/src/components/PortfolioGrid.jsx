@@ -6,7 +6,36 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const PortfolioGrid = ({ data }) => {
     const columnDefs = [
-        { field: "symbol", headerName: "Symbol", sortable: true, filter: true, width: 100 },
+        { field: "account_id", headerName: "Account", sortable: true, filter: true, width: 100 },
+        {
+            field: "symbol",
+            headerName: "Symbol",
+            sortable: true,
+            filter: true,
+            width: 120,
+            cellRenderer: (params) => {
+                const sym = params.value;
+                if (!sym) return null;
+                // Parse underlying for options (e.g. "AAPL 250117...") -> "AAPL"
+                // Simple parsing: split by space, take first part.
+                const underlying = sym.split(" ")[0];
+                const cleanSym = underlying.replace(/[^A-Za-z]/g, ""); // basic cleanup
+
+                const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`; // Naive exchange assumption
+                const yahooUrl = `https://finance.yahoo.com/quote/${cleanSym}/options`;
+
+                return (
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold">{sym}</span>
+                        <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+                        </div>
+                    </div>
+                );
+            }
+        },
+        { field: "asset_class", headerName: "Type", sortable: true, width: 90 },
         {
             field: "quantity",
             headerName: "Qty",

@@ -317,6 +317,7 @@ def get_ibkr_status(
         flex_token_masked=masked,
         query_id_holdings=config.get("query_id_holdings"),
         query_id_trades=config.get("query_id_trades"),
+        query_id_nav=config.get("query_id_nav"),
         last_sync=last_sync
     )
 
@@ -338,6 +339,8 @@ def update_ibkr_config(
         update_data["query_id_holdings"] = config.query_id_holdings
     if config.query_id_trades:
         update_data["query_id_trades"] = config.query_id_trades
+    if config.query_id_nav:
+        update_data["query_id_nav"] = config.query_id_nav
         
     db.system_config.update_one(
         {"_id": "ibkr_config"},

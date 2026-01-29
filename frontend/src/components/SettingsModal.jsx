@@ -14,6 +14,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     const [newToken, setNewToken] = useState("");
     const [queryIdHoldings, setQueryIdHoldings] = useState("");
     const [queryIdTrades, setQueryIdTrades] = useState("");
+    const [queryIdNav, setQueryIdNav] = useState(""); // Added state
     const [testingConnection, setTestingConnection] = useState(false);
     const [testResult, setTestResult] = useState(null); // { success: bool, message: str }
 
@@ -81,6 +82,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             });
             setQueryIdHoldings(res.data.query_id_holdings || "");
             setQueryIdTrades(res.data.query_id_trades || "");
+            setQueryIdNav(res.data.query_id_nav || ""); // Load from API
         } catch (error) {
             console.error("Failed to fetch IBKR status", error);
         }
@@ -91,7 +93,8 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             const api = (await import('../api/axios')).default;
             const payload = {
                 query_id_holdings: queryIdHoldings,
-                query_id_trades: queryIdTrades
+                query_id_trades: queryIdTrades,
+                query_id_nav: queryIdNav // Send to API
             };
             if (newToken) payload.flex_token = newToken;
 
@@ -307,6 +310,16 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                                 className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
                                                 value={queryIdTrades}
                                                 onChange={(e) => setQueryIdTrades(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="block text-gray-400 text-xs mb-1">NAV History Query ID</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Query ID (for 1D/30D/YTD)"
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={queryIdNav}
+                                                onChange={(e) => setQueryIdNav(e.target.value)}
                                             />
                                         </div>
                                     </div>
