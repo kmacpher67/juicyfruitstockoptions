@@ -141,8 +141,15 @@ def parse_csv_holdings(csv_str):
     if positions:
         client = MongoClient(settings.MONGO_URI)
         db = client.get_default_database("stock_analysis")
+        
+        # Store as discrete snapshot
+        # Using the first record's ingestion time as the ID for the whole batch
+        snapshot_id = positions[0]["date"]
+        for p in positions:
+            p["snapshot_id"] = snapshot_id
+            
         db.ibkr_holdings.insert_many(positions)
-        logging.info(f"Stored {len(positions)} holdings (CSV).")
+        logging.info(f"Stored {len(positions)} holdings (CSV) in snapshot {snapshot_id}.")
     else:
         logging.warning("No positions found in CSV.")
 
@@ -187,10 +194,13 @@ def parse_xml_holdings(xml_content):
         positions.append(doc)
 
     if positions:
-        # Time-Series: Insert new documents, do not overwrite old ones
-        # Maybe use timeseries collection in Mongo 5.0+? For now standard collection is fine.
+        # Store as discrete snapshot
+        snapshot_id = positions[0]["date"]
+        for p in positions:
+            p["snapshot_id"] = snapshot_id
+            
         db.ibkr_holdings.insert_many(positions)
-        logging.info(f"Stored {len(positions)} holding records.")
+        logging.info(f"Stored {len(positions)} holding records in snapshot {snapshot_id}.")
     else:
         logging.warning("No positions found in Flex XML.")
 

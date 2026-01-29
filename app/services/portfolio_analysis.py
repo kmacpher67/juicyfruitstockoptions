@@ -13,29 +13,46 @@ def get_nav_history_stats():
     
     # 1. Get Daily Total NAVs
     # Aggregate by report_date
+    # 1. Get NAV History (Aggregated by Snapshot)
+    # Group by 'snapshot_id' first to get valid totals for that point in time
     pipeline = [
         {
             "$group": {
-                "_id": "$report_date",
-                "total_nav": {"$sum": "$market_value"}, # Assuming market_value includes Cash (symbol='USD')
-                "date": {"$first": "$date"} # Keep a timestamp
+                "_id": "$snapshot_id", # Group by the unique sync batch
+                "total_nav": {"$sum": "$market_value"},
+                "date": {"$first": "$date"},
+                "report_date": {"$first": "$report_date"}
             }
         },
-        {"$sort": {"_id": 1}} # Sort by date ascending
+        {"$sort": {"date": 1}} # Sort chronological
     ]
     
-    daily_navs = list(db.ibkr_holdings.aggregate(pipeline))
+    # Each document in 'snapshots' is now a valid Full Portfolio NAV at that time
+    snapshots = list(db.ibkr_holdings.aggregate(pipeline))
     
-    if not daily_navs:
+    if not snapshots:
         return {
             "current_nav": 0,
             "change_1d": 0, "change_30d": 0, "change_mtd": 0, "change_ytd": 0, "change_yoy": 0,
             "history": []
         }
     
-    # Convert to list of objects for easier processing
-    # Structure: [{'date': 'YYYY-MM-DD', 'nav': 10000.00}]
-    history = [{"date": d["_id"], "nav": d["total_nav"]} for d in daily_navs]
+    # Logic: To create a Daily History (1 point per day), we pick the LAST snapshot of each day.
+    # But for 'history' graph, showing intraday might be noisy? Let's stick to Daily for the stats keys.
+    
+    history_map = {} # Key: YYYY-MM-DD
+    for s in snapshots:
+        d_str = s["date"].strftime("%Y-%m-%d") # Use ingestion time
+        history_map[d_str] = s # Overwrites, so ends up with the last one of the day
+        
+    # Convert map back to sorted list
+    daily_history = sorted(history_map.values(), key=lambda x: x["date"])
+    
+    # History for Graph (Daily)
+    history = [{"date": d["date"].strftime("%Y-%m-%d"), "nav": d["total_nav"]} for d in daily_history]
+    
+    # Current is simply the very last snapshot (could be intraday)
+    current_snapshot = snapshots[-1]
     current = history[-1]
     
     def get_pct_change(start_nav, end_nav):
