@@ -264,6 +264,7 @@ const Dashboard = () => {
                 onSave={handleSaveSettings}
                 currentSettings={settings}
                 columns={AVAILABLE_COLUMNS}
+                userRole={user?.role}
             />
         </div>
     );

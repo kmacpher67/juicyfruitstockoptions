@@ -7,8 +7,7 @@ from pymongo import MongoClient
 from app.auth.dependencies import get_current_active_user
 from app.auth.utils import create_access_token, verify_password, get_password_hash
 from app.config import settings
-from app.models import Token, User, StockRecord
-
+from app.models import Token, User, StockRecord, IBKRConfig, IBKRStatus
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 
@@ -18,8 +17,12 @@ router = APIRouter()
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
 ):
-    # Verify User (Bootstrap Logic)
-    if form_data.username != settings.ADMIN_USER or not verify_password(form_data.password, get_password_hash(settings.ADMIN_PASS)):
+    # Authenticate against MongoDB
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    user = db.users.find_one({"username": form_data.username})
+    
+    if not user or not verify_password(form_data.password, user["hashed_password"]):
          raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -226,3 +229,89 @@ async def download_report(
         raise HTTPException(status_code=404, detail="Report not found")
         
     return FileResponse(report_path, filename=filename)
+
+# --- IBKR Integrations (Admin Only) ---
+
+@router.get("/integrations/ibkr", response_model=IBKRStatus)
+def get_ibkr_status(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    config = db.system_config.find_one({"_id": "ibkr_config"})
+    
+    if not config:
+        return IBKRStatus(configured=False)
+        
+    token = config.get("flex_token", "")
+    masked = f"{token[:4]}...{token[-4:]}" if token and len(token) > 8 else "****"
+    
+    return IBKRStatus(
+        configured=True,
+        flex_token_masked=masked,
+        query_id_holdings=config.get("query_id_holdings"),
+        query_id_trades=config.get("query_id_trades")
+    )
+
+@router.post("/integrations/ibkr")
+def update_ibkr_config(
+    config: IBKRConfig,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    update_data = {}
+    if config.flex_token:
+        update_data["flex_token"] = config.flex_token
+    if config.query_id_holdings:
+        update_data["query_id_holdings"] = config.query_id_holdings
+    if config.query_id_trades:
+        update_data["query_id_trades"] = config.query_id_trades
+        
+    db.system_config.update_one(
+        {"_id": "ibkr_config"},
+        {"$set": update_data},
+        upsert=True
+    )
+    return {"status": "success"}
+
+@router.post("/integrations/ibkr/test")
+def test_ibkr_connection(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    config = db.system_config.find_one({"_id": "ibkr_config"})
+    
+    if not config or not config.get("flex_token"):
+        return {"success": False, "message": "No token configured."}
+        
+    return {"success": True, "message": "Token found (Dry Run Verification)"}
+
+from fastapi import BackgroundTasks
+from app.services.ibkr_service import run_ibkr_sync
+
+@router.post("/integrations/ibkr/sync")
+async def sync_ibkr_data(
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Trigger manual sync of IBKR Portfolio and Trades.
+    Runs in background.
+    """
+    if current_user.role != "admin": # Or 'portfolio' role? For now Admin.
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    background_tasks.add_task(run_ibkr_sync)
+    return {"status": "queued", "message": "IBKR Sync started in background."}

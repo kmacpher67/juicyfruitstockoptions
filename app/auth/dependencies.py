@@ -23,12 +23,24 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     except JWTError:
         raise credentials_exception
     
-    # In a real app, we would fetch user from DB here.
-    # For now, we compare with the Bootstrap Admin user from settings.
-    if token_data.username != settings.ADMIN_USER:
-         raise credentials_exception
-         
-    return User(username=token_data.username, disabled=False)
+    # Fetch user from MongoDB
+    from pymongo import MongoClient
+    try:
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        user_doc = db.users.find_one({"username": token_data.username})
+        
+        if user_doc is None:
+            raise credentials_exception
+            
+        return User(
+            username=user_doc["username"],
+            role=user_doc.get("role", "basic"),
+            disabled=user_doc.get("disabled", False)
+        )
+    except Exception as e:
+        # Log error?
+        raise credentials_exception
 
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)],

@@ -34,6 +34,7 @@ class StockResponse(BaseModel):
 class User(BaseModel):
     username: str
     disabled: Optional[bool] = None
+    role: str = "basic"  # valid: basic, analyst, portfolio, admin
 
 class UserInDB(User):
     hashed_password: str
@@ -48,3 +49,14 @@ class TokenData(BaseModel):
 class RefreshStatus(BaseModel):
     status: str
     message: Optional[str] = None
+
+class IBKRConfig(BaseModel):
+    flex_token: Optional[str] = None
+    query_id_holdings: Optional[str] = None
+    query_id_trades: Optional[str] = None
+
+class IBKRStatus(BaseModel):
+    configured: bool
+    flex_token_masked: Optional[str] = None
+    query_id_holdings: Optional[str] = None
+    query_id_trades: Optional[str] = None

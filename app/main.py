@@ -10,8 +10,12 @@ async def lifespan(app: FastAPI):
     # Startup
     import logging
     # Configure logging to file (visible on host via volume mount)
+    # Ensure directory exists in case it wasn't mapped
+    import os
+    os.makedirs("logs", exist_ok=True)
+    
     logging.basicConfig(
-        filename="stock_portal_debug.log",
+        filename="logs/stock_portal_debug.log",
         level=logging.DEBUG,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         force=True # Force reconfiguration to override Uvicorn defaults for file output
