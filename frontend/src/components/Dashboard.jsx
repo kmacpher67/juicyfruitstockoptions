@@ -5,6 +5,8 @@ import { RefreshCw, LogOut, Play, Download, FileText, Settings } from 'lucide-re
 import { useNavigate } from 'react-router-dom';
 import StockGrid from './StockGrid';
 import SettingsModal from './SettingsModal';
+import NAVStats from './NAVStats';
+import PortfolioGrid from './PortfolioGrid';
 
 const AVAILABLE_COLUMNS = [
     { field: "Ticker", headerName: "Ticker" },
@@ -179,12 +181,58 @@ const Dashboard = () => {
         setIsSettingsOpen(false);
     };
 
+    // --- Portfolio View Logic ---
+    const [viewMode, setViewMode] = useState('ANALYSIS'); // 'ANALYSIS' or 'PORTFOLIO'
+    const [portfolioStats, setPortfolioStats] = useState(null);
+    const [portfolioHoldings, setPortfolioHoldings] = useState([]);
+
+    const loadPortfolioData = async () => {
+        setLoading(true);
+        try {
+            const [statsRes, holdingsRes] = await Promise.all([
+                api.get('/portfolio/stats'),
+                api.get('/portfolio/holdings')
+            ]);
+            setPortfolioStats(statsRes.data);
+            setPortfolioHoldings(holdingsRes.data);
+        } catch (error) {
+            console.error("Failed to load portfolio:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (viewMode === 'PORTFOLIO') {
+            loadPortfolioData();
+        }
+    }, [viewMode]);
+
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
             <header className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
-                    Juicy Fruit Dashboard
-                </h1>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
+                        Juicy Fruit Dashboard
+                    </h1>
+                    {/* View Switcher */}
+                    {(user?.role === 'admin' || user?.role === 'portfolio') && (
+                        <div className="flex bg-gray-800 rounded p-1 ml-4 border border-gray-700">
+                            <button
+                                onClick={() => setViewMode('ANALYSIS')}
+                                className={`px-3 py-1 text-sm rounded ${viewMode === 'ANALYSIS' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Analysis
+                            </button>
+                            <button
+                                onClick={() => setViewMode('PORTFOLIO')}
+                                className={`px-3 py-1 text-sm rounded ${viewMode === 'PORTFOLIO' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                My Portfolio
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-4">
                     <span className="text-gray-400">Welcome, {user?.username}</span>
                     <button onClick={() => setIsSettingsOpen(true)} className="p-2 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors">
@@ -196,67 +244,79 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            {/* Controls Bar */}
-            <div className="mb-6 flex flex-wrap items-center gap-4 bg-gray-800 p-4 rounded-lg shadow">
+            {/* Render Based on Mode */}
+            {viewMode === 'PORTFOLIO' ? (
+                <>
+                    <NAVStats stats={portfolioStats} />
+                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
+                        <PortfolioGrid data={portfolioHoldings} />
+                    </div>
+                </>
+            ) : (
+                <>
+                    {/* Controls Bar */}
+                    <div className="mb-6 flex flex-wrap items-center gap-4 bg-gray-800 p-4 rounded-lg shadow">
 
-                {/* Report Selector */}
-                <div className="flex items-center gap-2">
-                    <FileText className="text-gray-400 h-5 w-5" />
-                    <select
-                        className="bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500 outline-none"
-                        value={selectedReport}
-                        onChange={(e) => setSelectedReport(e.target.value)}
-                    >
-                        {reports.length === 0 && <option value="">No Reports Found</option>}
-                        {reports.map(file => (
-                            <option key={file} value={file}>{file}</option>
-                        ))}
-                    </select>
-                </div>
+                        {/* Report Selector */}
+                        <div className="flex items-center gap-2">
+                            <FileText className="text-gray-400 h-5 w-5" />
+                            <select
+                                className="bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500 outline-none"
+                                value={selectedReport}
+                                onChange={(e) => setSelectedReport(e.target.value)}
+                            >
+                                {reports.length === 0 && <option value="">No Reports Found</option>}
+                                {reports.map(file => (
+                                    <option key={file} value={file}>{file}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                <div className="h-6 w-px bg-gray-600 mx-2"></div>
+                        <div className="h-6 w-px bg-gray-600 mx-2"></div>
 
-                <button
-                    onClick={() => selectedReport ? loadReportData(selectedReport) : loadReports()}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 transition-colors"
-                >
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
+                        <button
+                            onClick={() => selectedReport ? loadReportData(selectedReport) : loadReports()}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 transition-colors"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </button>
 
-                <button
-                    onClick={downloadCurrentReport}
-                    disabled={!selectedReport}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:bg-gray-600"
-                >
-                    <Download className="h-4 w-4" />
-                    Download
-                </button>
+                        <button
+                            onClick={downloadCurrentReport}
+                            disabled={!selectedReport}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:bg-gray-600"
+                        >
+                            <Download className="h-4 w-4" />
+                            Download
+                        </button>
 
-                <div className="flex-grow"></div>
+                        <div className="flex-grow"></div>
 
-                <button
-                    onClick={runAnalysis}
-                    disabled={running}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 transition-colors"
-                >
-                    <Play className="h-4 w-4" />
-                    {running ? 'Running Analysis...' : 'Run Live Comparison'}
-                </button>
-            </div>
+                        <button
+                            onClick={runAnalysis}
+                            disabled={running}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 transition-colors"
+                        >
+                            <Play className="h-4 w-4" />
+                            {running ? 'Running Analysis...' : 'Run Live Comparison'}
+                        </button>
+                    </div>
 
-            <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
-                {data.length === 0 && !loading ? (
-                    <div className="text-center text-gray-500 py-12">Select a report to view data.</div>
-                ) : (
-                    <StockGrid
-                        data={data}
-                        pageSize={settings.pageSize}
-                        defaultSort={{ colId: settings.sortColumn, sortOrder: settings.sortOrder }}
-                    />
-                )}
-            </div>
+                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
+                        {data.length === 0 && !loading ? (
+                            <div className="text-center text-gray-500 py-12">Select a report to view data.</div>
+                        ) : (
+                            <StockGrid
+                                data={data}
+                                pageSize={settings.pageSize}
+                                defaultSort={{ colId: settings.sortColumn, sortOrder: settings.sortOrder }}
+                            />
+                        )}
+                    </div>
+                </>
+            )}
 
             <SettingsModal
                 isOpen={isSettingsOpen}

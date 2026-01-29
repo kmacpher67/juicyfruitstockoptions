@@ -23,8 +23,8 @@ def seed_config():
         {"_id": "ibkr_config"},
         {"$set": {
             "flex_token": ibkr_token,
-            "query_id_holdings": "YOUR_QUERY_ID", # User needs to provide this or update in UI
-            "query_id_trades": "YOUR_QUERY_ID"
+            "query_id_holdings": "Daily_Portfolio", # User to replace with numeric ID
+            "query_id_trades": "Recent_Trades"      # User to replace with numeric ID
         }},
         upsert=True
     )

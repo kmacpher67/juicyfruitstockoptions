@@ -2,11 +2,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.config import settings
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
+from app.services.ibkr_service import run_ibkr_sync
 import logging
 import json
 import os
 
-scheduler = BackgroundScheduler()
 scheduler = BackgroundScheduler()
 
 def get_schedule_config():
@@ -43,14 +43,30 @@ def save_schedule_config(hour, minute):
 
 def reschedule_daily_job(hour: int, minute: int):
     """Update the running job and save config."""
-    scheduler.reschedule_job(
-        "stock_comparison_job",
-        trigger="cron",
-        hour=hour,
-        minute=minute
-    )
+    # Reschedule Verification
+    try:
+        scheduler.reschedule_job(
+            "stock_comparison_job",
+            trigger="cron",
+            hour=hour,
+            minute=minute
+        )
+    except Exception as e:
+         logging.warning(f"Failed to reschedule stock_comparison_job: {e}")
+
+    # Reschedule IBKR Sync
+    try:
+        scheduler.reschedule_job(
+            "ibkr_sync_job",
+            trigger="cron",
+            hour=hour,
+            minute=minute
+        )
+    except Exception as e:
+         logging.warning(f"Failed to reschedule ibkr_sync_job: {e}")
+
     save_schedule_config(hour, minute)
-    logging.info(f"Rescheduled Stock Comparison to {hour:02d}:{minute:02d}")
+    logging.info(f"Rescheduled Daily Jobs to {hour:02d}:{minute:02d}")
 
 def start_scheduler():
     """Configure and start the background scheduler."""
@@ -71,6 +87,17 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info(f"Scheduled Stock Comparison for {hour:02d}:{minute:02d} daily.")
+
+    # IBKR Sync Job
+    scheduler.add_job(
+        run_ibkr_sync, 
+        trigger="cron", 
+        hour=hour, 
+        minute=minute,
+        id="ibkr_sync_job",
+        replace_existing=True
+    )
+    logging.info(f"Scheduled IBKR Sync for {hour:02d}:{minute:02d} daily.")
 
     # Portfolio Fixer (Keep existing 3am logic)
     scheduler.add_job(

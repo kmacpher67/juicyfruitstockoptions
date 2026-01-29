@@ -249,11 +249,21 @@ def get_ibkr_status(
     token = config.get("flex_token", "")
     masked = f"{token[:4]}...{token[-4:]}" if token and len(token) > 8 else "****"
     
+    last_sync_doc = db.system_config.find_one({"_id": "ibkr_last_sync"})
+    last_sync = None
+    if last_sync_doc:
+        last_sync = {
+            "status": last_sync_doc.get("status"),
+            "message": last_sync_doc.get("message"),
+            "timestamp": last_sync_doc.get("timestamp")
+        }
+    
     return IBKRStatus(
         configured=True,
         flex_token_masked=masked,
         query_id_holdings=config.get("query_id_holdings"),
-        query_id_trades=config.get("query_id_trades")
+        query_id_trades=config.get("query_id_trades"),
+        last_sync=last_sync
     )
 
 @router.post("/integrations/ibkr")
@@ -315,3 +325,35 @@ async def sync_ibkr_data(
         
     background_tasks.add_task(run_ibkr_sync)
     return {"status": "queued", "message": "IBKR Sync started in background."}
+
+@router.get("/portfolio/stats")
+def get_portfolio_stats(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Get calculated NAV stats (Current, 30d, YTD, etc)."""
+    # Helper to protect View
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+        
+    from app.services.portfolio_analysis import get_nav_history_stats
+    return get_nav_history_stats()
+
+@router.get("/portfolio/holdings")
+def get_portfolio_holdings(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Get latest snapshot of holdings."""
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+        
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Find latest date
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    if not latest:
+        return []
+        
+    report_date = latest.get("report_date")
+    data = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
+    return data

@@ -47,7 +47,8 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             const res = await api.get('/integrations/ibkr');
             setIbkrStatus({
                 configured: res.data.configured,
-                masked: res.data.flex_token_masked
+                masked: res.data.flex_token_masked,
+                last_sync: res.data.last_sync
             });
             setQueryIdHoldings(res.data.query_id_holdings || "");
             setQueryIdTrades(res.data.query_id_trades || "");
@@ -140,16 +141,26 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                             </div>
                             <div>
                                 <label className="block text-gray-300 mb-1 text-sm">Sort By</label>
-                                <select
-                                    className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500"
-                                    value={settings.sortColumn}
-                                    onChange={(e) => handleChange('sortColumn', e.target.value)}
-                                >
-                                    <option value="">None</option>
-                                    {columns.map(col => (
-                                        <option key={col.field} value={col.field}>{col.headerName || col.field}</option>
-                                    ))}
-                                </select>
+                                <div className="flex gap-2">
+                                    <select
+                                        className="flex-grow bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500"
+                                        value={settings.sortColumn}
+                                        onChange={(e) => handleChange('sortColumn', e.target.value)}
+                                    >
+                                        <option value="">None</option>
+                                        {columns.map(col => (
+                                            <option key={col.field} value={col.field}>{col.headerName || col.field}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        className="w-24 bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500"
+                                        value={settings.sortOrder}
+                                        onChange={(e) => handleChange('sortOrder', e.target.value)}
+                                    >
+                                        <option value="asc">Asc</option>
+                                        <option value="desc">Desc</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -225,14 +236,33 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                     </div>
 
                                     <div className="flex justify-between pt-2">
-                                        <button
-                                            onClick={handleTestConnection}
-                                            disabled={testingConnection}
-                                            className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300"
-                                        >
-                                            <RefreshCw className={`w-3 h-3 ${testingConnection ? 'animate-spin' : ''}`} />
-                                            Test Connection
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleTestConnection}
+                                                disabled={testingConnection}
+                                                className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                                            >
+                                                <RefreshCw className={`w-3 h-3 ${testingConnection ? 'animate-spin' : ''}`} />
+                                                Test Token
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const api = (await import('../api/axios')).default;
+                                                        await api.post('/integrations/ibkr/sync');
+                                                        setTestResult({ success: true, message: "Sync Started..." });
+                                                        // Poll for status update after 2 seconds
+                                                        setTimeout(() => fetchIBKR(), 2000);
+                                                    } catch (e) {
+                                                        setTestResult({ success: false, message: "Sync Failed" });
+                                                    }
+                                                }}
+                                                className="text-xs flex items-center gap-1 text-yellow-400 hover:text-yellow-300"
+                                            >
+                                                <RefreshCw className="w-3 h-3" />
+                                                Sync Data
+                                            </button>
+                                        </div>
                                         <button
                                             onClick={handleSaveIBKR}
                                             className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded"
@@ -244,6 +274,20 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                     {testResult && (
                                         <div className={`text-xs p-2 rounded ${testResult.success ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
                                             {testResult.message}
+                                        </div>
+                                    )}
+
+                                    {/* Last Sync Status Display */}
+                                    {ibkrStatus.last_sync && (
+                                        <div className={`text-xs p-2 rounded border ${ibkrStatus.last_sync.status === 'success' ? 'bg-green-900/30 border-green-800 text-green-300' :
+                                            ibkrStatus.last_sync.status === 'failed' ? 'bg-red-900/30 border-red-800 text-red-300' :
+                                                'bg-blue-900/30 border-blue-800 text-blue-300'
+                                            }`}>
+                                            <p className="font-semibold mb-1">Last Sync: <span className="uppercase">{ibkrStatus.last_sync.status}</span></p>
+                                            <p>{ibkrStatus.last_sync.message}</p>
+                                            <p className="text-gray-500 mt-1 text-[10px]">
+                                                {new Date(ibkrStatus.last_sync.timestamp).toLocaleString()}
+                                            </p>
                                         </div>
                                     )}
                                 </div>

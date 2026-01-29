@@ -60,3 +60,4 @@ class IBKRStatus(BaseModel):
     flex_token_masked: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
+    last_sync: Optional[dict] = None
