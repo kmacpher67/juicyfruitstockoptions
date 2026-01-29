@@ -437,13 +437,19 @@ def get_portfolio_alerts(
     report_date = latest.get("report_date")
     holdings = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
     
-    # 2. Analyze
+    # 2. Fetch Market Data for Context
+    # We want a map {Symbol: StockDataDict}
+    # Optimize: Only fetch for symbols in holdings? Or just fetch all (dataset is small enough).
+    stock_cursor = db.stock_data.find({}, {"_id": 0})
+    market_data = {item["Ticker"]: item for item in stock_cursor}
+    
+    # 3. Analyze
     from app.services.options_analysis import OptionsAnalyzer
-    analyzer = OptionsAnalyzer(holdings)
+    analyzer = OptionsAnalyzer(holdings, market_data=market_data)
     
     alerts = []
     alerts.extend(analyzer.analyze_naked())    # Critical
-    alerts.extend(analyzer.analyze_coverage()) # Opportunity
+    alerts.extend(analyzer.analyze_coverage()) # Opportunity (Filtered by Trend)
     alerts.extend(analyzer.analyze_profit())   # Actionable
     
     return alerts

@@ -1,12 +1,13 @@
 from collections import defaultdict
 
 class OptionsAnalyzer:
-    def __init__(self, holdings):
+    def __init__(self, holdings, market_data=None):
         """
-        Initialize with a list of holding dicts.
-        Expected keys: symbol, sec_type, quantity, underlying, multiplier
+        Initialize with a list of holding dicts and optional market data.
+        market_data: dict {symbol: StockRecord_dict}
         """
         self.holdings = holdings
+        self.market_data = market_data or {}
         self.grouped = self._group_by_underlying()
 
     def _group_by_underlying(self):
@@ -27,21 +28,57 @@ class OptionsAnalyzer:
                 grouped[und]["options"].append(h)
                 sym = h.get("symbol", "")
                 
-                # Check if it's a Call (Simple check: 'C' in symbol typically, or explicit field)
-                # IBKR Symbol format often: "AAPL 250117C00200000"
-                # If quantity < 0, it's a Short position.
+                # Check if it's a Call (Simple check: 'C' in symbol)
                 if qty < 0 and "C" in sym.split(" ")[-1]: 
-                    # Assuming standard OCC symbol or similar. 
-                    # If strictly adhering to IBKR report, we might need robust parsing.
-                    # For now, let's assume standard format or explicit field if available.
-                    # The test mock uses "AAPL 250117C..."
                     multiplier = float(h.get("multiplier", 100))
                     contracts = abs(qty)
-                    
-                    # Logic: total shares covered = contracts * multiplier
                     grouped[und]["short_calls"] += (contracts * multiplier)
                     
         return grouped
+
+    def get_market_metrics(self, symbol):
+        """Extract relevant metrics from market data."""
+        data = self.market_data.get(symbol, {})
+        
+        # Parse 1D Change "1.25%" -> 1.25
+        chg_str = data.get("1D % Change", "0").replace("%", "").replace("+", "")
+        try:
+            one_day = float(chg_str)
+        except:
+            one_day = 0.0
+            
+        return {
+            "price": float(data.get("Current Price", 0) or 0),
+            "one_day": one_day,
+            "tsmom": float(data.get("TSMOM_60", 0) or 0),
+            "skew": float(data.get("Call/Put Skew", 0) or 0)
+        }
+
+    def calculate_strength(self, metrics):
+        """
+        Calculate Opportunity Strength (0-100).
+        User Rule: Longer time (Trend) is stronger than short term.
+        """
+        score = 0
+        
+        # 1. Long Term Trend (TSMOM) - Weight 40
+        if metrics["tsmom"] > 0:
+            score += 40
+            
+        # 2. Short Term Momentum (1D) - Weight 30
+        if metrics["one_day"] > 0:
+            score += 30
+        elif metrics["one_day"] > 2.0: # Strong pop
+            score += 10
+            
+        # 3. Volatility Premium (Skew) - Weight 30
+        # Skew > 1.0 implies Calls are expensive (good to sell)
+        if metrics["skew"] > 1.0:
+            score += 30
+        elif metrics["skew"] > 0.5:
+            score += 15
+            
+        return min(score, 100)
 
     def analyze_coverage(self):
         """Identify stocks that are owned but not fully covered by short calls."""
@@ -54,13 +91,21 @@ class OptionsAnalyzer:
                 # Potential Covered Call Opportunity
                 free = shares - covered
                 if free >= 100: # Only alert if at least one contract can be sold
+                    metrics = self.get_market_metrics(und)
+                    
+                    # USER RULE: Only if Daily Trend is UP
+                    if metrics["one_day"] <= 0:
+                        continue
+                        
+                    score = self.calculate_strength(metrics)
+                    
                     alerts.append({
                         "type": "UNCOVERED_SHARES",
                         "symbol": und,
                         "shares_owned": shares,
-                        "shares_covered": covered,
                         "shares_free": free,
-                        "message": f"{und}: {free} shares uncovered. Consider selling calls."
+                        "score": score,
+                        "message": f"{und}: Gap of {free} shares. Trend is UP (+{metrics['one_day']}%) - Strong Sell Opp (Score: {score})."
                     })
         return alerts
 
@@ -77,15 +122,14 @@ class OptionsAnalyzer:
                 alerts.append({
                     "type": "NAKED_OPTION",
                     "symbol": und,
-                    "short_contracts": covered / 100, # Assuming 100 mult
-                    "shares_owned": shares,
                     "exposed_shares": exposed,
+                    "score": 100, # Critical
                     "message": f"CRITICAL: {und} has naked calls covering {exposed} shares!"
                 })
         return alerts
 
     def analyze_profit(self, threshold_pct=0.50):
-        """Identify SHORT options with high unrealized profit (decay)."""
+        """Identify SHORT options with high unrealized profit."""
         alerts = []
         for h in self.holdings:
             sec_type = h.get("asset_class") or h.get("sec_type")
@@ -110,6 +154,7 @@ class OptionsAnalyzer:
                         "symbol": h.get("symbol"),
                         "profit_pct": profit_pct,
                         "pnl": pnl,
+                        "score": int(profit_pct * 100), # Score scales with profit
                         "message": f"Take Profit: {h.get('symbol')} is up {profit_pct*100:.1f}% ({pnl:+.0f})."
                     })
         return alerts
