@@ -175,6 +175,60 @@ def save_user_settings(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
+class AccountConfig(BaseModel):
+    account_id: str
+    taxable: bool = False
+    alias: str = ""
+
+@router.get("/settings/accounts", response_model=List[AccountConfig])
+def get_account_settings(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """List all known accounts and their settings."""
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Discover Accounts from Holdings & NAV
+    # Use distinct to find all account IDs present in data
+    known_accounts = set(db.ibkr_holdings.distinct("account_id"))
+    known_accounts.update(db.ibkr_nav_history.distinct("account_id"))
+    
+    # 2. Fetch Metadata
+    meta_doc = db.system_config.find_one({"_id": "account_metadata"}) or {}
+    meta = meta_doc.get("accounts", {})
+    
+    results = []
+    for acc in sorted([a for a in known_accounts if a]): # Filter None
+        cfg = meta.get(acc, {})
+        results.append(AccountConfig(
+            account_id=acc,
+            taxable=cfg.get("taxable", False),
+            alias=cfg.get("alias", "")
+        ))
+        
+    return results
+
+@router.post("/settings/accounts")
+def update_account_settings(
+    configs: List[AccountConfig],
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+         raise HTTPException(status_code=403, detail="Not authorized")
+         
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Convert list to dict map for storage
+    meta_map = {c.account_id: {"taxable": c.taxable, "alias": c.alias} for c in configs}
+    
+    db.system_config.update_one(
+        {"_id": "account_metadata"},
+        {"$set": {"accounts": meta_map}},
+        upsert=True
+    )
+    return {"status": "success"}
+
 @router.get("/reports", response_model=List[str])
 async def list_reports(
     current_user: Annotated[User, Depends(get_current_active_user)]

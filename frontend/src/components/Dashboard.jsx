@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { RefreshCw, LogOut, Play, Download, FileText, Settings } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import StockGrid from './StockGrid';
 import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
@@ -21,10 +21,24 @@ const AVAILABLE_COLUMNS = [
     { field: "Div Yield", headerName: "Div Yield" }
 ];
 
+
 const Dashboard = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // State initialized from URL
+    const [viewMode, setViewMode] = useState(searchParams.get('view') === 'PORTFOLIO' ? 'PORTFOLIO' : 'ANALYSIS');
+    const [selectedReport, setSelectedReport] = useState(searchParams.get('report') || '');
+
     const [data, setData] = useState([]);
     const [reports, setReports] = useState([]);
-    const [selectedReport, setSelectedReport] = useState('');
+
+    // Sync URL when state changes
+    useEffect(() => {
+        const params = {};
+        if (viewMode === 'PORTFOLIO') params.view = 'PORTFOLIO';
+        if (selectedReport) params.report = selectedReport;
+        setSearchParams(params, { replace: true });
+    }, [viewMode, selectedReport, setSearchParams]);
     const [loading, setLoading] = useState(false);
     const [running, setRunning] = useState(false);
 
@@ -182,7 +196,7 @@ const Dashboard = () => {
     };
 
     // --- Portfolio View Logic ---
-    const [viewMode, setViewMode] = useState('ANALYSIS'); // 'ANALYSIS' or 'PORTFOLIO'
+    // viewMode state moved to top for Deep Linking
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
 

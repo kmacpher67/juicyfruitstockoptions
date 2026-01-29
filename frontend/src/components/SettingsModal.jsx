@@ -17,15 +17,44 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     const [testingConnection, setTestingConnection] = useState(false);
     const [testResult, setTestResult] = useState(null); // { success: bool, message: str }
 
+    // --- Account Settings (Admin) ---
+    const [accounts, setAccounts] = useState([]); // [{account_id, taxable, alias}]
+
     useEffect(() => {
         setSettings(currentSettings);
         if (isOpen) {
             fetchSchedule();
             if (userRole === 'admin') {
                 fetchIBKR();
+                fetchAccounts();
             }
         }
     }, [currentSettings, isOpen, userRole]);
+
+    const fetchAccounts = async () => {
+        try {
+            const api = (await import('../api/axios')).default;
+            const res = await api.get('/settings/accounts');
+            setAccounts(res.data);
+        } catch (error) {
+            console.error("Failed to fetch accounts", error);
+        }
+    };
+
+    const handleAccountChange = (index, field, value) => {
+        const newAccounts = [...accounts];
+        newAccounts[index][field] = value;
+        setAccounts(newAccounts);
+    };
+
+    const saveAccounts = async () => {
+        try {
+            const api = (await import('../api/axios')).default;
+            await api.post('/settings/accounts', accounts);
+        } catch (error) {
+            console.error("Failed to save accounts", error);
+        }
+    };
 
     const fetchSchedule = async () => {
         setLoadingSchedule(true);
@@ -103,8 +132,11 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                 const [h, m] = scheduleTime.split(':').map(Number);
                 const api = (await import('../api/axios')).default;
                 await api.post('/schedule', { hour: h, minute: m });
+
+                // Save Account Configs
+                await saveAccounts(); // New function
             } catch (error) {
-                console.error("Failed to save schedule", error);
+                console.error("Failed to save settings", error);
             }
         }
 
@@ -184,6 +216,50 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                     />
                                     <p className="text-xs text-gray-500 mt-1">Automatic analysis triggers daily at this time.</p>
                                 </div>
+                            </div>
+
+                            {/* Section: Account Management */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Account Taxonomy</h3>
+                                {accounts.length === 0 ? (
+                                    <p className="text-gray-500 text-xs italic">No accounts discovered yet. Sync data first.</p>
+                                ) : (
+                                    <div className="bg-gray-900 rounded border border-gray-700 overflow-hidden">
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="bg-gray-800 text-gray-400">
+                                                <tr>
+                                                    <th className="p-2">Account ID</th>
+                                                    <th className="p-2">Alias</th>
+                                                    <th className="p-2 text-center">Taxable</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-700">
+                                                {accounts.map((acc, idx) => (
+                                                    <tr key={acc.account_id}>
+                                                        <td className="p-2 text-white font-mono">{acc.account_id}</td>
+                                                        <td className="p-2">
+                                                            <input
+                                                                type="text"
+                                                                className="bg-gray-800 text-white p-1 rounded border border-gray-600 w-full"
+                                                                placeholder="Optional"
+                                                                value={acc.alias}
+                                                                onChange={(e) => handleAccountChange(idx, 'alias', e.target.value)}
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500"
+                                                                checked={acc.taxable}
+                                                                onChange={(e) => handleAccountChange(idx, 'taxable', e.target.checked)}
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="border-t border-gray-700"></div>
