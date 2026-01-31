@@ -234,6 +234,69 @@ const Dashboard = () => {
         }
     }, [viewMode]);
 
+    const exportPortfolio = async () => {
+        try {
+            console.log("Starting export via fetch...");
+            const token = localStorage.getItem('token');
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const response = await fetch('/api/portfolio/export/csv', {
+                method: 'GET',
+                headers: headers
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Server returned ${response.status}: ${text}`);
+            }
+
+            // Try to read filename from Content-Disposition header
+            const disposition = response.headers.get('content-disposition') || '';
+            let filename;
+            const filenameRegex = /filename\*?=(?:UTF-8''\s*)?["']?([^;"']+)/i;
+            const match = disposition.match(filenameRegex);
+            if (match && match[1]) {
+                filename = decodeURIComponent(match[1]);
+            } else {
+                // Fallback: generate filename based on date
+                const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                filename = `MyPortfolio${dateStr}.csv`;
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+
+            link.click();
+
+            // Clean up after a delay to ensure browser captures the download
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }, 5000); // Increased to 5 seconds
+
+        } catch (error) {
+            console.error("Export failed:", error);
+            alert(`Failed to export CSV: ${error.message}`);
+        }
+    };
+
+    const syncAllPortfolio = async () => {
+        try {
+            // Force Sync (stale_hours=0)
+            await api.post('/integrations/ibkr/sync', null, { params: { stale_hours: 0 } });
+            alert("Sync started. Data will update shortly.");
+            // Optionally reload page or poll? For now just alert.
+        } catch (error) {
+            console.error("Sync failed:", error);
+            alert("Failed to trigger sync");
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
             <header className="flex justify-between items-center mb-8">
@@ -250,12 +313,33 @@ const Dashboard = () => {
                             >
                                 Analysis
                             </button>
-                            <button
-                                onClick={() => setViewMode('PORTFOLIO')}
-                                className={`px-3 py-1 text-sm rounded ${viewMode === 'PORTFOLIO' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                            >
-                                My Portfolio
-                            </button>
+                            <div className="relative group">
+                                <button
+                                    onClick={() => setViewMode('PORTFOLIO')}
+                                    className={`px-3 py-1 text-sm rounded ${viewMode === 'PORTFOLIO' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    My Portfolio
+                                </button>
+                                {/* Dropdown Menu */}
+                                <div className="absolute left-0 pt-2 w-48 z-50 hidden group-hover:block">
+                                    <div className="bg-gray-800 border border-gray-700 rounded shadow-xl">
+                                        <button
+                                            onClick={exportPortfolio}
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border-b border-gray-700 rounded-t"
+                                        >
+                                            <Download className="inline-block w-3 h-3 mr-2" />
+                                            Export CSV
+                                        </button>
+                                        <button
+                                            onClick={syncAllPortfolio}
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors rounded-b"
+                                        >
+                                            <RefreshCw className="inline-block w-3 h-3 mr-2" />
+                                            Sync All
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -273,7 +357,10 @@ const Dashboard = () => {
             {/* Render Based on Mode */}
             {viewMode === 'PORTFOLIO' ? (
                 <>
-                    <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
+                    <div className="flex justify-between items-center mb-4">
+                        <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
+                    </div>
+
                     <div className="mb-4">
                         {/* Dynamically load Alerts */}
                         <AlertsDashboard onSelectTicker={(ticker) => {
@@ -356,7 +443,8 @@ const Dashboard = () => {
                         )}
                     </div>
                 </>
-            )}
+            )
+            }
 
             <SettingsModal
                 isOpen={isSettingsOpen}
@@ -366,7 +454,7 @@ const Dashboard = () => {
                 columns={AVAILABLE_COLUMNS}
                 userRole={user?.role}
             />
-        </div>
+        </div >
     );
 };
 

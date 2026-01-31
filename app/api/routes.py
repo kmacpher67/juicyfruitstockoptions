@@ -540,3 +540,33 @@ def get_portfolio_alerts(
     alerts.extend(analyzer.analyze_profit())   # Actionable
     
     return alerts
+
+@router.get("/portfolio/export/csv")
+def export_portfolio_csv(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Generate and download Portfolio CSV for Yahoo Finance import.
+    Filters: IBKR Watchlist (or full portfolio).
+    Format: Symbol, Current Price, Cost Basis, Date
+    """
+    from fastapi.responses import Response
+    from datetime import datetime
+    
+    try:
+        from app.services.export_service import generate_portfolio_csv_content
+        
+        csv_content = generate_portfolio_csv_content()
+        
+        date_str = datetime.now().strftime("%Y%m%d")
+        filename = f"MyPortfolio{date_str}.csv"
+        
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        import traceback
+        error_msg = f"Export Failed:\n{str(e)}\n\n{traceback.format_exc()}"
+        return Response(content=error_msg, status_code=500, media_type="text/plain")
