@@ -10,7 +10,7 @@ const REPORT_MAP = {
     "1 Year": "NAV1Y"
 };
 
-const StatCard = ({ label, value, isCurrency = false, isPercent = false, startValue, onClick, loading }) => {
+const StatCard = ({ label, value, isCurrency = false, isPercent = false, startValue, endDate, mtmTot, onClick, loading }) => {
     let colorClass = "text-white";
     if (isPercent && value !== null && value !== undefined) {
         colorClass = value > 0 ? "text-green-400" : value < 0 ? "text-red-400" : "text-gray-400";
@@ -25,9 +25,13 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
                 : value;
 
     // Tooltip Text
-    const tooltip = startValue !== null && startValue !== undefined
-        ? `Starting Value: $${startValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : "Click to Update";
+    let tooltip = "Click to Update";
+    if (startValue !== null && startValue !== undefined) {
+        tooltip = `Start Val: $${startValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+        // Fix: Append T00:00:00 to force local time interpretation, preventing UTC rollback to previous day
+        if (endDate) tooltip += `End Date: ${new Date(endDate + 'T00:00:00').toLocaleDateString()}\n`;
+        if (mtmTot !== null && mtmTot !== undefined) tooltip += `MTM tot: $${mtmTot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
 
     return (
         <div
@@ -55,41 +59,10 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
 
 const NAVStats = ({ stats, onRefreshRequest }) => {
     const [loadingStates, setLoadingStates] = useState({});
+    const [localStats, setLocalStats] = useState({});
 
-    // Poll for updates if any widget is loading
-    useEffect(() => {
-        const activeLoaders = Object.entries(loadingStates).filter(([_, isLoading]) => isLoading);
-        if (activeLoaders.length === 0) return;
-
-        const interval = setInterval(async () => {
-            // Check status of each loading report
-            let changed = false;
-            const newStates = { ...loadingStates };
-
-            for (const [reportType, isLoading] of activeLoaders) {
-                if (!isLoading) continue;
-                try {
-                    const res = await api.get(`/nav/report/${reportType}`);
-                    if (res.data.status === 'available') {
-                        newStates[reportType] = false;
-                        changed = true;
-                    }
-                } catch (e) {
-                    console.error(`Poll failed for ${reportType}`, e);
-                    newStates[reportType] = false; // Stop on error
-                    changed = true;
-                }
-            }
-
-            if (changed) {
-                setLoadingStates(newStates);
-                // If any finished, trigger global refresh
-                if (onRefreshRequest) onRefreshRequest();
-            }
-        }, 2000); // Poll every 2s
-
-        return () => clearInterval(interval);
-    }, [loadingStates, onRefreshRequest]);
+    // Merge props stats with local overrides
+    const mergedStats = { ...stats, ...localStats };
 
     const handleWidgetClick = async (reportType) => {
         if (!reportType || loadingStates[reportType]) return;
@@ -98,15 +71,41 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
         setLoadingStates(prev => ({ ...prev, [reportType]: true }));
 
         try {
-            // Trigger Backend Fetch
+            // Trigger Backend Fetch (Simple GET as requested)
             const res = await api.get(`/nav/report/${reportType}`);
-            if (res.data.status === 'available') {
-                // Already have data, just stop loading
-                setLoadingStates(prev => ({ ...prev, [reportType]: false }));
+
+            if (res.data.status === 'available' && res.data.stats) {
+                // Determine keys based on report type for local override
+                // We need to map the generic stats result back to the props expected (change_7d, start_7d etc)
+                // The API returns { change, start, end, mtm, date }
+
+                // Helper to map report type to suffix
+                const suffixMap = {
+                    [REPORT_MAP["1 Day"]]: "1d",
+                    [REPORT_MAP["7 Day"]]: "7d",
+                    [REPORT_MAP["30 Day"]]: "30d",
+                    [REPORT_MAP["MTD"]]: "mtd",
+                    [REPORT_MAP["YTD"]]: "ytd",
+                    [REPORT_MAP["1 Year"]]: "yoy",
+                };
+
+                const s = suffixMap[reportType];
+                if (s) {
+                    setLocalStats(prev => ({
+                        ...prev,
+                        [`change_${s}`]: res.data.stats.change,
+                        [`start_${s}`]: res.data.stats.start,
+                        [`mtm_${s}`]: res.data.stats.mtm,
+                        [`date_${s}`]: res.data.stats.date,
+                    }));
+                }
             }
-            // If 'fetching', the Effect hook will take over polling
+            // If fetching, we strictly respect "get whatever returns". 
+            // If it returns 'fetching', it means no data yet. We just stop loading.
+            // User can click again later.
         } catch (e) {
-            console.error("Failed to trigger update", e);
+            console.error("Failed to update widget", e);
+        } finally {
             setLoadingStates(prev => ({ ...prev, [reportType]: false }));
         }
     };
@@ -120,26 +119,31 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
         setLoadingStates(prev => ({ ...prev, ...newLoading }));
 
         // Fire off requests in parallel
-        allTypes.forEach(t => api.get(`/nav/report/${t}`).catch(e => console.error(e)));
+        Promise.all(allTypes.map(t => handleWidgetClick(t)))
+            .finally(() => setLoadingStates({}));
+        // Note: handleWidgetClick handles its own loading state removal, 
+        // but this ensures cleanup if something goes wrong.
     };
 
-    if (!stats) return null;
+    if (!mergedStats) return null;
 
     return (
         <div className="mb-4">
             <div className="flex flex-wrap lg:flex-nowrap gap-2 items-center">
-                {/* Current NAV (No specific report type? Maybe generic or just static) */}
+                {/* Current NAV */}
                 <div className="flex-grow min-w-[120px]">
-                    <StatCard label="Current NAV" value={stats.current_nav} isCurrency />
+                    <StatCard label="Current NAV" value={mergedStats.current_nav} isCurrency />
                 </div>
 
                 {/* Histograms */}
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="1 Day"
-                        value={stats.change_1d}
+                        value={mergedStats.change_1d}
                         isPercent
-                        startValue={stats.start_1d}
+                        startValue={mergedStats.start_1d}
+                        endDate={mergedStats.date_1d}
+                        mtmTot={mergedStats.mtm_1d}
                         onClick={() => handleWidgetClick(REPORT_MAP["1 Day"])}
                         loading={loadingStates[REPORT_MAP["1 Day"]]}
                     />
@@ -147,9 +151,11 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="7 Day"
-                        value={stats.change_7d}
+                        value={mergedStats.change_7d}
                         isPercent
-                        startValue={stats.start_7d}
+                        startValue={mergedStats.start_7d}
+                        endDate={mergedStats.date_7d}
+                        mtmTot={mergedStats.mtm_7d}
                         onClick={() => handleWidgetClick(REPORT_MAP["7 Day"])}
                         loading={loadingStates[REPORT_MAP["7 Day"]]}
                     />
@@ -157,9 +163,11 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="30 Day"
-                        value={stats.change_30d}
+                        value={mergedStats.change_30d}
                         isPercent
-                        startValue={stats.start_30d}
+                        startValue={mergedStats.start_30d}
+                        endDate={mergedStats.date_30d}
+                        mtmTot={mergedStats.mtm_30d}
                         onClick={() => handleWidgetClick(REPORT_MAP["30 Day"])}
                         loading={loadingStates[REPORT_MAP["30 Day"]]}
                     />
@@ -167,9 +175,11 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="MTD"
-                        value={stats.change_mtd}
+                        value={mergedStats.change_mtd}
                         isPercent
-                        startValue={stats.start_mtd}
+                        startValue={mergedStats.start_mtd}
+                        endDate={mergedStats.date_mtd}
+                        mtmTot={mergedStats.mtm_mtd}
                         onClick={() => handleWidgetClick(REPORT_MAP["MTD"])}
                         loading={loadingStates[REPORT_MAP["MTD"]]}
                     />
@@ -177,9 +187,11 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="YTD"
-                        value={stats.change_ytd}
+                        value={mergedStats.change_ytd}
                         isPercent
-                        startValue={stats.start_ytd}
+                        startValue={mergedStats.start_ytd}
+                        endDate={mergedStats.date_ytd}
+                        mtmTot={mergedStats.mtm_ytd}
                         onClick={() => handleWidgetClick(REPORT_MAP["YTD"])}
                         loading={loadingStates[REPORT_MAP["YTD"]]}
                     />
@@ -187,9 +199,11 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 <div className="flex-grow min-w-[100px]">
                     <StatCard
                         label="1 Year"
-                        value={stats.change_yoy}
+                        value={mergedStats.change_yoy}
                         isPercent
-                        startValue={stats.start_yoy}
+                        startValue={mergedStats.start_yoy}
+                        endDate={mergedStats.date_yoy}
+                        mtmTot={mergedStats.mtm_yoy}
                         onClick={() => handleWidgetClick(REPORT_MAP["1 Year"])}
                         loading={loadingStates[REPORT_MAP["1 Year"]]}
                     />

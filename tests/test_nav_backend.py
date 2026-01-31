@@ -25,8 +25,9 @@ def test_get_nav_query_id(mock_config):
 @patch("app.services.ibkr_service.get_system_config")
 @patch("app.services.ibkr_service.fetch_flex_report")
 @patch("app.services.ibkr_service.parse_and_store_nav")
+@patch("app.services.ibkr_service.MongoClient")
 @patch("app.services.ibkr_service.save_sync_status")
-def test_fetch_and_store_nav_report(mock_save_status, mock_parse, mock_fetch, mock_get_config, mock_config):
+def test_fetch_and_store_nav_report(mock_save_status, mock_mongo, mock_parse, mock_fetch, mock_get_config, mock_config):
     mock_get_config.return_value = mock_config
     mock_fetch.return_value = b"<xml>data</xml>"
     
@@ -60,13 +61,16 @@ def test_fetch_fail_no_query_id(mock_save, mock_get_config, mock_config):
 from fastapi import BackgroundTasks
 
 @patch("app.api.routes.MongoClient")
+@patch("app.services.portfolio_analysis.MongoClient")
 @patch("app.services.ibkr_service.fetch_and_store_nav_report") # Mock the service call
-def test_get_nav_report_endpoint_triggers_fetch(mock_fetch_service, mock_mongo, mock_config):
+def test_get_nav_report_endpoint_triggers_fetch(mock_fetch_service, mock_mongo_analysis, mock_mongo_route, mock_config):
     # Mock DB
     mock_db = MagicMock()
-    mock_mongo.return_value.get_default_database.return_value = mock_db
-    
+    mock_mongo_route.return_value.get_default_database.return_value = mock_db
+    mock_mongo_analysis.return_value.get_default_database.return_value = mock_db
+
     # Simulate MISSING data (find_one returns None)
+    mock_db.ibkr_nav_history.find_one.return_value = None
     mock_db.ibkr_raw_flex_reports.find_one.return_value = None
     
     # Use MagicMock for BackgroundTasks to avoid any runtime overhead/logic
@@ -85,12 +89,27 @@ def test_get_nav_report_endpoint_triggers_fetch(mock_fetch_service, mock_mongo, 
     assert args[1] == NavReportType.NAV_1D
 
 @patch("app.api.routes.MongoClient")
-def test_get_nav_report_endpoint_returns_data(mock_mongo):
+@patch("app.services.portfolio_analysis.MongoClient")
+def test_get_nav_report_endpoint_returns_data(mock_mongo_analysis, mock_mongo_route):
     # Mock DB
     mock_db = MagicMock()
-    mock_mongo.return_value.get_default_database.return_value = mock_db
+    mock_mongo_route.return_value.get_default_database.return_value = mock_db
+    # Also mock analysis DB since it is called first
+    mock_mongo_analysis.return_value.get_default_database.return_value = mock_db
     
     # Simulate EXISTING data
+    mock_db.ibkr_nav_history.find_one.return_value = {
+         "_report_date": datetime.utcnow().strftime("%Y-%m-%d"),
+         "ibkr_report_type": "NAV1D"
+    }
+    # Simulate Aggregation Result for get_report_stats
+    mock_db.ibkr_nav_history.aggregate.return_value = [{
+        "total_start": 100,
+        "total_end": 110,
+        "first_start": 100,
+        "last_end": 110
+    }]
+    
     mock_db.ibkr_raw_flex_reports.find_one.return_value = {
         "_ingested_at": datetime.utcnow(),
         "ibkr_report_type": "Nav1D"

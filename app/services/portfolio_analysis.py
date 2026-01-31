@@ -2,6 +2,55 @@ from datetime import datetime, timedelta
 import logging
 from pymongo import MongoClient
 from app.config import settings
+from app.models import NavReportType
+
+def get_report_stats(rtype: NavReportType):
+    """
+    Get stats for a single report type.
+    Returns dict with {start, end, change, mtm, date} or None.
+    """
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Find the most recent date for this specific report type
+    latest_entry = db.ibkr_nav_history.find_one(
+        {"ibkr_report_type": rtype.value},
+        sort=[("_report_date", -1)]
+    )
+    if not latest_entry:
+        return None
+        
+    target_date = latest_entry["_report_date"]
+    
+    # 2. Sum up all accounts for that specific date
+    pipeline = [
+        {"$match": {
+            "ibkr_report_type": rtype.value, 
+            "_report_date": target_date
+        }},
+        {"$group": {
+            "_id": None,
+            "total_start": {"$sum": "$starting_value"},
+            "total_end": {"$sum": "$ending_value"},
+        }}
+    ]
+    
+    results = list(db.ibkr_nav_history.aggregate(pipeline))
+    if not results:
+        return None
+        
+    res = results[0]
+    start = res.get("total_start", 0)
+    end = res.get("total_end", 0)
+    change = ((end - start) / start * 100) if start else 0.0
+    
+    return {
+        "start": start,
+        "end": end,
+        "mtm": end - start,
+        "change": change,
+        "date": target_date
+    }
 
 def get_nav_history_stats():
     """
@@ -52,7 +101,9 @@ def get_nav_history_stats():
         if not results:
             return None
             
-        return results[0] # {total_start: X, total_end: Y}
+        # Inject the date so the caller knows what date this represents
+        results[0]["_report_date"] = target_date
+        return results[0] # {total_start: X, total_end: Y, _report_date: ...}
 
     # 1. Fetch Aggregated Stats
     s_1d = get_aggregated_stats(NavReportType.NAV_1D)
@@ -72,8 +123,10 @@ def get_nav_history_stats():
         start = agg_res.get("total_start", 0)
         end = agg_res.get("total_end", 0)
         
-        # Populate Start (for Tooltips)
+        # Populate Stats
         stats[f"start_{suffix}"] = start
+        stats[f"mtm_{suffix}"] = end - start
+        stats[f"date_{suffix}"] = agg_res.get("_report_date")
         
         # Calculate % Change from the Totals
         # ((TotalEnd - TotalStart) / TotalStart) * 100

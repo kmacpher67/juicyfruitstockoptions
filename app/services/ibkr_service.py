@@ -434,6 +434,8 @@ def run_ibkr_sync(check_interval_hours: float = 0.0, nav_days: int = 0):
                     logging.info("Fetching Daily Holdings...")
                     data_holdings = fetch_flex_report(q_holdings, token, label="holdings")
                     parse_and_store_holdings(data_holdings)
+                    import time
+                    time.sleep(20) # Rate Limit Protection
                  except Exception as e:
                     msg = f"Holdings Error: {e}"
                     logging.exception(msg)
@@ -446,6 +448,8 @@ def run_ibkr_sync(check_interval_hours: float = 0.0, nav_days: int = 0):
                     logging.info("Fetching Daily Trades...")
                     data_trades = fetch_flex_report(q_trades, token, label="trades")
                     parse_and_store_trades(data_trades)
+                    import time
+                    time.sleep(20) # Rate Limit Protection
                  except Exception as e:
                     msg = f"Trades Error: {e}"
                     logging.exception(msg)
@@ -732,6 +736,16 @@ def fetch_and_store_nav_report(report_type: NavReportType):
         # Fetch
         data = fetch_flex_report(query_id, token, label=f"nav_{report_type.lower()}")
         
+        # Store Raw Report
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        db.ibkr_raw_flex_reports.insert_one({
+            "ibkr_report_type": report_type.value,
+            "ibkr_query_id": query_id,
+            "content": data, # Binary or Text
+            "_ingested_at": datetime.utcnow()
+        })
+        
         # Store & Parse
         # Metadata includes the Query Name (Report Type) for context
         meta = {
@@ -791,7 +805,7 @@ def trigger_all_nav_reports():
                     
                     # Success - Base Sleep
                     import time
-                    time.sleep(10) 
+                    time.sleep(20) # Increased from 10s to 20s for safety
                     break
                     
                 except Exception as e:

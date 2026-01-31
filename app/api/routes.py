@@ -437,42 +437,37 @@ def get_nav_report_endpoint(
     If data for today is missing for this specific report type, trigger async fetch.
     Returns status='fetching' (202) if triggered, or status='available' with data if present.
     """
-    client = MongoClient(settings.MONGO_URI)
-    db = client.get_default_database("stock_analysis")
+    # 1. Check if we have stats
+    from app.services.portfolio_analysis import get_report_stats
+    stats_data = get_report_stats(report_type)
     
-    # 1. Check Freshness
-    # Look for raw report with this type ingested "today" (UTC)
-    from datetime import datetime
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # We query the raw collection for metadata
-    # We need to scan all accounts or just check if *any* exists?
-    # Assuming single user/portfolio for now, or just check global existence.
-    recent_entry = db.ibkr_raw_flex_reports.find_one({
-        "ibkr_report_type": report_type,
-        "_ingested_at": {"$gte": today_start}
-    })
-    
-    if not recent_entry:
-        # Trigger Fetch
-        background_tasks.add_task(fetch_and_store_nav_report, report_type)
-        return {"status": "fetching", "message": f"Report {report_type} requested. Check back soon."}
+    if stats_data:
+        return {
+            "status": "available",
+            "stats": stats_data
+        }
         
-    # 2. Return Data
-    # What data to return?
-    # The user likely wants the *parsed* history that helps the UI chart.
-    # But since the request is generic, maybe we return the raw rows or the Nav Stats?
-    # Let's return the simplified stats closest to the report type.
-    # Actually, returning "available" allows the frontend to then call /portfolio/stats or similar
-    # which aggregates everything.
-    # BUT, if the user requested NAV7D, maybe they specifically want the 7-day series?
-    # For now, let's return a success status and the timestamp.
+    # 2. If not found, Trigger Fetch
+    # Only if truly missing from DB.
+    # Note: validation of "freshness" is handled by the user pressing the button again? 
+    # Or should we enforce "today"?
+    # The user said "simple single call". If old data is there, give it?
+    # Assuming "get_report_stats" returns the LATEST available.
+    if not stats_data:
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        
+        recent_entry = db.ibkr_raw_flex_reports.find_one({
+            "ibkr_report_type": report_type,
+            # We can check date if we want strict freshness
+        })
+        # If we have raw report but parsing failed? Unlikely.
+        
+        # Trigger background fetch if absolutely nothing found
+        background_tasks.add_task(fetch_and_store_nav_report, report_type)
+        return {"status": "fetching", "message": f"Report {report_type} requested."}
     
-    return {
-        "status": "available", 
-        "last_updated": recent_entry.get("_ingested_at"),
-        "report_type": report_type
-    }
+    return {"status": "error", "message": "Unknown state"}
 
 @router.get("/portfolio/holdings")
 def get_portfolio_holdings(
