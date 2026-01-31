@@ -250,38 +250,47 @@ const Dashboard = () => {
                 throw new Error(`Server returned ${response.status}: ${text}`);
             }
 
-            // Try to read filename from Content-Disposition header
-            const disposition = response.headers.get('content-disposition') || '';
-            let filename;
-            const filenameRegex = /filename\*?=(?:UTF-8''\s*)?["']?([^;"']+)/i;
-            const match = disposition.match(filenameRegex);
-            if (match && match[1]) {
-                filename = decodeURIComponent(match[1]);
+            const text = await response.text();
+
+            // Open a new window
+            const win = window.open('', '_blank', 'width=800,height=600');
+            if (win) {
+                win.document.write(`
+                    <html>
+                        <head><title>Portfolio Export</title></head>
+                        <body style="font-family: monospace; white-space: pre-wrap; padding: 20px;">
+                            ${text}
+                        </body>
+                    </html>
+                `);
+                win.document.close();
             } else {
-                // Fallback: generate filename based on date
-                const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                filename = `MyPortfolio${dateStr}.csv`;
+                alert('Pop-up blocked! Please allow pop-ups for this site.');
             }
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', filename);
-            link.style.display = 'none';
-            document.body.appendChild(link);
-
-            link.click();
-
-            // Clean up after a delay to ensure browser captures the download
-            setTimeout(() => {
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-            }, 5000); // Increased to 5 seconds
 
         } catch (error) {
             console.error("Export failed:", error);
             alert(`Failed to export CSV: ${error.message}`);
+        }
+    };
+
+    const createOneTimeDownload = async () => {
+        try {
+            console.log('Requesting one-time download URL...');
+            const res = await api.post('/portfolio/export/url');
+            const { url, expires_in } = res.data;
+            console.log('Received one-time URL', url, 'expires_in', expires_in);
+            // Open the URL in a new tab/window to trigger native download behavior
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (err) {
+            console.error('Failed to create one-time download URL:', err);
+            alert('Failed to create download URL');
         }
     };
 
@@ -323,13 +332,22 @@ const Dashboard = () => {
                                 {/* Dropdown Menu */}
                                 <div className="absolute left-0 pt-2 w-48 z-50 hidden group-hover:block">
                                     <div className="bg-gray-800 border border-gray-700 rounded shadow-xl">
-                                        <button
-                                            onClick={exportPortfolio}
+                                        <a
+                                            href="/api/portfolio/export/csv"
+                                            onClick={(e) => {
+                                                const token = localStorage.getItem('token');
+                                                if (token) {
+                                                    // If we have an auth token, prevent default and use the fetch-based download
+                                                    e.preventDefault();
+                                                    exportPortfolio();
+                                                }
+                                                // If no token, allow the browser to follow the link (use cookies/browser auth)
+                                            }}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border-b border-gray-700 rounded-t"
                                         >
                                             <Download className="inline-block w-3 h-3 mr-2" />
                                             Export CSV
-                                        </button>
+                                        </a>
                                         <button
                                             onClick={syncAllPortfolio}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors rounded-b"

@@ -546,27 +546,80 @@ def export_portfolio_csv(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
-    Generate and download Portfolio CSV for Yahoo Finance import.
-    Filters: IBKR Watchlist (or full portfolio).
-    Format: Symbol, Current Price, Cost Basis, Date
+    Authenticated download endpoint (keeps previous behaviour).
     """
-    from fastapi.responses import Response
-    from datetime import datetime
-    
+    return _get_portfolio_csv_response(username=current_user.username, origin="auth")
+
+
+@router.post("/portfolio/export/url")
+def create_portfolio_export_url(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Create a short-lived, one-time download URL for the authenticated user."""
+    from datetime import datetime, timedelta
+    from jose import jwt
+    import logging
+
+    logger = logging.getLogger(__name__)
     try:
-        from app.services.export_service import generate_portfolio_csv_content
-        
-        csv_content = generate_portfolio_csv_content()
-        
-        date_str = datetime.now().strftime("%Y%m%d")
-        filename = f"MyPortfolio{date_str}.csv"
-        
-        return Response(
-            content=csv_content,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
+        ttl = 60  # seconds
+        payload = {
+            "sub": current_user.username,
+            "purpose": "download_portfolio",
+            "exp": datetime.utcnow() + timedelta(seconds=ttl)
+        }
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        url = f"/api/portfolio/export/csv/download?dl_token={token}"
+        logger.info(f"Routes.create_portfolio_export_url - user={current_user.username} issued token, expires_in={ttl}s")
+        return {"url": url, "expires_in": ttl}
     except Exception as e:
+        logger.exception("Routes.create_portfolio_export_url - failed to create token")
+        from fastapi.responses import Response
         import traceback
+        error_msg = f"Failed to create download URL:\n{str(e)}\n\n{traceback.format_exc()}"
+        return Response(content=error_msg, status_code=500, media_type="text/plain")
+
+
+@router.get("/portfolio/export/csv/download")
+def download_portfolio_with_token(dl_token: str):
+    """Download endpoint that accepts a short-lived dl_token in querystring (no auth dependency)."""
+    from jose import jwt
+    import logging
+    from fastapi.responses import Response
+
+    logger = logging.getLogger(__name__)
+    try:
+        claims = jwt.decode(dl_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if claims.get("purpose") != "download_portfolio":
+            raise Exception("Invalid token purpose")
+        username = claims.get("sub")
+        logger.info(f"Routes.download_portfolio_with_token - valid token for user={username}")
+        return _get_portfolio_csv_response(username=username, origin="token")
+    except Exception as e:
+        logger.warning(f"Routes.download_portfolio_with_token - invalid/expired token: {e}")
+        return Response(content="Invalid or expired download token", status_code=401, media_type="text/plain")
+
+
+def _get_portfolio_csv_response(username: str, origin: str):
+    """Internal helper to generate the Response for CSV data as plain text."""
+    from fastapi.responses import Response
+    import logging
+    import traceback
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info(f"Routes._get_portfolio_csv_response - start username={username} origin={origin}")
+
+        from app.services.export_service import generate_portfolio_csv_content
+
+        csv_content = generate_portfolio_csv_content()
+
+        # Return as plain text for the frontend to handle in a new window/tab
+        return Response(content=csv_content, media_type="text/plain")
+
+    except Exception as e:
+        logger.exception(f"Routes._get_portfolio_csv_response - exception for username={username}: {e}")
         error_msg = f"Export Failed:\n{str(e)}\n\n{traceback.format_exc()}"
         return Response(content=error_msg, status_code=500, media_type="text/plain")
+
