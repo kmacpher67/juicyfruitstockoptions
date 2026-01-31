@@ -150,3 +150,35 @@ Run a specific test file:
 ```bash
 pytest test_stock_ticker_list.py
 ```
+
+## Opportunity Scoring Rubric
+
+The system identifies "Covered Call Opportunities" and assigns a **Strength Score (0-100)** to help prioritize trades. This score is calculated dynamically based on four factors:
+
+### 1. Long Term Trend (TSMOM) - 30 Points
+*Scale*: 60-Day Time Series Momentum.
+- **Criteria**: If TSMOM > 0 (Positive trend over 2 months).
+- **Rationale**: We prefer selling calls on stocks that are stable or uptrending (Theta play), avoiding catching falling knives.
+
+### 2. Short Term Momentum (1D Change) - 20 Points
+*Scale*: Daily % Change.
+- **Criteria**: If Price is UP today (+10). If Price is UP > 2% today (+10 bonus).
+- **Rationale**: Selling calls into strength (a "Green Day") captures higher premiums due to intraday volatility/optimism.
+
+### 3. Volatility Premium (Skew) - 20 Points
+*Scale*: Call/Put Skew Ratio.
+- **Criteria**: If Skew > 1.0 (+10). If Skew > 0.5 (+10).
+- **Rationale**: Comparison of Call Implied Volatility to Put IV. A higher skew means calls are relatively expensive, favoring the seller.
+
+### 4. Cost Basis Health - 30 Points (Max)
+*Scale*: Current Price vs Average Cost Basis.
+- **Winner (+30)**: Current Price >= Cost Basis. Ideal scenario. Capital gains are protected if assigned.
+- **Secure (-5% Depth)**: Price is < 5% below basis (+20). Recoverable.
+- **Risky (-10% Depth)**: Price is < 10% below basis (+10).
+- **Bagholder (>10% Depth)**: Price is > 10% below basis (-10 Penalty).
+- **Rationale**: Selling calls below cost basis locks in a loss if assigned. We penalize deep underwater positions unless the premium is exceptionally "juicy" (High Skew/Trend can offset this penalty).
+
+### Total Score Interpretation
+- **80+**: "Strong Opt Sell Signal" (Green Badge). All stars aligned.
+- **50-79**: "Opt Sell Signal" (Yellow Badge). Good potential, check strikes.
+- **<50**: "Weak/Hold". Wait for better conditions.

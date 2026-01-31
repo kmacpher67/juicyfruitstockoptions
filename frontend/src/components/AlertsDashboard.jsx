@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { AlertTriangle, CheckCircle, TrendingUp, X } from 'lucide-react';
 
-const AlertsDashboard = () => {
+const AlertsDashboard = ({ onSelectTicker }) => {
     const [alerts, setAlerts] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -37,10 +37,10 @@ const AlertsDashboard = () => {
                 let label = 'Opportunity';
                 if (score >= 80) {
                     style = 'bg-green-900/40 border-green-600 text-green-300';
-                    label = 'Strong Opp';
+                    label = 'Strong Opt Sell Signal';
                 } else if (score >= 50) {
                     style = 'bg-yellow-900/40 border-yellow-600 text-yellow-300';
-                    label = 'Med Opp';
+                    label = 'Opt Sell Signal';
                 }
                 return { color: style, icon: CheckCircle, label: label };
             case 'PROFIT_TAKE':
@@ -51,23 +51,29 @@ const AlertsDashboard = () => {
     };
 
     return (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {alerts.map((alert, idx) => {
                 const { color, icon: Icon, label } = getTypeConfig(alert.type, alert.score || 0);
                 return (
-                    <div key={idx} className={`p-4 rounded border ${color} flex items-start gap-3 shadow-sm`}>
-                        <div className="mt-1">
-                            <Icon className="w-5 h-5" />
+                    <div
+                        key={idx}
+                        onClick={() => onSelectTicker && onSelectTicker(alert.symbol)}
+                        className={`p-2 pl-3 rounded text-sm border ${color} flex items-center gap-2 shadow-sm cursor-pointer hover:brightness-110 transition-all active:scale-[0.98]`}
+                    >
+                        <div className="flex-shrink-0">
+                            <Icon className="w-4 h-4 opacity-80" />
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold uppercase tracking-wider opacity-75">{label}</span>
-                                <span className="font-mono text-sm font-bold">{alert.symbol}</span>
-                                {alert.score > 0 && <span className="text-xs bg-black/20 px-1 rounded">Score: {alert.score}</span>}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-0.5">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-bold font-mono">{alert.symbol}</span>
+                                    <span className="text-[10px] uppercase font-bold opacity-70 border border-current px-1 rounded-sm">{label}</span>
+                                </div>
+                                {alert.score > 0 && <span className="text-[10px] font-mono bg-black/20 px-1.5 rounded">{alert.score}</span>}
                             </div>
-                            <p className="text-sm leading-snug opacity-90">{alert.message}</p>
+                            <p className="text-xs leading-tight opacity-90 truncate hover:whitespace-normal" title={alert.message}>{alert.message}</p>
                             {alert.type === 'PROFIT_TAKE' && (
-                                <p className="text-xs mt-2 font-mono">
+                                <p className="text-[10px] mt-0.5 font-mono opacity-80">
                                     PnL: ${alert.pnl?.toFixed(0)} ({(alert.profit_pct * 100).toFixed(1)}%)
                                 </p>
                             )}

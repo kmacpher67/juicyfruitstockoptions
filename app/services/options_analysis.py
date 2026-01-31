@@ -11,7 +11,7 @@ class OptionsAnalyzer:
         self.grouped = self._group_by_underlying()
 
     def _group_by_underlying(self):
-        grouped = defaultdict(lambda: {"shares": 0, "short_calls": 0, "options": []})
+        grouped = defaultdict(lambda: {"shares": 0, "short_calls": 0, "options": [], "total_cost": 0.0})
         
         for h in self.holdings:
             # Fallback for underlying if not present
@@ -22,14 +22,18 @@ class OptionsAnalyzer:
             # Aggregate Shares
             if sec_type == "STK":
                 grouped[und]["shares"] += qty
+                grouped[und]["total_cost"] += (qty * float(h.get("cost_basis", 0)))
                 
             # Aggregate Options
             elif sec_type == "OPT":
                 grouped[und]["options"].append(h)
                 sym = h.get("symbol", "")
                 
-                # Check if it's a Call (Simple check: 'C' in symbol)
-                if qty < 0 and "C" in sym.split(" ")[-1]: 
+                # Check if it's a Call using strict OSI Regex
+                # Format: SYMBOL YYMMDDC00000000
+                import re
+                # Look for 6 digits followed by C and more digits
+                if qty < 0 and re.search(r'\d{6}C\d+', sym): 
                     multiplier = float(h.get("multiplier", 100))
                     contracts = abs(qty)
                     grouped[und]["short_calls"] += (contracts * multiplier)
@@ -54,31 +58,53 @@ class OptionsAnalyzer:
             "skew": float(data.get("Call/Put Skew", 0) or 0)
         }
 
-    def calculate_strength(self, metrics):
+    def calculate_strength(self, metrics, cost_basis=0):
         """
         Calculate Opportunity Strength (0-100).
         User Rule: Longer time (Trend) is stronger than short term.
+        New Rule: Price vs Cost Basis influences score.
         """
         score = 0
         
-        # 1. Long Term Trend (TSMOM) - Weight 40
+        # 1. Long Term Trend (TSMOM) - Weight 30
         if metrics["tsmom"] > 0:
-            score += 40
-            
-        # 2. Short Term Momentum (1D) - Weight 30
-        if metrics["one_day"] > 0:
             score += 30
+            
+        # 2. Short Term Momentum (1D) - Weight 20
+        if metrics["one_day"] > 0:
+            score += 20
         elif metrics["one_day"] > 2.0: # Strong pop
             score += 10
             
-        # 3. Volatility Premium (Skew) - Weight 30
+        # 3. Volatility Premium (Skew) - Weight 20
         # Skew > 1.0 implies Calls are expensive (good to sell)
         if metrics["skew"] > 1.0:
-            score += 30
+            score += 20
         elif metrics["skew"] > 0.5:
-            score += 15
+            score += 10
+
+        # 4. Cost Basis Factor - Weight 30
+        # Ideally, we want to sell calls ABOVE our basis.
+        price = metrics["price"]
+        if price > 0 and cost_basis > 0:
+            if price >= cost_basis:
+                # Winning position: Great for selling calls (Capital Gains buffer)
+                score += 30
+            else:
+                # Underwater: Harder to find good premiums without locking in loss
+                # Calculate depth
+                diff = (cost_basis - price) / cost_basis
+                if diff < 0.05: # <5% down, okay
+                    score += 20
+                elif diff < 0.10: # <10% down, risky
+                    score += 10
+                else:
+                    # >10% down "Bagholder": Penalty or Zero bonus
+                    # User says: "If no juicy options... influence score".
+                    # We penalize here.
+                    score -= 10 
             
-        return min(score, 100)
+        return max(0, min(score, 100))
 
     def analyze_coverage(self):
         """Identify stocks that are owned but not fully covered by short calls."""
@@ -97,7 +123,11 @@ class OptionsAnalyzer:
                     if metrics["one_day"] <= 0:
                         continue
                         
-                    score = self.calculate_strength(metrics)
+                    avg_basis = 0
+                    if shares > 0:
+                         avg_basis = data["total_cost"] / shares
+                    
+                    score = self.calculate_strength(metrics, cost_basis=avg_basis)
                     
                     alerts.append({
                         "type": "UNCOVERED_SHARES",
@@ -105,7 +135,7 @@ class OptionsAnalyzer:
                         "shares_owned": shares,
                         "shares_free": free,
                         "score": score,
-                        "message": f"{und}: Gap of {free} shares. Trend is UP (+{metrics['one_day']}%) - Strong Sell Opp (Score: {score})."
+                        "message": f"Gap {int(free)} Shares, Trend UP (+{metrics['one_day']}%)"
                     })
         return alerts
 

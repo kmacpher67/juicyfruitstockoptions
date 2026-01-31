@@ -6,91 +6,128 @@ from app.config import settings
 def get_nav_history_stats():
     """
     Calculate NAV Stats using authoritative 'ibkr_nav_history' collection.
-    Aggregates all accounts (Taxable + IRA) for a Total Portfolio View.
+    Uses specific IBKR Report Types (1D, 7D, 30D, etc) for precise calculations.
     """
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
+    from app.models import NavReportType
+
+    stats = {
+        "current_nav": 0,
+        "change_1d": None, "change_7d": None, "change_30d": None,
+        "change_mtd": None, "change_ytd": None, "change_yoy": None, # 1Y
+        "start_1d": None, "start_7d": None, "start_30d": None,
+        "start_mtd": None, "start_ytd": None, "start_yoy": None,
+        "history": []
+    }
     
-    # Aggregate Total NAV per Date (Summing across all accounts)
+    # helper to aggregate across accounts for the latest available date
+    def get_aggregated_stats(rtype: NavReportType):
+        # 1. Find the most recent date for this specific report type
+        # We sort by _report_date descending to get the "latest batch"
+        latest_entry = db.ibkr_nav_history.find_one(
+            {"ibkr_report_type": rtype.value},
+            sort=[("_report_date", -1)]
+        )
+        if not latest_entry:
+            return None
+            
+        target_date = latest_entry["_report_date"]
+        
+        # 2. Sum up all accounts for that specific date
+        pipeline = [
+            {"$match": {
+                "ibkr_report_type": rtype.value, 
+                "_report_date": target_date
+            }},
+            {"$group": {
+                "_id": None,
+                "total_start": {"$sum": "$starting_value"},
+                "total_end": {"$sum": "$ending_value"},
+                # We cannot average TWRs. We calculate the portfolio return from the summed totals.
+            }}
+        ]
+        
+        results = list(db.ibkr_nav_history.aggregate(pipeline))
+        if not results:
+            return None
+            
+        return results[0] # {total_start: X, total_end: Y}
+
+    # 1. Fetch Aggregated Stats
+    s_1d = get_aggregated_stats(NavReportType.NAV_1D)
+    s_7d = get_aggregated_stats(NavReportType.NAV_7D)
+    s_30d = get_aggregated_stats(NavReportType.NAV_30D)
+    s_mtd = get_aggregated_stats(NavReportType.NAV_MTD)
+    s_ytd = get_aggregated_stats(NavReportType.NAV_YTD)
+    s_1y = get_aggregated_stats(NavReportType.NAV_1Y)
+    
+    # 2. Extract Data
+    # Current NAV comes from the sum of Ending Values of the 1D report (Total Assets)
+    if s_1d:
+        stats["current_nav"] = s_1d.get("total_end", 0)
+        
+    def extract_stats(agg_res, suffix):
+        if not agg_res: return
+        start = agg_res.get("total_start", 0)
+        end = agg_res.get("total_end", 0)
+        
+        # Populate Start (for Tooltips)
+        stats[f"start_{suffix}"] = start
+        
+        # Calculate % Change from the Totals
+        # ((TotalEnd - TotalStart) / TotalStart) * 100
+        if start and start != 0:
+             stats[f"change_{suffix}"] = ((end - start) / start) * 100
+        else:
+             stats[f"change_{suffix}"] = 0.0
+             
+    extract_stats(s_1d, "1d")
+    extract_stats(s_7d, "7d")
+    extract_stats(s_30d, "30d")
+    extract_stats(s_mtd, "mtd")
+    extract_stats(s_ytd, "ytd")
+    extract_stats(s_1y, "yoy")
+
+    # 3. History Graph
+    # For the graph, we need a time seriesSum of all accounts per day.
+    # We use the NAV_1D report type as the authoritative daily snapshot.
     pipeline = [
+        {"$match": {"ibkr_report_type": NavReportType.NAV_1D.value}},
         {
             "$group": {
-                "_id": "$report_date", # Group by Date (YYYY-MM-DD)
-                "total_nav": {"$sum": "$total_nav"},
-                "accounts": {"$addToSet": "$account_id"}
+                "_id": "$_report_date", # Group by Date
+                "total_nav": {"$sum": "$ending_value"}
             }
         },
-        {"$sort": {"_id": 1}} # Chronological
+        {"$sort": {"_id": 1}}, # Chronological
+        {"$project": {
+            "date": "$_id",
+            "nav": "$total_nav",
+            "_id": 0
+        }}
     ]
+    history_docs = list(db.ibkr_nav_history.aggregate(pipeline))
     
-    # List of { _id: "2025-01-01", total_nav: 12345.67 }
-    history = list(db.ibkr_nav_history.aggregate(pipeline))
+    # Fallback: if new history is empty (transition period), use old schema query?
+    # The old schema used "report_date" and "total_nav".
+    if not history_docs:
+         pipeline_legacy = [
+            {"$match": {"ibkr_report_type": {"$exists": False}}}, # Old records
+            {
+                "$group": {
+                    "_id": "$report_date",
+                    "total_nav": {"$sum": "$total_nav"}
+                }
+            },
+            {"$sort": {"_id": 1}},
+            {"$project": {"date": "$_id", "nav": "$total_nav", "_id": 0}}
+        ]
+         history_docs = list(db.ibkr_nav_history.aggregate(pipeline_legacy))
+         
+    stats["history"] = history_docs
     
-    if not history:
-        return {
-            "current_nav": 0,
-            "change_1d": 0, "change_30d": 0, "change_mtd": 0, "change_ytd": 0, "change_yoy": 0,
-            "history": []
-        }
-    
-    # Helper to find NAV for a specific date (or closest previous)
-    # Since list is sorted, we can bisect or iterate. Given size (years), simple iter is fine.
-    
-    date_map = {d["_id"]: d["total_nav"] for d in history}
-    sorted_dates = sorted(date_map.keys())
-    
-    def get_nav_at(target_date_str):
-        # Find exact or closest previous date
-        # target_date_str: YYYY-MM-DD
-        closest_date = None
-        for d in sorted_dates:
-            if d <= target_date_str:
-                closest_date = d
-            else:
-                break
-        return date_map.get(closest_date) if closest_date else None
-
-    # Current
-    current_date = sorted_dates[-1]
-    current_nav = date_map[current_date]
-    
-    # Target Dates
-    now = datetime.strptime(current_date, "%Y-%m-%d") # Use data's last date as 'now' anchor? 
-    # Actually, for YTD, we want Jan 1 of the CURRENT year relative to real time, or data time?
-    # Let's use Real Time for "YTD" (Year To Date), allowing for stale data if import missed.
-    # BUT if data ends in 2025 and it's 2026, YTD is 0. 
-    # Let's align "Now" to the latest data point for reporting (avoiding zeros if data is old).
-    
-    anchor_date = now # The date of the last data point
-    year_start = datetime(anchor_date.year, 1, 1).strftime("%Y-%m-%d")
-    month_start = datetime(anchor_date.year, anchor_date.month, 1).strftime("%Y-%m-%d")
-    
-    day_1_ago = (anchor_date - timedelta(days=1)).strftime("%Y-%m-%d")
-    day_7_ago = (anchor_date - timedelta(days=7)).strftime("%Y-%m-%d") # Added 7D
-    day_30_ago = (anchor_date - timedelta(days=30)).strftime("%Y-%m-%d")
-    year_ago = (anchor_date - timedelta(days=365)).strftime("%Y-%m-%d")
-    
-    nav_1d = get_nav_at(day_1_ago) or current_nav
-    nav_7d = get_nav_at(day_7_ago) or current_nav # Added 7D
-    nav_30d = get_nav_at(day_30_ago) or current_nav
-    nav_mtd = get_nav_at(month_start) or current_nav
-    nav_ytd = get_nav_at(year_start) or current_nav
-    nav_yoy = get_nav_at(year_ago) or current_nav
-    
-    def pct(start, end):
-        if not start or start == 0: return 0.0
-        return ((end - start) / start) * 100
-
-    return {
-        "current_nav": current_nav,
-        "change_1d": pct(nav_1d, current_nav),
-        "change_7d": pct(nav_7d, current_nav), # Added 7D
-        "change_30d": pct(nav_30d, current_nav),
-        "change_mtd": pct(nav_mtd, current_nav),
-        "change_ytd": pct(nav_ytd, current_nav),
-        "change_yoy": pct(nav_yoy, current_nav),
-        "history": [{"date": d["_id"], "nav": d["total_nav"]} for d in history]
-    }
+    return stats
 
 def run_portfolio_analysis():
     """

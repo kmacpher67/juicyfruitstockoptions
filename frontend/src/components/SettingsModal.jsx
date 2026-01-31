@@ -14,7 +14,17 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     const [newToken, setNewToken] = useState("");
     const [queryIdHoldings, setQueryIdHoldings] = useState("");
     const [queryIdTrades, setQueryIdTrades] = useState("");
-    const [queryIdNav, setQueryIdNav] = useState(""); // Added state
+
+    // Detailed NAV Query IDs
+    const [queryIds, setQueryIds] = useState({
+        nav_1d: "",
+        nav_7d: "",
+        nav_30d: "",
+        nav_mtd: "",
+        nav_ytd: "",
+        nav_1y: ""
+    });
+
     const [testingConnection, setTestingConnection] = useState(false);
     const [testResult, setTestResult] = useState(null); // { success: bool, message: str }
 
@@ -82,7 +92,16 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             });
             setQueryIdHoldings(res.data.query_id_holdings || "");
             setQueryIdTrades(res.data.query_id_trades || "");
-            setQueryIdNav(res.data.query_id_nav || ""); // Load from API
+
+            // Populate detailed IDs
+            setQueryIds({
+                nav_1d: res.data.query_id_nav_1d || "",
+                nav_7d: res.data.query_id_nav_7d || "",
+                nav_30d: res.data.query_id_nav_30d || "",
+                nav_mtd: res.data.query_id_nav_mtd || "",
+                nav_ytd: res.data.query_id_nav_ytd || "",
+                nav_1y: res.data.query_id_nav_1y || ""
+            });
         } catch (error) {
             console.error("Failed to fetch IBKR status", error);
         }
@@ -94,7 +113,12 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             const payload = {
                 query_id_holdings: queryIdHoldings,
                 query_id_trades: queryIdTrades,
-                query_id_nav: queryIdNav // Send to API
+                query_id_nav_1d: queryIds.nav_1d,
+                query_id_nav_7d: queryIds.nav_7d,
+                query_id_nav_30d: queryIds.nav_30d,
+                query_id_nav_mtd: queryIds.nav_mtd,
+                query_id_nav_ytd: queryIds.nav_ytd,
+                query_id_nav_1y: queryIds.nav_1y
             };
             if (newToken) payload.flex_token = newToken;
 
@@ -312,15 +336,29 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                                 onChange={(e) => setQueryIdTrades(e.target.value)}
                                             />
                                         </div>
-                                        <div className="col-span-2">
-                                            <label className="block text-gray-400 text-xs mb-1">NAV History Query ID</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Query ID (for 1D/30D/YTD)"
-                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
-                                                value={queryIdNav}
-                                                onChange={(e) => setQueryIdNav(e.target.value)}
-                                            />
+                                        <div className="col-span-2 space-y-2">
+                                            <h4 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">NAV History Query IDs</h4>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { id: 'nav_1d', label: '1 Day (Live)' },
+                                                    { id: 'nav_7d', label: '7 Day' },
+                                                    { id: 'nav_30d', label: '30 Day' },
+                                                    { id: 'nav_mtd', label: 'MTD' },
+                                                    { id: 'nav_ytd', label: 'YTD' },
+                                                    { id: 'nav_1y', label: '1 Year' },
+                                                ].map(({ id, label }) => (
+                                                    <div key={id}>
+                                                        <label className="block text-gray-500 text-[10px] mb-0.5">{label}</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Query ID"
+                                                            className="w-full bg-gray-800 text-white text-xs p-1.5 rounded border border-gray-600 focus:border-blue-500"
+                                                            value={queryIds[id]}
+                                                            onChange={(e) => setQueryIds(prev => ({ ...prev, [id]: e.target.value }))}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
 

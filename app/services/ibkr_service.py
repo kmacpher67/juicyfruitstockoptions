@@ -1,9 +1,11 @@
 import requests
 import xml.etree.ElementTree as ET
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 from app.config import settings
+from app.services.mappers import NavReportMapper
+from app.models import NavReportType
 
 # IBKR Flex Web Service URL
 # Using gdcdyn as requested (Global). Was ndcdyn (North America).
@@ -41,7 +43,7 @@ def save_debug_file(label: str, content: bytes):
     except Exception as e:
         logging.error(f"Failed to save debug file: {e}")
 
-def fetch_flex_report(query_id: str, token: str, label: str = "unknown"):
+def fetch_flex_report(query_id: str, token: str, label: str = "unknown", date_range: dict = None):
     """
     Two-step process:
     1. Send Request -> Get Reference Code
@@ -55,6 +57,14 @@ def fetch_flex_report(query_id: str, token: str, label: str = "unknown"):
     logging.info(f"Initiating Flex Query {query_id} (Token: {masked_token}) to {FLEX_URL}...")
     
     params = {"t": token, "q": query_id, "v": "3"}
+    # Add optional date overrides if the query supports dynamic dates? 
+    # Not standard in all Flex Queries, but we try if requested.
+    # Note: IBKR typically expects YYYYMMDD
+    if date_range:
+        if date_range.get("start"): params["startDate"] = date_range["start"]
+        if date_range.get("end"): params["endDate"] = date_range["end"]
+        logging.info(f"Applying Date Range: {params.get('startDate')} - {params.get('endDate')}")
+
     resp = requests.get(FLEX_URL, params=params)
     
     logging.debug(f"Step 1 Response Code: {resp.status_code}")
@@ -78,18 +88,64 @@ def fetch_flex_report(query_id: str, token: str, label: str = "unknown"):
         # If not XML, maybe it's an error string
         raise Exception(f"Failed to parse IBKR init response: {resp.text}")
     
-    # Step 2: Download
+    # Step 2: Download with Retry Logic
     logging.info(f"Downloading Statement {reference_code} (Label: {label})...")
     dl_params = {"t": token, "q": reference_code, "v": "3"}
-    dl_resp = requests.get(FLEX_GET_URL, params=dl_params)
     
-    if dl_resp.status_code != 200:
-        raise Exception(f"Failed to download statement ({dl_resp.status_code})")
+    max_retries = 10
+    retry_delay = 5 # seconds
+    
+    for attempt in range(max_retries):
+        dl_resp = requests.get(FLEX_GET_URL, params=dl_params)
         
-    # Save Debug Info
-    save_debug_file(label, dl_resp.content)
+        if dl_resp.status_code != 200:
+             # HTTP Error
+             raise Exception(f"Failed to download statement ({dl_resp.status_code})")
+             
+        # Check for Async 1019 Error
+        is_async_wait = False
+        try:
+            if dl_resp.content.strip().startswith(b"<"):
+                root = ET.fromstring(dl_resp.content)
+                if root.tag == "FlexStatementResponse":
+                     err_code = root.find("ErrorCode")
+                     if err_code is not None and err_code.text == "1019":
+                         is_async_wait = True
+                         logging.info(f"Report generation in progress (Attempt {attempt+1}/{max_retries}). Waiting {retry_delay}s...")
+        except Exception:
+            pass # Not an XML error, proceed
+            
+        if is_async_wait:
+            import time
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay + 5, 20) # Backoff up to 20s
+            continue
+            
+        # If we got here, it's either success or a different error/content.
+        # Save validation happens by caller or explicit check?
+        # Let's save debug and check for other errors (like invalid token) here to be safe, 
+        # but re-using existing logic is cleaner.
         
-    return dl_resp.content # Bytes
+        # Save Debug Info
+        save_debug_file(label, dl_resp.content)
+        
+        # Verify it's not some other error
+        if dl_resp.content.strip().startswith(b"<"):
+            try:
+                root = ET.fromstring(dl_resp.content)
+                if root.tag == "FlexStatementResponse": # Step 2 Wrapper for Errors
+                     err_code = root.find("ErrorCode")
+                     err_msg = root.find("ErrorMessage")
+                     if err_code is not None:
+                         # Real Error (e.g. 1018 or others we can't retry easily)
+                         raise Exception(f"IBKR Async Error {err_code.text}: {err_msg.text if err_msg is not None else 'Unknown'}")
+            except ET.ParseError:
+                pass 
+                
+        return dl_resp.content # Success
+        
+    raise Exception("IBKR Timeout: Report generation took too long.")
+
 
 def parse_csv_holdings(csv_str):
     """Parse IBKR Flex CSV for Holdings."""
@@ -320,8 +376,29 @@ def save_sync_status(status: str, message: str):
     except Exception as e:
         logging.error(f"Failed to save sync status: {e}")
 
-def run_ibkr_sync():
-    """Main entry point for Scheduler/API."""
+def run_ibkr_sync(check_interval_hours: float = 0.0, nav_days: int = 0):
+    """
+    Main entry point for Scheduler/API.
+    check_interval_hours: Rate Limit check.
+    nav_days: If > 0, requests specific date range for NAV query (Live/Short-term).
+    """
+    # 0. Rate Limit Check
+    if check_interval_hours > 0:
+        config = get_system_config()
+        # Find 'ibkr_last_sync' directly from correct collection
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        last_sync_doc = db.system_config.find_one({"_id": "ibkr_last_sync"})
+        
+        if last_sync_doc and last_sync_doc.get("status") == "success":
+            last_ts = last_sync_doc.get("timestamp")
+            if last_ts:
+                # Ensure offset-naive for comparison if Mongo returns naive
+                age = datetime.utcnow() - last_ts
+                if age.total_seconds() < (check_interval_hours * 3600):
+                    logging.info(f"Skipping IBKR Sync: Data is fresh ({age.total_seconds()/60:.1f} min old). Threshold: {check_interval_hours}h.")
+                    return "skipped"
+
     save_sync_status("running", "Sync Started")
     logging.info("Starting IBKR Sync...")
     
@@ -336,39 +413,82 @@ def run_ibkr_sync():
             return
             
         token = config.get("flex_token")
-        
-        # 1. Sync Holdings
-        q_holdings = config.get("query_id_holdings")
-        if q_holdings:
+
+        # 3. Sync NAV History
+        if nav_days == 0:
+            # Daily Scheduled Sync: Run ALL Reports completely
+            
+            # A. NAV Reports
             try:
-                data = fetch_flex_report(q_holdings, token, label="portfolio")
-                parse_and_store_holdings(data)
+                logging.info("Running Daily Comprehensive NAV Sync...")
+                trigger_all_nav_reports()
             except Exception as e:
-                msg = f"Holdings Error: {e}"
+                msg = f"Full NAV Trigger Error: {e}"
                 logging.exception(msg)
                 errors.append(msg)
                 
-        # 2. Sync Trades
-        q_trades = config.get("query_id_trades")
-        if q_trades:
-            try:
-                data = fetch_flex_report(q_trades, token, label="trades")
-                parse_and_store_trades(data)
-            except Exception as e:
-                msg = f"Trades Error: {e}"
-                logging.exception(msg)
-                errors.append(msg)
-
-        # 3. Sync NAV History
-        q_nav = config.get("query_id_nav")
-        if q_nav:
-            try:
-                data = fetch_flex_report(q_nav, token, label="nav")
-                parse_and_store_nav(data)
-            except Exception as e:
-                msg = f"NAV Error: {e}"
-                logging.exception(msg)
-                errors.append(msg)
+            # B. Holdings (Positions)
+            q_holdings = config.get("query_id_pd_positions") or config.get("query_id_holdings")
+            if q_holdings:
+                 try:
+                    logging.info("Fetching Daily Holdings...")
+                    data_holdings = fetch_flex_report(q_holdings, token, label="holdings")
+                    parse_and_store_holdings(data_holdings)
+                 except Exception as e:
+                    msg = f"Holdings Error: {e}"
+                    logging.exception(msg)
+                    errors.append(msg)
+            
+            # C. Trades
+            q_trades = config.get("query_id_pd_trades") or config.get("query_id_trades")
+            if q_trades:
+                 try:
+                    logging.info("Fetching Daily Trades...")
+                    data_trades = fetch_flex_report(q_trades, token, label="trades")
+                    parse_and_store_trades(data_trades)
+                 except Exception as e:
+                    msg = f"Trades Error: {e}"
+                    logging.exception(msg)
+                    errors.append(msg)
+                    
+        else:
+             # On-Demand Legacy / Specific Day Logic (keeping for backward compatibility or specific API calls)
+            q_nav = None
+            nav_date_args = None 
+            
+            if nav_days == 1:
+                q_nav = config.get("query_id_nav_1d") or config.get("query_id_nav")
+            elif nav_days == 7:
+                q_nav = config.get("query_id_nav_7d") or config.get("query_id_nav")
+            elif nav_days == 30:
+                q_nav = config.get("query_id_nav_30d") or config.get("query_id_nav")
+            elif nav_days == 31: 
+                q_nav = config.get("query_id_nav_mtd") or config.get("query_id_nav")
+            elif nav_days == 365:
+                q_nav = config.get("query_id_nav_1y") or config.get("query_id_nav")
+            elif nav_days == 366:
+                q_nav = config.get("query_id_nav_ytd") or config.get("query_id_nav")
+            elif nav_days > 0:
+                q_nav = config.get("query_id_nav")
+                if q_nav:
+                    end_date = datetime.utcnow()
+                    start_date = end_date - timedelta(days=nav_days)
+                    nav_date_args = {"start": start_date.strftime("%Y%m%d"), "end": end_date.strftime("%Y%m%d")}
+            
+            if q_nav:
+                try:
+                    logging.info(f"Fetching NAV Data (Days={nav_days}) using Query {q_nav}...")
+                    # Manual single fetch needs explicit report type if possible, or generic parse
+                    # The parse_and_store_nav might need metadata if we drift from auto-trigger
+                    # For legacy specific days, we just fetch and parse as generic or best effort
+                    data = fetch_flex_report(q_nav, token, label="nav", date_range=nav_date_args)
+                    parse_and_store_nav(data)
+                except Exception as e:
+                    msg = f"NAV Error: {e}"
+                    logging.exception(msg)
+                    errors.append(msg)
+            else:
+                 logging.warning(f"No NAV Query ID configured for {nav_days} days.")
                 
         # 4. Trigger AI Analysis
         try:
@@ -392,14 +512,14 @@ def run_ibkr_sync():
         save_sync_status("failed", f"Critical Error: {str(e)}")
 
 
-def parse_and_store_nav(content):
+def parse_and_store_nav(content, metadata: dict = None):
     """Dispatcher for NAV data."""
     if content.strip().startswith(b"<"):
-        parse_xml_nav(content)
+        parse_xml_nav(content, metadata)
     else:
-        parse_csv_nav(content.decode('utf-8', errors='ignore'))
+        parse_csv_nav(content.decode('utf-8', errors='ignore'), metadata)
 
-def parse_csv_nav(csv_str):
+def parse_csv_nav(csv_str, metadata: dict = None):
     """Parse IBKR NAV CSV."""
     import csv
     client = MongoClient(settings.MONGO_URI)
@@ -408,6 +528,15 @@ def parse_csv_nav(csv_str):
     lines = csv_str.splitlines()
     headers = None
     count = 0
+    
+    # Metadata extraction
+    ibkr_type = metadata.get("ibkr_report_type") if metadata else None
+    q_id = metadata.get("ibkr_query_id") if metadata else None
+    q_name = metadata.get("ibkr_query_name") if metadata else None
+    
+    if isinstance(ibkr_type, str):
+        try: ibkr_type = NavReportType(ibkr_type)
+        except: ibkr_type = NavReportType.NAV_1D
     
     for line in lines:
         line = line.strip()
@@ -430,84 +559,229 @@ def parse_csv_nav(csv_str):
         if len(row_values) != len(headers): continue
         
         row = dict(zip(headers, row_values))
-        acct = row.get("ClientAccountID")
-        val = row.get("EndingValue")
-        date_raw = row.get("ToDate") # "20251231" usually
         
-        if not (acct and val and date_raw): continue
+        # Basic validation
+        if not row.get("ClientAccountID"): continue
         
         try:
-            # IBKR Date Format in CSV often YYYYMMDD
-            if len(date_raw) == 8:
-                date_iso = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
-            else:
-                # Or standard YYYY-MM-DD
-                date_iso = date_raw
-                
-            doc = {
-                "account_id": acct,
-                "report_date": date_iso,
-                "total_nav": float(val),
-                "currency": row.get("CurrencyPrimary", "USD"),
-                "source": "FLEX_CSV",
-                "ingested_at": datetime.utcnow()
-            }
+            # Use Mapper
+            doc = NavReportMapper.map_to_mongo(
+                raw_data=row,
+                source_type="FLEX_CSV",
+                ibkr_report_type=ibkr_type or NavReportType.NAV_1D,
+                query_id=q_id,
+                query_name=q_name
+            )
             
+            # Upsert
             db.ibkr_nav_history.update_one(
-                {"account_id": acct, "report_date": date_iso},
+                {"account_id": doc["account_id"], "ibkr_report_type": doc["ibkr_report_type"], "_report_date": doc["_report_date"]},
                 {"$set": doc},
                 upsert=True
             )
             count += 1
-        except Exception:
+            
+        except Exception as e:
+            logging.error(f"CSV Parse Error: {e}")
             continue
             
-    logging.info(f"Processed {count} NAV records (CSV).")
+    logging.info(f"Processed {count} NAV records (CSV mapped).")
 
-def parse_xml_nav(xml_content):
-    """Parse IBKR NAV XML."""
+def parse_xml_nav(xml_content, metadata: dict = None):
+    """
+    Parse IBKR NAV XML.
+    Uses NavReportMapper for consistent schema.
+    """
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
     root = ET.fromstring(xml_content)
     count = 0
-    # Schema varies, typically FlexStatement -> EquitySummaryByReportDateInBase
-    # Or just look for generic Equity Summary structure
     
-    # Try finding EquitySummaryByReportDateInBase
-    for node in root.findall(".//EquitySummaryByReportDateInBase"):
-        data = node.attrib
+    # Metadata context
+    ibkr_type = metadata.get("ibkr_report_type") if metadata else None
+    if isinstance(ibkr_type, str): # Verify enum or convert
         try:
+            ibkr_type = NavReportType(ibkr_type)
+        except:
+            ibkr_type = NavReportType.NAV_1D # Fallback or error?
+            
+    q_id = metadata.get("ibkr_query_id") if metadata else None
+    q_name = metadata.get("ibkr_query_name") if metadata else None
+
+     # 1. Period Summary (ChangeInNAV) - Preferred for Flex Queries
+    for node in root.findall(".//ChangeInNAV"):
+        try:
+            data = node.attrib
             acct = data.get("accountId")
-            val = data.get("endingValue") or data.get("total")
-            date_raw = data.get("date") or data.get("reportDate") # 20251231?
+            if not acct: continue
             
-            if not (acct and val and date_raw): continue
+            # Use Mapper
+            # XML Attributes need to be passed as raw_data
+            # Validating if XML keys match what Mapper expects (Mapper has some aliases, but let's ensure)
+            # Mapper expects: ClientAccountID/AccountId, EndingValue/NAV, etc.
+            # XML keys: accountId, endingValue, fromDate, toDate, mtm, etc.
+            # We map specific XML CamelCase to Mapper's expected keys if needed, OR Mapper handles them.
+            # Mapper handles: AccountId, ToDate/ReportDate, EndingValue/NAV. 
+            # Check keys: 'startingValue', 'endingValue', 'mtm', 'depositsWithdrawals', 'dividends', 'interest', 'changeInInterestAccruals', 'otherFees', 'commissions', 'TWR'
             
-            # Date Parsing
-            if len(date_raw) == 8 and date_raw.isdigit():
-                 date_iso = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
-            else:
-                 date_iso = date_raw
-                 
-            doc = {
-                "account_id": acct,
-                "report_date": date_iso,
-                "total_nav": float(val),
-                "currency": data.get("currency", "USD"),
-                "source": "FLEX_XML",
-                "ingested_at": datetime.utcnow()
+            # Normalize XML keys for Mapper (Capitalize first letter usually helps if Mapper expects PascalCase from CSV)
+            # But the mapper.py uses .get("StartingValue") etc.
+            # So we create a localized dict with PascalCase keys for the Mapper.
+            
+            def pascal(k): return k[0].upper() + k[1:] if k else k
+            
+            raw_mapped = {
+                pascal(k): v for k, v in data.items()
             }
+            # Fix specific overrides
+            raw_mapped["ClientAccountID"] = data.get("accountId")
+            raw_mapped["EndingValue"] = data.get("endingValue")
+            raw_mapped["StartingValue"] = data.get("startingValue")
+            raw_mapped["Mtm"] = data.get("mtm")
+            raw_mapped["TWR"] = data.get("TWR")
             
+            doc = NavReportMapper.map_to_mongo(
+                raw_data=raw_mapped,
+                source_type="FLEX_XML",
+                ibkr_report_type=ibkr_type or NavReportType.NAV_1D, # Default if missing
+                query_id=q_id,
+                query_name=q_name
+            )
+            
+            # Upsert
             db.ibkr_nav_history.update_one(
-                {"account_id": acct, "report_date": date_iso},
+                {"account_id": doc["account_id"], "ibkr_report_type": doc["ibkr_report_type"], "_report_date": doc["_report_date"]},
                 {"$set": doc},
                 upsert=True
             )
             count += 1
-        except Exception:
-            continue
             
-    logging.info(f"Processed {count} NAV records (XML).")
+        except Exception as e:
+            logging.error(f"XML Nav Parse Error: {e}")
+            continue
+
+    logging.info(f"Processed {count} NAV records (XML mapped).")
                 
+
+
+from app.models import NavReportType
+
+def get_nav_query_id(report_type: NavReportType, config: dict) -> str:
+    """Map Enum to Config Field."""
+    if report_type == NavReportType.NAV_1D: return config.get("query_id_nav_1d")
+    if report_type == NavReportType.NAV_7D: return config.get("query_id_nav_7d")
+    if report_type == NavReportType.NAV_30D: return config.get("query_id_nav_30d")
+    if report_type == NavReportType.NAV_MTD: return config.get("query_id_nav_mtd")
+    if report_type == NavReportType.NAV_YTD: return config.get("query_id_nav_ytd")
+    if report_type == NavReportType.NAV_1Y: return config.get("query_id_nav_1y")
+    return None
+
+def fetch_and_store_nav_report(report_type: NavReportType):
+    """
+    On-Demand Sync for a specific NAV report.
+    1. Lookup Query ID.
+    2. Fetch XML/CSV.
+    3. Save Raw.
+    4. Parse & Update History.
+    """
+    save_sync_status("running", f"Fetching {report_type}...")
+    logging.info(f"Starting On-Demand NAV Sync for {report_type}...")
+    
+    try:
+        config = get_system_config()
+        if not config or not config.get("flex_token"):
+             raise Exception("No IBKR Token configured")
+             
+        token = config.get("flex_token")
+        query_id = get_nav_query_id(report_type, config)
+        
+        if not query_id:
+             raise Exception(f"No Query ID configured for {report_type}")
+             
+        # Fetch
+        data = fetch_flex_report(query_id, token, label=f"nav_{report_type.lower()}")
+        
+        # Store & Parse
+        # Metadata includes the Query Name (Report Type) for context
+        meta = {
+            "ibkr_report_type": report_type,
+            "ibkr_query_id": query_id,
+            "ibkr_query_name": report_type.value
+        }
+        parse_and_store_nav(data, metadata=meta)
+        
+        save_sync_status("success", f"Fetched {report_type}")
+        return {"status": "success", "report": report_type}
+        
+    except Exception as e:
+        save_sync_status("failed", f"Error {report_type}: {str(e)}")
+        raise e
+
+def trigger_all_nav_reports():
+    """
+    Triggers fetch for ALL configured NAV report types.
+    Iterates through 'ibkr_config' and finds all keys starting with 'query_id_nav_'.
+    """
+    save_sync_status("running", "Triggering ALL NAV Reports...")
+    logging.info("Starting Full NAV Schedule...")
+    
+    config = get_system_config()
+    if not config:
+        logging.error("No configuration found.")
+        return
+        
+    # Map Config Keys to Report Types
+    # config key -> NavReportType
+    # query_id_nav_1d -> NAV_1D
+    # query_id_nav_7d -> NAV_7D
+    # etc.
+    
+    mapping = {
+        "query_id_nav_1d": NavReportType.NAV_1D,
+        "query_id_nav_7d": NavReportType.NAV_7D,
+        "query_id_nav_30d": NavReportType.NAV_30D,
+        "query_id_nav_mtd": NavReportType.NAV_MTD,
+        "query_id_nav_ytd": NavReportType.NAV_YTD,
+        "query_id_nav_1y": NavReportType.NAV_1Y
+    }
+    
+    results = []
+    
+    for key, report_type in mapping.items():
+        q_id = config.get(key)
+        if q_id:
+            # Simple Retry Loop for Rate Limits
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    logging.info(f"Triggering {report_type} (Query {q_id}) [Attempt {attempt+1}]...")
+                    fetch_and_store_nav_report(report_type)
+                    results.append(f"{report_type.value}: OK")
+                    
+                    # Success - Base Sleep
+                    import time
+                    time.sleep(10) 
+                    break
+                    
+                except Exception as e:
+                    err_str = str(e)
+                    if "1018" in err_str or "Too many requests" in err_str:
+                        if attempt < max_retries - 1:
+                            wait_time = 60
+                            logging.warning(f"Rate Limit Hit (1018). Waiting {wait_time}s before retry...")
+                            save_sync_status("running", f"Rate Limit (1018) - Waiting {wait_time}s...")
+                            import time
+                            time.sleep(wait_time)
+                            continue
+                    
+                    # If not 1018 or retries exhausted
+                    msg = f"{report_type.value}: FAILED ({e})"
+                    logging.error(msg)
+                    results.append(msg)
+                    break
+        else:
+            logging.warning(f"Skipping {report_type}: No Query ID configured.")
+            
+    save_sync_status("success", "Full NAV Schedule Completed: " + "; ".join(results))
 

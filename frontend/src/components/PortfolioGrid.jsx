@@ -1,27 +1,32 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
-const PortfolioGrid = ({ data }) => {
-    const columnDefs = [
-        { field: "account_id", headerName: "Account", sortable: true, filter: true, width: 100 },
+const PortfolioGrid = ({ data, filterTicker }) => {
+    const colDefs = useMemo(() => [
+        {
+            field: "account_id",
+            headerName: "Account",
+            width: 120,
+            sort: 'asc',
+            sortIndex: 0
+        },
         {
             field: "symbol",
-            headerName: "Symbol",
+            headerName: "Ticker",
             sortable: true,
             filter: true,
-            width: 120,
+            width: 140,
+            pinned: 'left',
+            sort: 'asc',
+            sortIndex: 1,
             cellRenderer: (params) => {
                 const sym = params.value;
                 if (!sym) return null;
-                // Parse underlying for options (e.g. "AAPL 250117...") -> "AAPL"
-                // Simple parsing: split by space, take first part.
-                const underlying = sym.split(" ")[0];
-                const cleanSym = underlying.replace(/[^A-Za-z]/g, ""); // basic cleanup
-
-                const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`; // Naive exchange assumption
+                const cleanSym = sym.split(" ")[0];
+                const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`;
                 const yahooUrl = `https://finance.yahoo.com/quote/${cleanSym}/options`;
 
                 return (
@@ -35,51 +40,48 @@ const PortfolioGrid = ({ data }) => {
                 );
             }
         },
-        { field: "asset_class", headerName: "Type", sortable: true, width: 90 },
-        {
-            field: "quantity",
-            headerName: "Qty",
-            sortable: true,
-            type: "rightAligned",
-            valueFormatter: p => p.value.toLocaleString()
-        },
-        {
-            field: "market_price",
-            headerName: "Price",
-            sortable: true,
-            type: "rightAligned",
-            valueFormatter: p => `$${p.value.toFixed(2)}`
-        },
-        {
-            field: "market_value",
-            headerName: "Value",
-            sortable: true,
-            type: "rightAligned",
-            valueFormatter: p => `$${p.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-        },
-        {
-            field: "cost_basis",
-            headerName: "Cost Basis",
-            sortable: true,
-            type: "rightAligned",
-            valueFormatter: p => `$${p.value.toFixed(2)}`
-        },
+        { field: "quantity", headerName: "Qty", sortable: true, width: 80, type: 'numericColumn' },
+        { field: "market_price", headerName: "Price", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toFixed(2)}` },
+        { field: "market_value", headerName: "Value", sortable: true, width: 110, valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+        { field: "cost_basis", headerName: "Basis", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toFixed(2)}` },
         {
             field: "unrealized_pnl",
             headerName: "Unrealized P&L",
             sortable: true,
-            type: "rightAligned",
-            cellStyle: params => params.value >= 0 ? { color: '#4ade80' } : { color: '#f87171' },
-            valueFormatter: p => `$${p.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            width: 130,
+            cellClass: params => params.value >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold',
+            valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         },
         {
             field: "percent_of_nav",
             headerName: "% NAV",
             sortable: true,
-            type: "rightAligned",
+            width: 90,
             valueFormatter: p => `${(p.value * 100).toFixed(2)}%`
+        },
+        { field: "asset_class", headerName: "Type", sortable: true, width: 80 }
+    ], []);
+
+    // Filter Logic
+    const rowData = useMemo(() => {
+        let processed = [...data];
+
+        if (filterTicker) {
+            const f = filterTicker.toUpperCase().trim();
+            processed = processed.filter(row => {
+                const sym = (row.symbol || "").toUpperCase();
+                const und = (row.underlying_symbol || "").toUpperCase();
+                // IBKR Options with spaces: "AAPL  250117C..."
+                // Split by double space or just startswith
+                const matchesSym = sym.includes(f);
+                const matchesUnd = und === f;
+
+                return matchesSym || matchesUnd;
+            });
         }
-    ];
+
+        return processed;
+    }, [data, filterTicker]);
 
     const defaultColDef = {
         flex: 1,
@@ -90,8 +92,8 @@ const PortfolioGrid = ({ data }) => {
     return (
         <div className="ag-theme-alpine-dark h-full w-full">
             <AgGridReact
-                rowData={data}
-                columnDefs={columnDefs}
+                rowData={rowData}
+                columnDefs={colDefs}
                 defaultColDef={defaultColDef}
                 animateRows={true}
             />

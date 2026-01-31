@@ -200,6 +200,7 @@ const Dashboard = () => {
     // viewMode state moved to top for Deep Linking
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
+    const [filterTicker, setFilterTicker] = useState(null);
 
     const loadPortfolioData = async () => {
         setLoading(true);
@@ -217,9 +218,19 @@ const Dashboard = () => {
         }
     };
 
+    const triggerAutoSync = async () => {
+        try {
+            // Auto-sync if data is older than 4 hours
+            await api.post('/integrations/ibkr/sync', null, { params: { stale_hours: 4 } });
+        } catch (e) {
+            console.error("Auto-sync check failed", e);
+        }
+    };
+
     useEffect(() => {
         if (viewMode === 'PORTFOLIO') {
             loadPortfolioData();
+            triggerAutoSync();
         }
     }, [viewMode]);
 
@@ -262,13 +273,23 @@ const Dashboard = () => {
             {/* Render Based on Mode */}
             {viewMode === 'PORTFOLIO' ? (
                 <>
-                    <NAVStats stats={portfolioStats} />
+                    <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
                     <div className="mb-4">
                         {/* Dynamically load Alerts */}
-                        <AlertsDashboard />
+                        <AlertsDashboard onSelectTicker={(ticker) => {
+                            // Toggle filter: If clicking same ticker, clear filter. Else set it.
+                            setFilterTicker(prev => prev === ticker ? null : ticker);
+                        }} />
                     </div>
+                    {/* Filter Indicator */}
+                    {filterTicker && (
+                        <div className="mb-2 flex items-center gap-2">
+                            <span className="text-sm text-gray-400">Filtering for: <span className="text-white font-bold">{filterTicker}</span></span>
+                            <button onClick={() => setFilterTicker(null)} className="text-xs text-blue-400 hover:underline">Clear</button>
+                        </div>
+                    )}
                     <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
-                        <PortfolioGrid data={portfolioHoldings} />
+                        <PortfolioGrid data={portfolioHoldings} filterTicker={filterTicker} />
                     </div>
                 </>
             ) : (

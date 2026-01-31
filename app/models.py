@@ -1,4 +1,5 @@
 from typing import List, Optional, Any
+from enum import Enum
 from pydantic import BaseModel, Field
 
 class StockRecord(BaseModel):
@@ -54,12 +55,32 @@ class IBKRConfig(BaseModel):
     flex_token: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
-    query_id_nav: Optional[str] = None
+    query_id_nav: Optional[str] = None # For Generic/History if needed
+    query_id_nav_1d: Optional[str] = None
+    query_id_nav_7d: Optional[str] = None
+    query_id_nav_30d: Optional[str] = None
+    query_id_nav_mtd: Optional[str] = None
+    query_id_nav_ytd: Optional[str] = None
+    query_id_nav_1y: Optional[str] = None
 
+
+class NavReportType(str, Enum):
+    NAV_1D = "NAV1D"
+    NAV_7D = "Nav7D" # Case sensitive matching user request? Or internal enum? Let's use internal enum keys.
+    NAV_30D = "Nav30D"
+    NAV_MTD = "NAVMTD"
+    NAV_YTD = "NAVYTD"
+    NAV_1Y = "NAV1Y"
 class IBKRStatus(BaseModel):
     configured: bool
     flex_token_masked: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
-    query_id_nav: Optional[str] = None # Added field
+    query_id_nav: Optional[str] = None 
+    query_id_nav_1d: Optional[str] = None
+    query_id_nav_7d: Optional[str] = None
+    query_id_nav_30d: Optional[str] = None
+    query_id_nav_mtd: Optional[str] = None
+    query_id_nav_ytd: Optional[str] = None
+    query_id_nav_1y: Optional[str] = None
     last_sync: Optional[dict] = None

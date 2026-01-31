@@ -7,9 +7,10 @@ from pymongo import MongoClient
 from app.auth.dependencies import get_current_active_user
 from app.auth.utils import create_access_token, verify_password, get_password_hash
 from app.config import settings
-from app.models import Token, User, StockRecord, IBKRConfig, IBKRStatus
+from app.models import Token, User, StockRecord, IBKRConfig, IBKRStatus, NavReportType
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
+from app.services.ibkr_service import fetch_and_store_nav_report
 
 router = APIRouter()
 
@@ -318,6 +319,12 @@ def get_ibkr_status(
         query_id_holdings=config.get("query_id_holdings"),
         query_id_trades=config.get("query_id_trades"),
         query_id_nav=config.get("query_id_nav"),
+        query_id_nav_1d=config.get("query_id_nav_1d"),
+        query_id_nav_7d=config.get("query_id_nav_7d"),
+        query_id_nav_30d=config.get("query_id_nav_30d"),
+        query_id_nav_mtd=config.get("query_id_nav_mtd"),
+        query_id_nav_ytd=config.get("query_id_nav_ytd"),
+        query_id_nav_1y=config.get("query_id_nav_1y"),
         last_sync=last_sync
     )
 
@@ -341,6 +348,12 @@ def update_ibkr_config(
         update_data["query_id_trades"] = config.query_id_trades
     if config.query_id_nav:
         update_data["query_id_nav"] = config.query_id_nav
+    if config.query_id_nav_1d: update_data["query_id_nav_1d"] = config.query_id_nav_1d
+    if config.query_id_nav_7d: update_data["query_id_nav_7d"] = config.query_id_nav_7d
+    if config.query_id_nav_30d: update_data["query_id_nav_30d"] = config.query_id_nav_30d
+    if config.query_id_nav_mtd: update_data["query_id_nav_mtd"] = config.query_id_nav_mtd
+    if config.query_id_nav_ytd: update_data["query_id_nav_ytd"] = config.query_id_nav_ytd
+    if config.query_id_nav_1y: update_data["query_id_nav_1y"] = config.query_id_nav_1y
         
     db.system_config.update_one(
         {"_id": "ibkr_config"},
@@ -371,17 +384,35 @@ from app.services.ibkr_service import run_ibkr_sync
 @router.post("/integrations/ibkr/sync")
 async def sync_ibkr_data(
     background_tasks: BackgroundTasks,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    stale_hours: float = 0.0,
+    nav_days: int = 0
 ):
     """
     Trigger manual sync of IBKR Portfolio and Trades.
-    Runs in background.
+    stale_hours: If > 0, skips if data is fresher than this (Auto-Sync).
+    nav_days: If > 0, requests specific N-day report for NAV (Live).
     """
     if current_user.role != "admin": # Or 'portfolio' role? For now Admin.
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    background_tasks.add_task(run_ibkr_sync)
+    background_tasks.add_task(run_ibkr_sync, stale_hours, nav_days)
     return {"status": "queued", "message": "IBKR Sync started in background."}
+
+@router.post("/integrations/ibkr/sync/nav-all")
+async def sync_all_nav_reports(
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Trigger comprehensive sync of ALL configured NAV reports (1D, 7D, 30D, MTD, etc).
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    from app.services.ibkr_service import trigger_all_nav_reports
+    background_tasks.add_task(trigger_all_nav_reports)
+    return {"status": "queued", "message": "Full NAV Schedule triggered."}
 
 @router.get("/portfolio/stats")
 def get_portfolio_stats(
@@ -395,6 +426,54 @@ def get_portfolio_stats(
     from app.services.portfolio_analysis import get_nav_history_stats
     return get_nav_history_stats()
 
+@router.get("/nav/report/{report_type}")
+def get_nav_report_endpoint(
+    report_type: NavReportType,
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get generic NAV report data.
+    If data for today is missing for this specific report type, trigger async fetch.
+    Returns status='fetching' (202) if triggered, or status='available' with data if present.
+    """
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Check Freshness
+    # Look for raw report with this type ingested "today" (UTC)
+    from datetime import datetime
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # We query the raw collection for metadata
+    # We need to scan all accounts or just check if *any* exists?
+    # Assuming single user/portfolio for now, or just check global existence.
+    recent_entry = db.ibkr_raw_flex_reports.find_one({
+        "ibkr_report_type": report_type,
+        "_ingested_at": {"$gte": today_start}
+    })
+    
+    if not recent_entry:
+        # Trigger Fetch
+        background_tasks.add_task(fetch_and_store_nav_report, report_type)
+        return {"status": "fetching", "message": f"Report {report_type} requested. Check back soon."}
+        
+    # 2. Return Data
+    # What data to return?
+    # The user likely wants the *parsed* history that helps the UI chart.
+    # But since the request is generic, maybe we return the raw rows or the Nav Stats?
+    # Let's return the simplified stats closest to the report type.
+    # Actually, returning "available" allows the frontend to then call /portfolio/stats or similar
+    # which aggregates everything.
+    # BUT, if the user requested NAV7D, maybe they specifically want the 7-day series?
+    # For now, let's return a success status and the timestamp.
+    
+    return {
+        "status": "available", 
+        "last_updated": recent_entry.get("_ingested_at"),
+        "report_type": report_type
+    }
+
 @router.get("/portfolio/holdings")
 def get_portfolio_holdings(
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -407,12 +486,20 @@ def get_portfolio_holdings(
     db = client.get_default_database("stock_analysis")
     
     # Find latest date
+    # Find latest snapshot
     latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
     if not latest:
         return []
         
-    report_date = latest.get("report_date")
-    data = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
+    # Use unique snapshot_id to avoid duplicates from multiple syncs in one day
+    snapshot_id = latest.get("snapshot_id")
+    if snapshot_id:
+        query = {"snapshot_id": snapshot_id}
+    else:
+        # Fallback for legacy data
+        query = {"report_date": latest.get("report_date")}
+        
+    data = list(db.ibkr_holdings.find(query, {"_id": 0}))
     return data
 
 @router.get("/portfolio/alerts")
@@ -429,13 +516,18 @@ def get_portfolio_alerts(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
-    # 1. Fetch Latest Holdings
+    # 1. Fetch Latest Holdings (Snapshot)
     latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
     if not latest:
         return []
         
-    report_date = latest.get("report_date")
-    holdings = list(db.ibkr_holdings.find({"report_date": report_date}, {"_id": 0}))
+    snapshot_id = latest.get("snapshot_id")
+    if snapshot_id:
+        query = {"snapshot_id": snapshot_id}
+    else:
+        query = {"report_date": latest.get("report_date")}
+        
+    holdings = list(db.ibkr_holdings.find(query, {"_id": 0}))
     
     # 2. Fetch Market Data for Context
     # We want a map {Symbol: StockDataDict}
