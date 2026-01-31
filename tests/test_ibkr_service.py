@@ -52,7 +52,7 @@ def test_parse_and_store_holdings(mock_mongo):
     mock_db = mock_mongo.return_value.get_default_database.return_value
     mock_collection = mock_db.ibkr_holdings
     
-    parse_and_store_holdings(SAMPLE_HOLDINGS_XML)
+    parse_and_store_holdings(SAMPLE_HOLDINGS_XML.encode('utf-8'))
     
     # Verify Insertion
     assert mock_collection.insert_many.called
@@ -68,7 +68,7 @@ def test_parse_and_store_trades(mock_mongo):
     mock_db = mock_mongo.return_value.get_default_database.return_value
     mock_collection = mock_db.ibkr_trades
     
-    parse_and_store_trades(SAMPLE_TRADES_XML)
+    parse_and_store_trades(SAMPLE_TRADES_XML.encode('utf-8'))
     
     # Verify Upsert
     assert mock_collection.update_one.called

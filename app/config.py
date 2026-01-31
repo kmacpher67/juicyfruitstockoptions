@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # Logic
     MAX_AGE_HOURS: int = 4
+    DATA_DIR: str = "/app/data/ibkr_data"
     
     # Security
     SECRET_KEY: str = "CHANGE_ME_IN_PROD_9834758934758934" 

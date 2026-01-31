@@ -38,7 +38,13 @@ def test_fetch_and_store_nav_report(mock_save_status, mock_parse, mock_fetch, mo
     mock_parse.assert_called_once()
     # Verify metadata passed
     args, kwargs = mock_parse.call_args
-    assert kwargs["metadata"] == {"ibkr_report_type": NavReportType.NAV_1D}
+    # Update expected metadata to include query info
+    expected_meta = {
+        "ibkr_report_type": NavReportType.NAV_1D,
+        "ibkr_query_id": "1001",
+        "ibkr_query_name": "NAV1D"
+    }
+    assert kwargs["metadata"] == expected_meta
 
 @patch("app.services.ibkr_service.get_system_config")
 @patch("app.services.ibkr_service.save_sync_status")

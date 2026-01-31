@@ -8,6 +8,7 @@ services:
       - ./app:/app/app # Map app code for hot reload
       - ./report-results:/app/report-results # Map output folder
       - ./logs:/app/logs # Map logs folder for persistence
+      - ./data:/app/data # Map data folder for persistence
       # We also map the root files that are imported
       - ./stock_live_comparison.py:/app/stock_live_comparison.py
       - ./Ai_Stock_Database.py:/app/Ai_Stock_Database.py

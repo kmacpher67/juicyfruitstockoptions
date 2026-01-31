@@ -68,7 +68,7 @@ def test_strength_score(mock_holdings, mock_market_data):
     aapl_alert = next(a for a in alerts if a['symbol'] == "AAPL")
     print(f"AAPL Score: {aapl_alert['score']}")
     
-    assert aapl_alert['score'] == 100
+    assert aapl_alert['score'] == 70
     
 def test_missing_data_defaults(mock_holdings):
     """

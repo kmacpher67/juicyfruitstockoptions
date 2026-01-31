@@ -2,7 +2,7 @@ from Ai_Stock_Database import AiStockDatabase
 
 def test_upsert_and_setup(tmp_path, monkeypatch):
     # Use a test database
-    monkeypatch.setenv("MONGO_URI", "mongodb://localhost:27017/test_stocklive")
+    monkeypatch.setenv("MONGO_URI", "mongodb://admin:admin123@localhost:27017/test_stocklive?authSource=admin")
     db = AiStockDatabase(db_name="test_stocklive", collection_name="test_stock_data")
     db.collection.delete_many({})  # Clean up before test
 

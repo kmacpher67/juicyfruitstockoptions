@@ -49,12 +49,12 @@ def test_parse_change_in_nav_date_collision(mock_db):
         filter_doc = args[0]
         set_doc = args[1]["$set"]
         
-        if filter_doc["report_date"] == "2026-01-28":
-            assert set_doc["total_nav"] == 105.0
+        if filter_doc["_report_date"] == "2026-01-28":
+            assert set_doc["ending_value"] == 105.0
             found_end = True
-        elif filter_doc["report_date"] == "2026-01-27":
+        elif filter_doc["_report_date"] == "2026-01-27":
             # This is the FIX verification
-            assert set_doc["total_nav"] == 100.0
+            assert set_doc["ending_value"] == 100.0 # Changed to match logic (Start Value becomes End Value of prev day)
             found_start = True
             
     assert found_end, "Did not find End Value stored for 2026-01-28"
@@ -62,7 +62,8 @@ def test_parse_change_in_nav_date_collision(mock_db):
 
 @patch("app.services.ibkr_service.fetch_flex_report")
 @patch("app.services.ibkr_service.get_system_config")
-def test_nav_query_selection_ytd(mock_config, mock_fetch, mock_db):
+@patch("app.services.portfolio_analysis.run_portfolio_analysis")
+def test_nav_query_selection_ytd(mock_analysis, mock_config, mock_fetch, mock_db):
     """
     Verify nav_days=366 triggers query_id_nav_ytd.
     """
@@ -81,7 +82,8 @@ def test_nav_query_selection_ytd(mock_config, mock_fetch, mock_db):
 
 @patch("app.services.ibkr_service.fetch_flex_report")
 @patch("app.services.ibkr_service.get_system_config")
-def test_nav_query_selection_mtd(mock_config, mock_fetch, mock_db):
+@patch("app.services.portfolio_analysis.run_portfolio_analysis")
+def test_nav_query_selection_mtd(mock_analysis, mock_config, mock_fetch, mock_db):
     """
     Verify nav_days=31 triggers query_id_nav_mtd.
     """

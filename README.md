@@ -24,6 +24,18 @@ app/
 └── services/
 frontend/                   # React Frontend (Phase 2)
 docker-compose.yml          # Container configuration
+app/
+├── main.py                 # FastAPI Application entry point
+├── config.py               # Pydantic Settings
+├── models.py               # Data Models
+├── api/
+├── auth/
+├── scheduler/
+└── services/
+data/                       # Persistent Data Storage (Mapped to Docker)
+├── ibkr_data/              # Raw XML/CSV from IBKR
+frontend/                   # React Frontend (Phase 2)
+docker-compose.yml          # Container configuration
 ```
 
 ## Web Portal Architecture (New)

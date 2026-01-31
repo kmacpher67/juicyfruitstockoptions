@@ -28,7 +28,7 @@ def save_debug_file(label: str, content: bytes):
         if content.strip().startswith(b"Date,"): # Simple CSV check
              ext = "csv"
         
-        filename = f"app/ibkr_data/{label}/{timestamp}.{ext}"
+        filename = f"{settings.DATA_DIR}/{label}/{timestamp}.{ext}"
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         
         with open(filename, "wb") as f:
@@ -641,6 +641,7 @@ def parse_xml_nav(xml_content, metadata: dict = None):
             raw_mapped["Mtm"] = data.get("mtm")
             raw_mapped["TWR"] = data.get("TWR")
             
+            
             doc = NavReportMapper.map_to_mongo(
                 raw_data=raw_mapped,
                 source_type="FLEX_XML",
@@ -649,12 +650,41 @@ def parse_xml_nav(xml_content, metadata: dict = None):
                 query_name=q_name
             )
             
-            # Upsert
+            # Upsert End Value (Today)
             db.ibkr_nav_history.update_one(
                 {"account_id": doc["account_id"], "ibkr_report_type": doc["ibkr_report_type"], "_report_date": doc["_report_date"]},
                 {"$set": doc},
                 upsert=True
             )
+            
+            # FIX: Also store 'startingValue' as T-1 if available? 
+            # ...
+            
+            if doc.get("from_date") and doc.get("to_date") and doc.get("from_date") == doc.get("to_date"):
+                 start_val = doc.get("starting_value")
+                 if start_val is not None:
+                     # Calculate T-1
+                     # doc["from_date"] is ISO string YYYY-MM-DD
+                     try:
+                         dt_from = datetime.strptime(doc["from_date"], "%Y-%m-%d")
+                         dt_prev = dt_from - timedelta(days=1)
+                         prev_date_str = dt_prev.strftime("%Y-%m-%d")
+                         
+                         doc_prev = doc.copy()
+                         doc_prev["_report_date"] = prev_date_str
+                         doc_prev["ending_value"] = start_val
+                         # Zero out flows for the "virtual" T-1 record? Or keep them?
+                         # Usually we just want the NAV point.
+                         doc_prev["starting_value"] = 0 # Unknown
+                         
+                         db.ibkr_nav_history.update_one(
+                            {"account_id": doc_prev["account_id"], "ibkr_report_type": doc_prev["ibkr_report_type"], "_report_date": doc_prev["_report_date"]},
+                            {"$set": doc_prev},
+                            upsert=True
+                         )
+                     except Exception as ex:
+                         logging.warning(f"Failed to backfill previous day NAV: {ex}")
+            
             count += 1
             
         except Exception as e:

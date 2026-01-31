@@ -77,29 +77,60 @@ class TestNavRefactor:
                         "ending_value": 100.0,
                         "starting_value": 99.0,
                         "twr": 1.01,
-                        "ibkr_report_type": "NAV1D"
+                        "ibkr_report_type": "NAV1D",
+                        "_report_date": "2025-01-01"
                     }
                 if rtype == "Nav7D": # Enum value
                     return {
                         "ending_value": 100.0,
                         "starting_value": 95.0,
                         "twr": 5.26,
-                        "ibkr_report_type": "Nav7D"
+                        "ibkr_report_type": "Nav7D",
+                        "_report_date": "2025-01-01"
                     }
                 return None
                 
             mock_db.ibkr_nav_history.find_one.side_effect = mock_find_one
             
-            # Mock Aggregate for History
-            mock_db.ibkr_nav_history.aggregate.return_value = [
-                {"date": "2025-01-01", "nav": 90.0},
-                {"date": "2025-01-02", "nav": 100.0}
-            ]
+            # Mock Aggregate
+            # We have multiple calls. 
+            # 1-6. get_aggregated_stats (NAV1D, 7D, 30D...) -> Expects {total_start, total_end}
+            # 7. History Graph -> Expects {total_nav, _id}
+            
+            def mock_aggregate(pipeline):
+                # Check match stage to distinguish
+                match = pipeline[0].get("$match", {})
+                rtype = match.get("ibkr_report_type")
+                
+                if rtype == "NAV1D":
+                    # Determine if it's the stats call or history call
+                    # History call groups by date/id. Stats call groups by None.
+                    group = pipeline[1].get("$group", {})
+                    if group.get("_id") is None:
+                        # Stats Call
+                        return [{
+                            "total_start": 100.0,
+                            "total_end": 101.0
+                        }]
+                    else:
+                        # History Call (daily)
+                        return [
+                            {"_id": "2025-01-01", "total_nav": 90.0},
+                            {"_id": "2025-01-02", "total_nav": 100.0}
+                        ]
+                
+                # Default for other reports (7D etc)
+                return [{
+                    "total_start": 50.0,
+                    "total_end": 55.0
+                }]
+
+            mock_db.ibkr_nav_history.aggregate.side_effect = mock_aggregate
             
             stats = get_nav_history_stats()
             
-            assert stats["current_nav"] == 100.0
-            assert stats["change_1d"] == 1.01
-            assert stats["change_7d"] == 5.26
+            assert stats["current_nav"] == 101.0
+            assert stats["change_1d"] == 1.0
+            assert stats["change_7d"] == 10.0
             assert stats["change_30d"] is None # Not mocked
             assert len(stats["history"]) == 2

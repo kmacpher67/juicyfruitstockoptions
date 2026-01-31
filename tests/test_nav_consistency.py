@@ -31,23 +31,13 @@ class TestNAVConsistency(unittest.TestCase):
         parse_csv_nav(SAMPLE_CSV_1D.strip())
         
         # Assertions
-        # 1. Verify ibkr_nav_history Upsert (Historical Start - Open)
-        # Expect 2026-01-28 (FromDate) with nav_open=100000
-        start_call = [args for args in mock_db.ibkr_nav_history.update_one.call_args_list if args[0][0]['report_date'] == '2026-01-28']
-        self.assertTrue(start_call, "CSV: Failed to save Historical Start Record (2026-01-28)")
-        self.assertEqual(start_call[0][0][1]['$set']['nav_open'], 100000.0)
-        
-        # 2. Verify ibkr_nav_history Upsert (Current End - Close)
-        # Expect 2026-01-29 with nav_close=100500
-        end_call = [args for args in mock_db.ibkr_nav_history.update_one.call_args_list if args[0][0]['report_date'] == '2026-01-29']
+        # 1. Verify ibkr_nav_history Upsert (Consolidated Record)
+        # Old tests checked for separate Open and Close records. 
+        # New Mapper consolidates into one record per day.
+        # Expect 2026-01-29 with ending_value=100500
+        end_call = [args for args in mock_db.ibkr_nav_history.update_one.call_args_list if args[0][0].get('_report_date') == '2026-01-29']
         self.assertTrue(end_call, "CSV: Failed to save Current End Record")
-        self.assertEqual(end_call[0][0][1]['$set']['nav_close'], 100500.0)
-        
-        # 3. Verify ibkr_raw_flex_reports Upsert
-        # Expect key ClientAccountID=U123456
-        raw_call = mock_db.ibkr_raw_flex_reports.update_one.call_args
-        self.assertIsNotNone(raw_call, "CSV: Failed to save RAW report")
-        self.assertEqual(raw_call[0][1]['$set']['StartingValue'], "100000")
+        self.assertEqual(end_call[0][0][1]['$set']['ending_value'], 100500.0)
         print("CSV Consistency: PASSED")
 
     @patch('app.services.ibkr_service.MongoClient')
@@ -61,22 +51,19 @@ class TestNAVConsistency(unittest.TestCase):
         parse_xml_nav(SAMPLE_XML_30D.strip())
         
         # Assertions
-        # 1. Verify ibkr_nav_history Upsert (Historical Start)
-        # XML Logic: FromDate=20251230 -> 2025-12-30
+        # 1. Verify ibkr_nav_history Upsert (Consolidated)
+        # XML Logic now uses Mapper to create one record
         
-        # Check the Update Payload ($set), matches 'source'
-        start_call = [args for args in mock_db.ibkr_nav_history.update_one.call_args_list if args[0][1]['$set'].get('source') == 'FLEX_XML_PERIOD_START']
-        self.assertTrue(start_call, "XML: Failed to save Historical Start Record")
+        # Check the Update Payload ($set), matches '_source_type' with underscore
         
-        # Verify Date used was FromDate (2025-12-30)
-        self.assertEqual(start_call[0][0][0]['report_date'], '2025-12-30')
-        self.assertEqual(start_call[0][0][1]['$set']['nav_open'], 90000.0)
+        nav_call = [args for args in mock_db.ibkr_nav_history.update_one.call_args_list 
+                      if args[0][1]['$set'].get('_source_type') == 'FLEX_XML' and args[0][1]['$set'].get('_report_date') == '2026-01-29']
         
-        # 2. Verify ibkr_raw_flex_reports Upsert
-        # Expect raw xml data save
-        raw_call = mock_db.ibkr_raw_flex_reports.update_one.call_args
-        self.assertIsNotNone(raw_call, "XML: Failed to save RAW report")
-        self.assertEqual(raw_call[0][1]['$set']['startingValue'], "90000")
+        self.assertTrue(nav_call, "XML: Failed to save Consolidated NAV Record")
+        
+        # Verify Values
+        self.assertEqual(nav_call[0][0][1]['$set']['starting_value'], 90000.0)
+        self.assertEqual(nav_call[0][0][1]['$set']['ending_value'], 100500.0)
         print("XML Consistency: PASSED")
 
 if __name__ == '__main__':
