@@ -1,4 +1,8 @@
-# Epic-Level Planning & Roadmap
+# Features & Requirements Planning & Roadmap
+- When reading this document to perform work:
+-- Follow all the rules documented in the workspace rules & workflow .md docs
+-- The .gemini global rules rules file should be followed. 
+- When doing work from this document follow the `.agent/workflows/create-a-plan.md` workflow!
 
 > [!NOTE]
 > This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Todo items (maybe large feature sets with requirements) to guide future development. Items are not in any particular order. This Epic document should be used like Kanban board per Status Legend to mark items. 
@@ -15,7 +19,6 @@
 -- All the rules documented in the workspace rules & workflow .md docs should be followed
 -- The .gemini global rules rules file should be followed. 
 -- An implementation plan should be broken down into smaller items (added to the Epic Todo list as sub items) that can be completed in a reasonable amount of time (e.g., 1-2 hours)
--- The implementation plan should be created using google antigravity
 -- The incremental implementation plan should follow hierarchical decomposition for naming based the short name of the epic (e.g., epic-001-algorithmic-trading-001-task-001)
 
 ## 0. Bugs, Fixes, & Maintenance
@@ -64,7 +67,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Portfolio Management
 - [ ] **Portfolio Management**: Get entire history of portfolio performance
-- [ ] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
+- [/] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
+    - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
