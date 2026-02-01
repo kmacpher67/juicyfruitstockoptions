@@ -38,7 +38,28 @@ class TradeRecord(BaseModel):
     quantity: Optional[float] = Field(0.0, alias="Quantity")
     
     # Allow extra fields for ODS pattern (Store Everything)
-    model_config = {"extra": "allow"}
+    # Allow population by internal name (snake_case) or alias (CamelCase)
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+class AnalyzedTrade(TradeRecord):
+    """
+    Extends TradeRecord with calculated P&L data.
+    """
+    realized_pl: Optional[float] = 0.0
+    cost_basis: Optional[float] = 0.0
+    # For grouping/display
+    asset_class: Optional[str] = "STK" 
+
+class TradeMetrics(BaseModel):
+    """
+    Summary statistics for a set of trades.
+    """
+    total_pl: float = 0.0
+    win_rate: float = 0.0
+    profit_factor: float = 0.0
+    total_trades: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
 
 class StockResponse(BaseModel):
     count: int

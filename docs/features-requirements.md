@@ -67,8 +67,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Portfolio Management
 - [ ] **Portfolio Management**: Get entire history of portfolio performance
-- [/] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
+- [x] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
+    - [x] **Backend API**: Create `/api/trades` endpoint to serve historical data with pagination/filtering.
+    - [x] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
+    - [x] **Frontend**: Build "Trade History" view with datagrid, filtering, and export.
+    - [x] **Metrics**: Add summary metrics (Total P&L, Win Rate, LT/ST P&L, etc.) to the history view.
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:

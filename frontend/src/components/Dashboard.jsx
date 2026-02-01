@@ -9,6 +9,7 @@ import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import AlertsDashboard from './AlertsDashboard';
+import TradeHistory from './TradeHistory';
 
 const AVAILABLE_COLUMNS = [
     { field: "Ticker", headerName: "Ticker" },
@@ -28,7 +29,12 @@ const Dashboard = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     // State initialized from URL
-    const [viewMode, setViewMode] = useState(searchParams.get('view') === 'PORTFOLIO' ? 'PORTFOLIO' : 'ANALYSIS');
+    const [viewMode, setViewMode] = useState(() => {
+        const v = searchParams.get('view');
+        if (v === 'PORTFOLIO') return 'PORTFOLIO';
+        if (v === 'TRADES') return 'TRADES';
+        return 'ANALYSIS';
+    });
     const [selectedReport, setSelectedReport] = useState(searchParams.get('report') || '');
 
     // Quick Add Ticker State
@@ -42,6 +48,7 @@ const Dashboard = () => {
     useEffect(() => {
         const params = {};
         if (viewMode === 'PORTFOLIO') params.view = 'PORTFOLIO';
+        if (viewMode === 'TRADES') params.view = 'TRADES';
         if (selectedReport) params.report = selectedReport;
         setSearchParams(params, { replace: true });
     }, [viewMode, selectedReport, setSearchParams]);
@@ -380,6 +387,12 @@ const Dashboard = () => {
                                 >
                                     My Portfolio
                                 </button>
+                                <button
+                                    onClick={() => setViewMode('TRADES')}
+                                    className={`px-3 py-1 text-sm rounded ${viewMode === 'TRADES' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Trade History
+                                </button>
                                 {/* Dropdown Menu */}
                                 <div className="absolute left-0 pt-2 w-48 z-50 hidden group-hover:block">
                                     <div className="bg-gray-800 border border-gray-700 rounded shadow-xl">
@@ -448,6 +461,8 @@ const Dashboard = () => {
                         <PortfolioGrid data={portfolioHoldings} filterTicker={filterTicker} />
                     </div>
                 </>
+            ) : viewMode === 'TRADES' ? (
+                <TradeHistory />
             ) : (
                 <>
                     {/* Controls Bar */}

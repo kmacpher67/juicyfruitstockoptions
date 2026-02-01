@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import routes
+from app.api import routes, trades
 from app.scheduler.jobs import start_scheduler, stop_scheduler
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(routes.router, prefix="/api")
+app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 
 if __name__ == "__main__":
     import uvicorn
