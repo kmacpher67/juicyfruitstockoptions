@@ -106,8 +106,8 @@ def test_lazy_portfolio_sync(client_with_auth, mock_mongo, monkeypatch):
     # 2. Setup IBKR Holdings with new ticker "GOOG"
     # Create valid snapshot
     db.ibkr_holdings.insert_many([
-        {"symbol": "GOOG", "date": "2024-01-01", "snapshot_id": "snap1"},
-        {"symbol": "TSLA", "date": "2024-01-01", "snapshot_id": "snap1"} # TSLA also new
+        {"symbol": "GOOG", "date": "2024-01-01", "snapshot_id": "snap1", "asset_class": "STK"},
+        {"symbol": "TSLA", "date": "2024-01-01", "snapshot_id": "snap1", "asset_class": "STK"} # TSLA also new
     ])
     
     # Mock run_stock_live_comparison to avoid actual execution error if triggered
