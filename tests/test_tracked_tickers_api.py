@@ -24,6 +24,9 @@ def mock_mongo(monkeypatch):
     # But just in case
     # monkeypatch.setattr("stock_live_comparison.MongoClient", mock_get_client)
     
+    # Patch MongoClient in ticker_discovery
+    monkeypatch.setattr("app.services.ticker_discovery.MongoClient", mock_get_client)
+    
     return mock_client
 
 # Mock User

@@ -14,19 +14,21 @@ def test_export_csv_dirty_data(mock_mongo):
     # Scenario 1: Mixed types and Missing values
     mock_db.ibkr_holdings.find.return_value = [
         # Good row
-        {"symbol": "TSLA", "market_price": 200.50, "cost_basis": 150.00, "report_date": "2026-01-28"},
+        {"symbol": "TSLA", "market_price": 200.50, "cost_basis": 150.00, "report_date": "2026-01-28", "quantity": 10},
         
         # Missing market_price (should default to 0)
-        {"symbol": "AAPL", "cost_basis": 100.00, "report_date": "2026-01-28"},
+        {"symbol": "AAPL", "cost_basis": 100.00, "report_date": "2026-01-28", "quantity": 5},
         
         # None market_price
-        {"symbol": "MSFT", "market_price": None, "cost_basis": 200.00, "report_date": "2026-01-28"},
+        {"symbol": "MSFT", "market_price": None, "cost_basis": 200.00, "report_date": "2026-01-28", "quantity": 10},
         
         # Missing symbol (should use underlying or fallback? logic says fallback to symbol. If both missing?)
-        {"market_price": 50, "cost_basis": 40, "report_date": "2026-01-28"},
+        # This row will be skipped
+        {"market_price": 50, "cost_basis": 40, "report_date": "2026-01-28", "quantity": 1},
         
         # None symbols
-        {"symbol": None, "underlying_symbol": None, "market_price": 50, "cost_basis": 40},
+        # This row will be skipped
+        {"symbol": None, "underlying_symbol": None, "market_price": 50, "cost_basis": 40, "quantity": 1},
     ]
     
     try:
@@ -36,7 +38,8 @@ def test_export_csv_dirty_data(mock_mongo):
         
         # Validate output
         lines = csv_content.strip().split('\n')
-        assert len(lines) == 6 # Header + 5 rows
+        # Expect Header + 3 rows (TSLA, AAPL, MSFT). The other 2 are skipped due to missing symbol.
+        assert len(lines) == 4
         
     except Exception as e:
         pytest.fail(f"Export crashed with: {e}")
@@ -47,5 +50,5 @@ def test_export_csv_empty(mock_mongo):
     mock_db.ibkr_holdings.find_one.return_value = None
     
     csv_content = generate_portfolio_csv_content()
-    assert "Symbol,Current Price" in csv_content
+    assert "Symbol,Trade Date,Purchase Price,Quantity" in csv_content
     assert len(csv_content.split('\n')) >= 1
