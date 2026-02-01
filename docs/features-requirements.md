@@ -109,6 +109,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Metrics**: Add summary metrics (Total P&L, Win Rate, LT/ST P&L, etc.) to the history view.
     - [x] **Bug issue**: History view is not loading trades, 500 Internal Server Error http://localhost:3000/api/trades/analysis
     - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
+    - [ ] **learning opportunity**: Explain Win Rate, Profit Factor, and other metrics in the trade history view. How are they calculated? What impact does a diagonal roll have on the metrics aka: loss but it gives a underlying STK additional unrealized profit? How are dividends factored into the metrics?
+    - [ ] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
