@@ -39,6 +39,11 @@
 ## 7. Global Rules
 - Code will follow strict typing, PEP8, and logging standards.
 
+## Logging Enhancements
+- [x] **Backend**: Configure standard logging format in `app/main.py`.
+- [x] **Backend**: Apply logging to all services.
+- [ ] **Frontend**: Implement logging service (optional/console).
+
 ## 8. Best Practices
 - **Separation of Concerns**: Ingestion (already done) vs Analysis (this plan).
 - **Testing**: Heavy unit testing on the math (P&L calculation).

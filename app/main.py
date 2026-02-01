@@ -17,13 +17,18 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(
         filename="logs/stock_portal_debug.log",
         level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        # Format: {datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}
+        format='%(asctime)s - %(filename)s-%(name)s-%(funcName)s - %(levelname)s - %(message)s',
         force=True # Force reconfiguration to override Uvicorn defaults for file output
     )
     # Add console handler back so docker logs still work
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     logging.getLogger().addHandler(console)
+    
+    # Silence noisy libraries
+    logging.getLogger("pymongo").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     
     start_scheduler()
     yield
@@ -34,6 +39,22 @@ app = FastAPI(
     title=settings.APP_NAME,
     lifespan=lifespan
 )
+
+# Global Exception Handler to catch 500s that happen outside route handlers (e.g. serialization)
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import logging
+    import traceback
+    from fastapi.responses import JSONResponse
+    
+    logger = logging.getLogger("app.main")
+    error_msg = f"Global 500 Error: {str(exc)}"
+    logger.error(f"{error_msg}\n{traceback.format_exc()}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error. Check logs for details."},
+    )
 
 # CORS
 app.add_middleware(

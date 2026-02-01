@@ -27,12 +27,26 @@ const TradeHistory = () => {
     const [loading, setLoading] = useState(true);
 
     const [colDefs] = useState([
-        { field: "date_time", headerName: "Date/Time", sort: "desc", sortable: true, filter: true },
-        { field: "symbol", headerName: "Symbol", filter: true, sortable: true },
+        {
+            field: "date_time",
+            headerName: "Date/Time",
+            sort: "desc",
+            sortable: true,
+            filter: true,
+            valueGetter: p => p.data.date_time || p.data.DateTime
+        },
+        {
+            field: "symbol",
+            headerName: "Symbol",
+            filter: true,
+            sortable: true,
+            valueGetter: p => p.data.symbol || p.data.Symbol
+        },
         {
             field: "quantity",
             headerName: "Quantity",
             type: "numericColumn",
+            valueGetter: p => p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity,
             cellClassRules: {
                 'text-green-400': p => p.value > 0,
                 'text-red-400': p => p.value < 0
@@ -41,11 +55,13 @@ const TradeHistory = () => {
         {
             field: "trade_price",
             headerName: "Price",
+            valueGetter: p => p.data.trade_price !== undefined ? p.data.trade_price : p.data.TradePrice,
             valueFormatter: p => p.value ? `$${parseFloat(p.value).toFixed(2)}` : ''
         },
         {
             field: "ib_commission",
             headerName: "Comm",
+            valueGetter: p => p.data.ib_commission !== undefined ? p.data.ib_commission : p.data.IBCommission,
             valueFormatter: p => p.value ? `$${Math.abs(parseFloat(p.value)).toFixed(2)}` : ''
         },
         {
@@ -59,7 +75,12 @@ const TradeHistory = () => {
                 'text-gray-500': p => p.value === 0
             }
         },
-        { field: "asset_class", headerName: "Type", width: 90 }
+        {
+            field: "asset_class",
+            headerName: "Type",
+            width: 90,
+            valueGetter: p => p.data.asset_class || p.data.AssetClass
+        }
     ]);
 
     useEffect(() => {

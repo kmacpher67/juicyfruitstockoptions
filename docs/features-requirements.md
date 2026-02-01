@@ -60,6 +60,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
 - [ ] **TWS API container**: Evaluate need for a dedicated TWS API Docker container for stable IBKR connection, and create more epic items as neccessary. 
 
+### Logging
+- [/] **Logging**: Implement logging for all backend services.  
+    - [/] Implement detailed DEBUG - **Style:** preface all logs with "{datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}"    the message text should tell the user what is happening (if possible, include the result of the action)
+- [ ] **Logging**: Implement logging for all frontend services. 
+
 ---
 
 ## 3. Algorithmic Trading Engines (Epic 2)
@@ -73,6 +78,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
     - [x] **Frontend**: Build "Trade History" view with datagrid, filtering, and export.
     - [x] **Metrics**: Add summary metrics (Total P&L, Win Rate, LT/ST P&L, etc.) to the history view.
+    - [x] **Bug issue**: History view is not loading trades, 500 Internal Server Error http://localhost:3000/api/trades/analysis
+    - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:

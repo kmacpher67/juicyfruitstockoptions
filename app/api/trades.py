@@ -13,6 +13,12 @@ def get_db():
     client = MongoClient(settings.MONGO_URI)
     return client.get_default_database("stock_analysis")
 
+
+def fix_oid(doc):
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
 @router.get("/", response_model=List[TradeRecord])
 async def get_trades(
     skip: int = 0,
@@ -29,7 +35,7 @@ async def get_trades(
         query["symbol"] = symbol
         
     cursor = db.ibkr_trades.find(query).sort("date_time", -1).skip(skip).limit(limit)
-    return [TradeRecord(**doc) for doc in cursor]
+    return [TradeRecord(**fix_oid(doc)) for doc in cursor]
 
 @router.get("/analysis", response_model=dict)
 async def get_trade_analysis(
@@ -49,12 +55,23 @@ async def get_trade_analysis(
     # TODO: Date range filtering
     cursor = db.ibkr_trades.find(query).sort("date_time", 1) # Metrics need FIFO, so sort Ascending
     
-    raw_trades = [TradeRecord(**doc) for doc in cursor]
+    import logging
+    logger = logging.getLogger(__name__)
     
-    analyzed_trades = calculate_pnl(raw_trades)
-    metrics = calculate_metrics(analyzed_trades)
-    
-    return {
-        "trades": analyzed_trades,
-        "metrics": metrics
-    }
+    try:
+        logging.info(f"Starting trade analysis for symbol={symbol}...")
+        raw_trades = [TradeRecord(**fix_oid(doc)) for doc in cursor]
+        
+        analyzed_trades = calculate_pnl(raw_trades)
+        metrics = calculate_metrics(analyzed_trades)
+        
+        logging.info(f"Analysis complete. Trades={len(analyzed_trades)}, Metrics={metrics}")
+        return {
+            "trades": analyzed_trades,
+            "metrics": metrics
+        }
+    except Exception as e:
+        import traceback
+        error_msg = f"Analysis Failed: {str(e)}"
+        logger.error(f"Critical error in trade analysis: {error_msg}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)

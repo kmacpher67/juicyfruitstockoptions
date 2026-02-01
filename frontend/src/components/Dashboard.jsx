@@ -387,12 +387,6 @@ const Dashboard = () => {
                                 >
                                     My Portfolio
                                 </button>
-                                <button
-                                    onClick={() => setViewMode('TRADES')}
-                                    className={`px-3 py-1 text-sm rounded ${viewMode === 'TRADES' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                                >
-                                    Trade History
-                                </button>
                                 {/* Dropdown Menu */}
                                 <div className="absolute left-0 pt-2 w-48 z-50 hidden group-hover:block">
                                     <div className="bg-gray-800 border border-gray-700 rounded shadow-xl">
@@ -422,6 +416,12 @@ const Dashboard = () => {
                                     </div>
                                 </div>
                             </div>
+                            <button
+                                onClick={() => setViewMode('TRADES')}
+                                className={`px-3 py-1 text-sm rounded ${viewMode === 'TRADES' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Trade History
+                            </button>
                         </div>
                     )}
                 </div>

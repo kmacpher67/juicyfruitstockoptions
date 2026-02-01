@@ -1,6 +1,11 @@
 from typing import List, Dict
 from app.models import TradeRecord, AnalyzedTrade, TradeMetrics
 from collections import defaultdict
+import logging
+
+
+# Create logger for this module
+logger = logging.getLogger(__name__)
 
 def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
     """
@@ -8,13 +13,20 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
     Returns a list of AnalyzedTrade objects.
     """
     # Group by symbol to process independently
+    logger.info("Starting P&L Calculation...")
     trades_by_symbol = defaultdict(list)
     for t in trades:
         trades_by_symbol[t.symbol].append(t)
         
+    logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
     analyzed_results = []
     
+    count = 0
     for symbol, symbol_trades in trades_by_symbol.items():
+        count += 1
+        if count % 100 == 0:
+            logger.debug(f"Processed {count}/{len(trades_by_symbol)} symbols...")
+            
         # Sort by date
         sorted_trades = sorted(symbol_trades, key=lambda x: x.date_time or "")
         
@@ -23,13 +35,28 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
         short_queue = []
         
         for t in sorted_trades:
-            analyzed = AnalyzedTrade(**t.model_dump())
-            qty = t.quantity
-            price = float(t.model_dump().get("rradePrice", t.model_dump().get("TradePrice", 0.0))) # Handle aliasing/source variance
-            
-            # Simple Commission handling (subtract from P&L later or adjust basis?)
-            # For now, we take (Price * Qty) - Comm
-            comm = float(t.model_dump().get("IBCommission", 0.0))
+            try:
+                analyzed = AnalyzedTrade(**t.model_dump())
+                qty = t.quantity
+                # Safe float conversion helper
+                def safe_float(val, default=0.0):
+                    if val is None: return default
+                    try:
+                        return float(val)
+                    except (ValueError, TypeError):
+                        return default
+
+                data = t.model_dump()
+                # Prioritize 'trade_price' (snake) then 'TradePrice' (legacy)
+                price_raw = data.get("trade_price") if data.get("trade_price") is not None else data.get("TradePrice")
+                price = safe_float(price_raw)
+                
+                # Simple Commission handling
+                comm_raw = data.get("ib_commission") if data.get("ib_commission") is not None else data.get("IBCommission")
+                comm = safe_float(comm_raw)
+            except Exception as e:
+                logger.error(f"Error preparing trade logic for {symbol}: {e}")
+                continue
             
             # TODO: Robust Buy/Sell detection. 
             # In IBKR: Positive Qty = Buy, Negative Qty = Sell
@@ -88,6 +115,7 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
             analyzed.realized_pl = realized_pl - abs(comm) # Subtract commission from PL
             analyzed_results.append(analyzed)
             
+    logger.info(f"P&L Analysis complete. Created {len(analyzed_results)} analyzed records.")
     return analyzed_results
 
 def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
@@ -100,6 +128,8 @@ def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
     total = 0
     gross_win = 0.0
     gross_loss = 0.0
+    logger.info("Starting Metrics Calculation...")
+    total_pl = 0.0
     
     for t in trades:
         # Only count "Closing" trades towards metrics? 
@@ -122,7 +152,7 @@ def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
         # Avoid Infinity for JSON serialization
         profit_factor = gross_win if gross_win > 0 else 0.0
     
-    return TradeMetrics(
+    m = TradeMetrics(
         total_pl=round(total_pl, 2),
         win_rate=round(win_rate, 2),
         profit_factor=round(profit_factor, 2),
@@ -130,3 +160,5 @@ def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
         winning_trades=winning,
         losing_trades=losing
     )
+    logger.info(f"Metrics calculated: {m}")
+    return m
