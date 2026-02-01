@@ -1,6 +1,7 @@
 # Epic-level planning
 - This is a TBD project wish list or to-do list for the stock options project.
 - Epic is an agile waterfall term for a large project or feature set, so not really a project plan, but a wish list (not as rigorous as a project plan, more of a bookmark, maybe a loose roadmap).
+- When an epic item is completed it should be strikethrough and have a checkmark to note completion. 
 - From this i would create a google antigravity implementation plan and task list. 
 - When performing an implementation plan based on this epic, i would use the following rules:
 -- the implementation plan should be broken down into smaller tasks that can be completed in a reasonable amount of time (e.g., 1-2 hours)
@@ -82,3 +83,6 @@
 - Track & compare ideas: MLflow (free) when, how, best practices for this project?
 - 
 
+# Changelog 
+-- Date         Action    Reason
+-- 2026-02-01   DELETED   initial draft completed before ai agent clean up
