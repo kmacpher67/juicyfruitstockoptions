@@ -21,6 +21,7 @@ trigger: always_on
 # save implementation plans, tasks, and walkthrough
 - ALL implementation plans and tasks should be saved in `docs/plans/implementation_plan-YYYYMMDD-short_name.md`
 -- example `docs/plans/walkthrough-ticker_protection_and_discovery.md`
+- Note the difference between NFR (non functional requirements and function requirements) like mongo backup and logging. 
 
 # Local, Github vs Google Docs 
 - Github is used for persisting code 

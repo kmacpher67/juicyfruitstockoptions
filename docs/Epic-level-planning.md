@@ -38,6 +38,12 @@ From this i would create a google antigravity implementation plan and task list.
 - do we need to build a tws api (docker) to connect to IBKR?
 - local model hosting for AI 
 -- where to put this? home PC or cloud? costs vs benefits and headaches
+- mongo backup to github is manual and how to automate this? 
+-- Is this best location for backup or maybe into google drive? 
+--- Have agent follow learning-opportunity.md and recommend best practices for mongo backup and automation given my current setup (docker and local on prem maybe future running in cloud)??
+- Run docker containers on home PC vs cloud and costs vs benefits and headaches 
+-- hardening and securing docker containers when running connected to the internet
+-- 
 
 ### Agentic AI
 - what are the concerns should i be aware of with agentic AI?
