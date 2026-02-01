@@ -33,8 +33,9 @@ trigger: always_on
 -- Best for: Minor corrections or retracted statements.
 
 # "Changelog" Section
+- Significant changes in any existing docs/ should have a Changelog section. 
 - Reference the implementation doc which should be saved in 
 - "Changelog" SectionFor high-stakes documents (like project specs or aquaculture regulations), add a ## Change Log or ## Revision History section at the bottom or top of the file.Format: 
-- Use a table to track the date, the author, and the reason for the "Critical Deletion. "
--- DateActionReason
--- 2026-02-01DELETED Section 4.2Data no longer compliant with ODNR standards.
+- Use a table to track the date, the author, and the reason for the "Critical Deletion, change, addition, init. "
+-- Date         Action    Reason
+-- 2026-02-01   DELETED   Section 4.2Data no longer compliant with ODNR standards.

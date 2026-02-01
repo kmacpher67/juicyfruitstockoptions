@@ -62,6 +62,19 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] **PAUSE** work until feedback is received and the plan is approved.
 - [ ] Iterate on the plan based on feedback. Only proceed to execution after explicit approval.
 
-## 11. learning and new stuff
-- [ ] Any questions or items not reviewed evaluated aka learned in the `docs/` folder for existing files or subsections should be updated or added per Check `.agent/workflows/learning-opportunity.md` workflow. 
+## 12. Definition of Done
+- [ ] **Verification**: ALL tests passed? (Run `/test-coverage` or `pytest`)
+- [ ] **Coverage**: New code covered by tests?
+- [ ] **Documentation Update**:
+  - [ ] `README.md` and `README_updates.md` updated?
+  - [ ] Feature documentation created/updated in `docs/features/`?
+  - [ ] Implementation plan and task list saved to `docs/plans/` (format: `implementation_plan-YYYYMMDD-short_name.md`)?
+- [ ] **Cleanup**:
+  - [ ] No files permanently deleted without backup (ie: mv workspace/backup/ folder)
+  - [ ] Critical deletions or changes in any existing docs logged in a "Changelog" section
+- [ ] **Final Review**: Does the solution meet the user's original request and "Definition of Done" criteria from their prompt 
+-- [ ] **Add open**: give the user an open review of any new docs 
+-- [ ] **User git status check**: give a prompt for the user to click copy or run in terminal `git status` command.
 
+## 13. Learning and New Stuff
+- [ ] Any questions or items not reviewed evaluated aka learned in the `docs/` folder for existing files or subsections should be updated or added per Check `.agent/workflows/learning-opportunity.md` workflow.
