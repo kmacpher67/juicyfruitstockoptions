@@ -114,7 +114,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
-    - [ ] Screen for covered call candidates (high premiums, stable/upward trend).
+    - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
+    - [ ] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
+        - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
+        - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
+        - [ ] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
     - [ ] Screen for call buying opportunities (momentum).
     - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls.
     - [ ] **Learning Opportunity**: What are the specific quantitative thresholds for "Juicy"? (e.g., IV Rank > 50, Delta 0.3-0.4?). Use .agent/workflows/learing-opportunity.md to guide this process.
@@ -244,3 +248,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-02-01  | **REFINED** | Refined the document to be more specific and actionable. |
 | 2026-02-01 | **REFACTORED** | Initial full cleanup and organization into Epics by AI Agent. |
 | 2026-02-01 | **REFINED** | Split "Portfolio Management" into Analytics (Done) and History Visualization (Todo). |
+| 2026-02-01 | **ADDED** | Added "Smart Roll / Diagonal Assistant" feature and marked "Opportunity Signals" as done. |
