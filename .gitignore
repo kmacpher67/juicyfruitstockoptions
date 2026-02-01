@@ -25,3 +25,6 @@ build/
 
 # Mongo binary data (use export_mongo.py instead)
 mongo_data/
+
+# Allow legacy data csvs
+!ibkr-legacy-data/*.csv

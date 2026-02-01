@@ -10,6 +10,7 @@ trigger: always_on
 
 
 ## trading approaches 
+- Kalman filters
 
 
 ## investing approaches 

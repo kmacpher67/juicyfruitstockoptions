@@ -1,7 +1,7 @@
 # Epic-Level Planning & Roadmap
 
 > [!NOTE]
-> This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Epics (large feature sets) to guide future development.
+> This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Todo items (maybe large feature sets with requirements) to guide future development. Items are not in any particular order. This Epic document should be used like Kanban board per Status Legend to mark items. 
 
 **Status Legend:**
 - [ ] Proposed / Todo
@@ -10,6 +10,13 @@
 - [!] Blocked / Needs Research
 
 ---
+# Implementation 
+- When performing an implementation plan based on items in this epic document, i would use the following rules:
+-- All the rules documented in the workspace rules & workflow .md docs should be followed
+-- The .gemini global rules rules file should be followed. 
+-- An implementation plan should be broken down into smaller items (added to the Epic Todo list as sub items) that can be completed in a reasonable amount of time (e.g., 1-2 hours)
+-- The implementation plan should be created using google antigravity
+-- The incremental implementation plan should follow hierarchical decomposition for naming based the short name of the epic (e.g., epic-001-algorithmic-trading-001-task-001)
 
 ## 1. Project Mission & Context
 The goal of this project is to build a robust, semi-automated trading dashboard ("Juicy Fruit") that aids **Trader Ken** in analyzing options, managing risk, and executing strategies (e.g., covered calls, wheel strategy). It combines data from IBKR, algorithmic analysis, and modern web technologies.
@@ -52,12 +59,17 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ## 3. Algorithmic Trading Engines (Epic 2)
 **Owner:** Ken | **Goal:** Automated insights and strategy backtesting.
 
+### Portfolio Management
+- [ ] **Portfolio Management**: Get entire history of portfolio performance
+- [ ] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
+
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [ ] Screen for covered call candidates (high premiums, stable/upward trend).
     - [ ] Screen for call buying opportunities (momentum).
     - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls.
-- [ ] **Targeting Logic**: Filter stocks by Macro trends and News events.
+- [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views. 
+- [ ] **Kalman Filters**: Implement Kalman filters for signal generation.
 
 ### Strategy & Backtesting
 - [ ] **Backtesting Engine**:
@@ -70,7 +82,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **RAG for Trading History**: Chat with past trading data.
 
 ### ML in the Loop (8-Step Flow)
-- [ ] **Universe Selection**: Define the pool of tradeable assets.
+- [ ] **Universe Selection**: Define the pool of tradeable assets. Find new juicy fruit candidates based on macro trends, news events, and quant analysis.
 - [ ] **Feature Engineering**: Momentum, Quality, Volatility factors.
 - [ ] **Time-Series CV**: rigorous cross-validation without look-ahead bias (leakage).
 - [ ] **Model Training**: Implementation (e.g., XGBoost, Scikit-learn).
@@ -100,6 +112,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Help & Onboarding
 - [ ] **Contextual Hints**: Hover tooltips explaining formulas/metrics.
 - [ ] **AI Chatbot Integration**: Side-panel chat to answer questions about dashboard data.
+- [ ] **Data Helper**: Explains why an asset is juicy fruit, opportunity, or current focused financial item's status. 
 
 ---
 
@@ -107,6 +120,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 **Owner:** Antigravity Data | **Goal:** Force multiplication via AI agents.
 
 ### Capabilities
+- [ ] **Prototype Agent**:
+    - [ ] Juicy Fruit Opportunity Finder for a given stock or option (diagonal spread or close position (stop loss or take advantage of momentum), or keep to expiration).
+    - [ ] 
 - [ ] **Local Model Hosting**:
     - [ ] Evaluate robust local LLMs (Llama 3, Mistral) vs Cloud APIs.
     - [ ] Hardware requirements vs Cost.
