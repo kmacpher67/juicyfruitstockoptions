@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { RefreshCw, LogOut, Play, Download, FileText, Settings } from 'lucide-react';
+import { Plus, Trash2, ExternalLink } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import StockGrid from './StockGrid';
 import SettingsModal from './SettingsModal';
@@ -29,6 +30,10 @@ const Dashboard = () => {
     // State initialized from URL
     const [viewMode, setViewMode] = useState(searchParams.get('view') === 'PORTFOLIO' ? 'PORTFOLIO' : 'ANALYSIS');
     const [selectedReport, setSelectedReport] = useState(searchParams.get('report') || '');
+
+    // Quick Add Ticker State
+    const [newTicker, setNewTicker] = useState("");
+    const [addingTicker, setAddingTicker] = useState(false);
 
     const [data, setData] = useState([]);
     const [reports, setReports] = useState([]);
@@ -227,12 +232,58 @@ const Dashboard = () => {
         }
     };
 
+    // Load Portfolio Holdings even in Analysis View if use has access, so we can show "In Portfolio" badge
     useEffect(() => {
         if (viewMode === 'PORTFOLIO') {
             loadPortfolioData();
             triggerAutoSync();
+        } else {
+            // If in analysis mode, we still might want the holdings for the indicator
+            if (user?.role === 'admin' || user?.role === 'portfolio') {
+                // Silent load
+                api.get('/portfolio/holdings').then(res => setPortfolioHoldings(res.data)).catch(e => console.error("Silent portfolio fetch failed", e));
+            }
         }
-    }, [viewMode]);
+    }, [viewMode, user]);
+
+    // Derived Portfolio Tickers set
+    const portfolioTickers = React.useMemo(() => {
+        if (!portfolioHoldings) return new Set();
+        return new Set(portfolioHoldings.map(h => h.symbol || h.Symbol || h.Ticker)); // Handles lowercase symbol
+    }, [portfolioHoldings]);
+
+
+    const handleAddTicker = async (e) => {
+        e.preventDefault();
+        if (!newTicker) return;
+        setAddingTicker(true);
+        try {
+            await api.post('/stocks/tracked', { ticker: newTicker });
+            setNewTicker("");
+            // Refresh logic? Wait a bit then refresh
+            alert(`Added ${newTicker}. Data is fetching in background.`);
+            setTimeout(() => {
+                loadLiveStocks();
+            }, 2000);
+        } catch (error) {
+            console.error("Failed to add ticker:", error);
+            alert("Failed to add ticker");
+        } finally {
+            setAddingTicker(false);
+        }
+    };
+
+    const handleDeleteTicker = async (ticker) => {
+        if (!window.confirm(`Stop tracking ${ticker}?`)) return;
+        try {
+            await api.delete(`/stocks/tracked/${ticker}`);
+            // Optimistic update or refresh
+            setData(prev => prev.filter(r => r.Ticker !== ticker));
+        } catch (error) {
+            console.error("Failed to delete ticker:", error);
+            alert("Failed to delete ticker");
+        }
+    };
 
     const exportPortfolio = async () => {
         try {
@@ -404,6 +455,24 @@ const Dashboard = () => {
 
                         {/* Report Selector */}
                         <div className="flex items-center gap-2">
+                            {/* Add Ticker Input */}
+                            <form onSubmit={handleAddTicker} className="flex items-center gap-2 mr-4 border-r border-gray-600 pr-4">
+                                <input
+                                    type="text"
+                                    value={newTicker}
+                                    onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
+                                    placeholder="Add Ticker..."
+                                    className="bg-gray-700 text-white p-2 rounded border border-gray-600 w-32 focus:w-48 transition-all outline-none focus:border-green-500 uppercase"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={addingTicker || !newTicker}
+                                    className="p-2 bg-green-700 hover:bg-green-600 rounded disabled:opacity-50"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </button>
+                            </form>
+
                             <FileText className="text-gray-400 h-5 w-5" />
                             <select
                                 className="bg-gray-700 text-white p-2 rounded border border-gray-600 focus:border-green-500 outline-none"
@@ -457,6 +526,9 @@ const Dashboard = () => {
                                 data={data}
                                 pageSize={settings.pageSize}
                                 defaultSort={{ colId: settings.sortColumn, sortOrder: settings.sortOrder }}
+                                onDelete={handleDeleteTicker}
+                                portfolioTickers={portfolioTickers}
+                                hasPortfolioAccess={user?.role === 'admin' || user?.role === 'portfolio'}
                             />
                         )}
                     </div>

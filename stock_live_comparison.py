@@ -709,8 +709,8 @@ class StockLiveComparison:
 
     @staticmethod
     def get_default_tickers():
-        """Return the default list of tickers to track."""
-        return sorted(list({
+        """Return the default list of tickers to track, sourcing from MongoDB if available."""
+        default_list = sorted(list({
             "^IXIC", "^SPX", "SPXS", "^DJI",
             "AA", "AAPL", "AMAT", "AMD", "AMZN", "AVGO", "BHP", "BMY", "CCJ", "CEG", "COPP",
             "CPRX", "CRWD", "CRWV", "CVS", "CVX", "D", "DUK", "ENB", "ERO", "ETN",
@@ -721,6 +721,30 @@ class StockLiveComparison:
             "SCCO", "T", "TECH", "TEM", "TMUS", "TSLA", "TSM", "UPS", 
             "V", "VZ", "VLO", "VSAT", "VST", "WM", "WMT", "XOM"
         }))
+
+        try:
+            db = AiStockDatabase()
+            # Access system_config directly via the underlying client/db
+            if hasattr(db, 'db'):
+                config_col = db.db["system_config"]
+                doc = config_col.find_one({"_id": "tracked_tickers"})
+                
+                if doc and "tickers" in doc:
+                    logging.info(f"Loaded {len(doc['tickers'])} tickers from MongoDB.")
+                    return sorted(doc["tickers"])
+                else:
+                    # Migration: Save default list to MongoDB
+                    logging.info("No tracked tickers found in DB. Migrating defaults...")
+                    config_col.update_one(
+                        {"_id": "tracked_tickers"},
+                        {"$set": {"tickers": default_list}},
+                        upsert=True
+                    )
+                    return default_list
+        except Exception as e:
+            logging.error(f"Failed to load tickers from MongoDB, using defaults: {e}")
+            
+        return default_list
 
     def run(self):
         self.now = datetime.now()

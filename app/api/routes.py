@@ -623,3 +623,99 @@ def _get_portfolio_csv_response(username: str, origin: str):
         error_msg = f"Export Failed:\n{str(e)}\n\n{traceback.format_exc()}"
         return Response(content=error_msg, status_code=500, media_type="text/plain")
 
+
+# --- Tracked Ticker Management ---
+
+class TickerInput(BaseModel):
+    ticker: str
+
+@router.get("/stocks/tracked", response_model=List[str])
+def get_tracked_tickers(
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Get the list of tickers currently being tracked."""
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    doc = db.system_config.find_one({"_id": "tracked_tickers"})
+    
+    tracked_list = sorted(doc["tickers"]) if doc and "tickers" in doc else []
+    
+    # Lazy Sync: Auto-add portfolio holdings for privileged users
+    if current_user.role in ["admin", "portfolio"]:
+        try:
+            from app.services.ticker_discovery import discover_and_track_tickers
+            new_list = discover_and_track_tickers()
+            
+            if new_list:
+                # Update return list immediately so UI sees them
+                tracked_list = sorted(list(set(tracked_list).union(new_list)))
+                
+                # Trigger background fetch for new info
+                background_tasks.add_task(
+                    background_job_wrapper, 
+                    f"auto_add_{len(new_list)}", 
+                    lambda: run_stock_live_comparison(new_list)
+                )
+        except Exception as e:
+            # Log but don't fail the request
+            print(f"Error in lazy portfolio sync: {e}")
+
+    if tracked_list:
+        return tracked_list
+    
+    # Fallback to defaults from script if not in DB yet (will trigger migration on next run)
+    from app.services.stock_live_comparison import StockLiveComparison
+    return StockLiveComparison.get_default_tickers()
+
+@router.post("/stocks/tracked")
+def add_tracked_ticker(
+    ticker_input: TickerInput,
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Add a ticker to the tracking list and trigger an immediate fetch."""
+    ticker = ticker_input.ticker.upper().strip()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Invalid ticker")
+
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Update List
+    # Use $addToSet to avoid duplicates
+    result = db.system_config.update_one(
+        {"_id": "tracked_tickers"},
+        {"$addToSet": {"tickers": ticker}},
+        upsert=True
+    )
+    
+    # 2. Trigger Fetch for this specific ticker
+    # We use the existing function but pass only this ticker to limit scope
+    background_tasks.add_task(background_job_wrapper, f"add_ticker_{ticker}", lambda: run_stock_live_comparison([ticker]))
+    
+    return {"status": "success", "message": f"Added {ticker} to tracking list."}
+
+@router.delete("/stocks/tracked/{ticker}")
+def remove_tracked_ticker(
+    ticker: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """Remove a ticker from the tracking list."""
+    ticker = ticker.upper().strip()
+    
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # 1. Remove from List
+    db.system_config.update_one(
+        {"_id": "tracked_tickers"},
+        {"$pull": {"tickers": ticker}}
+    )
+    
+    # Optional: Delete the actual data record?
+    # User might want to keep history, but for "Live Comparison" it might be confusing to see it if it's not "Tracked".
+    # But the "Live View" comes from /stocks which dumps everything. 
+    # Let's LEAVE the data for now. The user can just ignore it, or we can add a cleanup later.
+    
+    return {"status": "success", "message": f"Removed {ticker} from tracking list."}

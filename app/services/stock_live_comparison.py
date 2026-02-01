@@ -8,6 +8,13 @@ def run_stock_live_comparison(tickers: List[str] | None = None) -> dict:
     try:
         # If tickers is None, load default list
         if tickers is None:
+             # Auto-discover new portfolio items before running
+             try:
+                 from app.services.ticker_discovery import discover_and_track_tickers
+                 discover_and_track_tickers()
+             except Exception as e:
+                 logging.error(f"Auto-discovery failed: {e}")
+
              tickers = StockLiveComparison.get_default_tickers()
         
         comp = StockLiveComparison(tickers)
