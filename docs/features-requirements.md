@@ -18,6 +18,9 @@
 -- The implementation plan should be created using google antigravity
 -- The incremental implementation plan should follow hierarchical decomposition for naming based the short name of the epic (e.g., epic-001-algorithmic-trading-001-task-001)
 
+## 0. Bugs, Fixes, & Maintenance
+- [ ] 
+
 ## 1. Project Mission & Context
 The goal of this project is to build a robust, semi-automated trading dashboard ("Juicy Fruit") that aids **Trader Ken** in analyzing options, managing risk, and executing strategies (e.g., covered calls, wheel strategy). It combines data from IBKR, algorithmic analysis, and modern web technologies.
 

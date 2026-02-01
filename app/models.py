@@ -28,6 +28,18 @@ class StockRecord(BaseModel):
     # Allow extra fields since the logic produces many dynamic keys
     model_config = {"extra": "allow"}
 
+class TradeRecord(BaseModel):
+    """
+    Represents a single trade row.
+    """
+    trade_id: str = Field(..., alias="TradeID") # Required, used as PK
+    symbol: str = Field(..., alias="Symbol")
+    date_time: Optional[str] = Field(None, alias="DateTime")
+    quantity: Optional[float] = Field(0.0, alias="Quantity")
+    
+    # Allow extra fields for ODS pattern (Store Everything)
+    model_config = {"extra": "allow"}
+
 class StockResponse(BaseModel):
     count: int
     data: List[StockRecord]

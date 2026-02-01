@@ -46,7 +46,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Security best practices (OWASP, input validation)?
 
 ## 9. Fit into Epic-level Planning
-- [ ] How does this relate to the current Epic? (Check `docs/Epic-level-planning.md`) 
+- [ ] How does this relate to the current Epic? (Check `docs/features-requirements.md`) 
 - [ ] Does it block other work?
 - [ ] Update and/or add sub items or comment on the exisitng items or sub-items. 
 - [ ] Is it a prerequisite for future features or predicate?
