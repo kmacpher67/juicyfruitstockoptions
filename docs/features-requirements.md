@@ -93,8 +93,15 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 **Owner:** Ken | **Goal:** Automated insights and strategy backtesting.
 
 ### Portfolio Management
-- [ ] **Portfolio Management**: Get entire history of portfolio performance
-- [x] **Portfolio Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
+- [/] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
+- [ ] **Portfolio History Visualization**: Implement interactive time-series chart for NAV performance.
+    - [ ] **Frontend**: Add graph component (e.g., Recharts) to "My Portfolio" view using data from `/portfolio/stats` (history field).
+    - [ ] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
+    - [ ] **Ticker Analytics**: Sneak peek at the ticker analytics endpoint (ie: `/ticker/{symbol}`) to show the most recent stats for an individual ticker. 
+    - [ ] **Opportunity Finder**: Implement Opportunity Finder (ie: `/opportunity/{symbol}`) to show the most recent stats for an individual ticker. 
+    - [ ] **Portfolio Optimization**: Implement Portfolio Optimization (ie: `/portfolio/optimizer/{symbol}`) to show the most recent stats for an individual ticker. 
+
+- [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
     - [x] **Backend API**: Create `/api/trades` endpoint to serve historical data with pagination/filtering.
     - [x] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
@@ -234,4 +241,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | :--- | :--- | :--- |
 | 2026-02-01  | **REFINED** | Refined the document to be more specific and actionable. |
 | 2026-02-01 | **REFACTORED** | Initial full cleanup and organization into Epics by AI Agent. |
-| 2026-02-01 | **DELETED** | Removed "initial draft" placeholder text. |
+| 2026-02-01 | **REFINED** | Split "Portfolio Management" into Analytics (Done) and History Visualization (Todo). |
