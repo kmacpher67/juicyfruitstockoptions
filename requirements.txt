@@ -17,3 +17,4 @@ passlib[argon2]
 python-multipart
 
 py_vollib_vectorized>=0.1.0
+nltk

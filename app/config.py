@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     ADMIN_USER: str = "admin"
     ADMIN_PASS: str = "admin123"
 
+    # External APIs
+    NEWS_API_KEY: str = ""
+    FRED_API_KEY: str = ""
+    X_API_KEY: str | None = None
+    X_API_SECRET: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

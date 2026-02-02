@@ -153,14 +153,20 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
     - [x] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
-    - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
-    - [ ] Build a News Aggregator to fetch news events and store them in a database.
-    - [ ] **News headlines and Senitiments**: similar to "Sea Limited (SE) faces mixed investor sentiment amid a 7.5% recent share price decline and concerns over profitability versus growth investments. Despite a 38% revenue growth, the stock is currently perceived as overvalued by some analysts. Updated 9m ago · Powered by Yahoo Scout"
-    - [ ] **Sentiment**: write a sentiment analysis module using `transformers` or `nltk`. 
-    - [ ] **Sentiment**: write a learning features document for sentiment and headlines  .agent/workflows/learing-opportunity.md Same or extra doc as here: @features-requirements.md#L163 
-    - [ ] Fetch Macro indicators (Fred API? Inflation, Interest Rates).
-    - [ ] Create "Impact Score" for news events on portfolio tickers.
-    - [ ] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
+    - [x] Integrate external News API (e.g., NewsAPI.org). *Backend Implemented*
+    - [x] Build a News Aggregator to fetch news events and store them in a database. *Backend Implemented*
+    - [/] **News headlines and Senitiments**: stored with Logic/Reasoning. *UI Pending*. similar to "Sea Limited (SE)..."
+        - [x] **Data Structure**: Enforce strict JSON output with `logic`, `reasoning`, `impact_window`, and `opportunity_score`.
+        - [x] **Validation**: Ensure "Sea Limited" example case is strictly reproducible. 
+    - [x] **Sentiment**: write a sentiment analysis module using `transformers` or `nltk`. 
+        - [x] **Heuristics**: Implement "Logic Check" (Stage 1) to assign Short/Long term impact based on keywords.
+        - [ ] **Future LLM**: Prepare hook for Gemini/LLM to generate natural language `reasoning`. 
+    - [x] **Sentiment**: write a learning features document for sentiment and headlines  .agent/workflows/learing-opportunity.md Same or extra doc as here: @features-requirements.md#L163 
+    - [x] Fetch Macro indicators (Fred API). *Backend Implemented*
+    - [/] Create "Impact Score" for news events on portfolio tickers. *Logic Implemented, UI Pending*
+        - [ ] **Research**: Evaluate X (Twitter) API v2 Basic Tier (~$100/mo) vs Free Limits for "Alpha Lists".
+        - [ ] **Research**: Investigate Yahoo Scout integration (Scraping vs User Manual Copy/Paste).
+    - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation. 
     - [ ] Research `filterpy` or `pykalman` libraries.
     - [ ] Prototype Mean Reversion and Trend Following models using Kalman.

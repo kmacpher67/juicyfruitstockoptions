@@ -598,6 +598,46 @@ def analyze_rolls(
 
 # --- Ticker & Opportunity Analysis ---
 
+@router.get("/api/news/{symbol}")
+def get_ticker_news(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get aggregated news with sentiment and logic analysis for a ticker.
+    """
+    from app.services.news_service import NewsService
+    service = NewsService()
+    return service.fetch_news_for_ticker(symbol)
+
+@router.get("/api/macro")
+def get_macro_summary(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get key macro economic indicators.
+    """
+    from app.services.macro_service import MacroService
+    service = MacroService()
+    
+    # Define key indicators to fetch
+    indicators = [
+        {"id": "FEDFUNDS", "title": "Fed Funds Rate"},
+        {"id": "CPIAUCSL", "title": "CPI Inflation"},
+        {"id": "UNRATE", "title": "Unemployment Rate"}
+    ]
+    
+    results = []
+    for ind in indicators:
+        val = service.fetch_indicator(ind["id"], ind["title"])
+        if val:
+            results.append(val)
+            
+    return {
+        "market_regime": service.get_market_condition(),
+        "indicators": results
+    }
+
 @router.get("/ticker/{symbol}")
 def get_ticker_analysis(
     symbol: str,

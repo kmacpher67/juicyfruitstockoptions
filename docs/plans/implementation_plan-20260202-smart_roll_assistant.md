@@ -23,7 +23,8 @@ Implement the "Smart Roll / Diagonal Assistant" to analyze existing short calls 
         - **Strike Improvement**: Increasing strike width (if underlying > strike) = Higher score.
         - **Duration**: Shorter duration preferred (e.g., < 10 days).
         - **Momentum Logic**: Use `One_Day_Change` (1D %) to adjust scoring (e.g., Bullish + DTE 2 = Urgency Bonus).
-    - **Note**: Advanced "Gamma/Theta" logic described in learning docs requires Greeks data, which is currently missing. This plan implements the Momentum/Duration logic first.
+        - **Greeks / Gamma Risk**: High Gamma (>0.10) + Short DTE = Urgency Bonus (get out of the danger zone).
+        - **Delta**: Prefer Delta ~0.30 for new rolls.
     - Return a sorted list of "Smart Rolls" with scores.
 - **New Method**: `score_roll(roll_data, current_position_data, market_metrics)`: Helper to calculate the 0-100 score.
 
