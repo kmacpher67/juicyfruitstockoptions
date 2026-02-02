@@ -120,16 +120,16 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
-    - [ ] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading.
+    - [x] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading. **Fixed**: Corrected parsing of "1D % Change" in OptionsAnalyzer and fixed scoring logic for trend.
     - [x] **Opportunity Scoring Rubric**: See [Opportunity Scoring](learning/opportunity-scoring.md). Defines the 0-100 rating scale and factors (IV, Trend, Liquidity). 
-    - [ ] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
+    - [x] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
         - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
         - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
-        - [ ] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
-    - [ ] Screen for call buying opportunities (momentum).
+        - [x] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
+    - [x] Screen for call buying opportunities (momentum).
     - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls.
     - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
-    - [ ] Implement Scanners/Screeners module in Python.
+    - [x] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
     - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
     - [ ] Fetch Macro indicators (Fred API? Inflation, Interest Rates).

@@ -45,7 +45,11 @@ class OptionsAnalyzer:
         data = self.market_data.get(symbol, {})
         
         # Parse 1D Change "1.25%" -> 1.25
-        chg_str = data.get("1D % Change", "0").replace("%", "").replace("+", "")
+        val = data.get("1D % Change")
+        if val is None:
+            val = "0"
+        chg_str = str(val).replace("%", "").replace("+", "")
+        
         try:
             one_day = float(chg_str)
         except:
@@ -70,10 +74,11 @@ class OptionsAnalyzer:
         if metrics["tsmom"] > 0:
             score += 30
             
-        # 2. Short Term Momentum (1D) - Weight 20
+        # 2. Short Term Momentum (1D) - Weight 20 (plus 10 bonus for strong pop)
         if metrics["one_day"] > 0:
             score += 20
-        elif metrics["one_day"] > 2.0: # Strong pop
+            
+        if metrics["one_day"] > 2.0: # Strong pop bonus
             score += 10
             
         # 3. Volatility Premium (Skew) - Weight 20

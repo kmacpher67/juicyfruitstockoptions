@@ -541,6 +541,63 @@ def get_portfolio_alerts(
     
     return alerts
 
+class ScannerConfig(BaseModel):
+    preset: str = None # "momentum", "juicy", or None for custom (future)
+    criteria: dict = None
+
+@router.post("/analysis/scan")
+def run_stock_scanner(
+    config: ScannerConfig,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Run a stock scan based on a preset or criteria.
+    Presets: 'momentum', 'juicy'
+    """
+    from app.services.scanner_service import scan_momentum_calls, scan_juicy_candidates, run_scanner
+    
+    if config.preset == "momentum":
+        return scan_momentum_calls()
+    elif config.preset == "juicy":
+        return scan_juicy_candidates()
+    elif config.criteria:
+        # Advanced: Pass raw criteria (Sanitize/Limit in service recommended)
+        return run_scanner(config.criteria)
+    else:
+         raise HTTPException(status_code=400, detail="Must provide preset or criteria")
+
+
+class RollInput(BaseModel):
+    symbol: str
+    strike: float
+    expiration: str # YYYY-MM-DD
+    position_type: str = "call" # call/put
+
+@router.post("/analysis/roll")
+def analyze_rolls(
+    input: RollInput,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Analyze potential rolls for an options position.
+    Uses real-time data from Yahoo Finance.
+    """
+    from app.services.roll_service import RollService
+    service = RollService()
+    result = service.find_rolls(
+        symbol=input.symbol,
+        current_strike=input.strike,
+        current_exp_date=input.expiration,
+        position_type=input.position_type
+    )
+    
+    if "error" in result:
+         raise HTTPException(status_code=400, detail=result["error"])
+         
+    return result
+
+
+
 @router.get("/portfolio/export/csv")
 def export_portfolio_csv(
     current_user: Annotated[User, Depends(get_current_active_user)]
