@@ -14,27 +14,48 @@ from app.services.ibkr_service import fetch_and_store_nav_report
 
 router = APIRouter()
 
+
+import logging
+logger = logging.getLogger(__name__)
+
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
 ):
     # Authenticate against MongoDB
+    logger.debug(f"Login attempt for user: {form_data.username}")
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
-    user = db.users.find_one({"username": form_data.username})
-    
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
-         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = db.users.find_one({"username": form_data.username})
+        
+        if not user:
+             logger.warning(f"Login failed: User {form_data.username} not found")
+             raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
+        if not verify_password(form_data.password, user["hashed_password"]):
+             logger.warning(f"Login failed: Password mismatch for {form_data.username}")
+             raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": form_data.username}, expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": form_data.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+        logger.info(f"Login successful for user: {form_data.username}")
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login DB error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Login Error")
 
 @router.get("/users/me", response_model=User)
 async def read_users_me(
@@ -633,8 +654,8 @@ def analyze_smart_rolls(
 @router.get("/api/news/{symbol}")
 def get_ticker_news(
     symbol: str,
-    limit: int = 5,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    limit: int = 5
 ):
     """
     Get aggregated news with sentiment and logic analysis for a ticker.

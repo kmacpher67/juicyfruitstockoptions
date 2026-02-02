@@ -8,7 +8,12 @@ from app.auth.utils import verify_password
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
+import logging
+logger = logging.getLogger(__name__)
+
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> User:
+    logger.debug("Validating token...")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -17,7 +22,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
+        username: str = payload.get("sub")
         if username is None:
+            logger.warning("Token validation failed: User not found in token")
             raise credentials_exception
         token_data = TokenData(username=username)
     except JWTError:
@@ -31,6 +38,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
         user_doc = db.users.find_one({"username": token_data.username})
         
         if user_doc is None:
+            logger.warning("Token validation failed: User not found in DB")
             raise credentials_exception
             
         return User(
@@ -39,7 +47,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
             disabled=user_doc.get("disabled", False)
         )
     except Exception as e:
-        # Log error?
+        logger.error(f"Token validation error: {str(e)}", exc_info=True)
         raise credentials_exception
 
 async def get_current_active_user(

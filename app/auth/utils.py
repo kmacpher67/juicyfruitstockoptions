@@ -6,10 +6,16 @@ from app.config import settings
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+
+import logging
+logger = logging.getLogger(__name__)
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    logger.debug("Verifying password")
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
+    logger.debug("Hashing password")
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
