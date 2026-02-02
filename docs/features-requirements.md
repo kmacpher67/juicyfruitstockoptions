@@ -76,6 +76,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **TWS API container**: Evaluate need for a dedicated TWS API Docker container for stable IBKR connection, and create more epic items as neccessary.
     - [ ] Research standard IBC-based containers (e.g., `mvberg/ib-gateway-docker`).
     - [ ] Test reliability of headless TWS vs IB Gateway. 
+    - [ ] IBApi The official API for Interactive Brokers provides access to all the data available through IB. Replaces IBPy. interactivebrokers.github.io/tws-api/
+    
+
 
 ### Observability & Logging
 - [/] **Logging**: Implement logging for all backend services.  
@@ -223,6 +226,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Capabilities
 - [ ] **Prototype Agent**:
+    - [ ] Lumibot is a fast library that will allow you to easily create trading robots for many different asset classes, including Stocks, Options, Futures, FOREX, and more. (documentation) https://lumibot.lumiwealth.com/
+    - [ ] **Learning Opportunity**: .agent/workflows/learing-opportunity.md using Langchain or some other framework for building agents vs specialized libraries for trading.
     - [ ] Juicy Fruit Opportunity Finder for a given stock or option (diagonal spread or close position (stop loss or take advantage of momentum), or keep to expiration).
     - [ ] Define Agent Toolset (Price Lookup, Greeks Calculator, Database Query).
     - [ ] Setup Orchestration (LangChain/LangGraph). 
