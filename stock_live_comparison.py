@@ -177,11 +177,14 @@ class StockLiveComparison:
         if call12 and current_price:
             annual_yield_call = round((call12 / current_price) * 100, 2)
 
-        # New Indicators: EMA, HMA, TSMOM
+        # New Indicators: EMA, HMA, TSMOM, RSI, ATR
         ema_20 = self.calculate_ema(ticker_hist['Close'], span=20) if ticker_hist is not None else None
         hma_20 = self.calculate_hma(ticker_hist['Close'], window=20) if ticker_hist is not None else None
         # TSMOM 60-day lookback (Updated from 45)
         tsmom_60 = self.calculate_tsmom(ticker_hist['Close'], lookback=60) if ticker_hist is not None else None
+        
+        rsi_14 = self.calculate_rsi(ticker_hist['Close'], period=14) if ticker_hist is not None else None
+        atr_14 = self.calculate_atr(ticker_hist['High'], ticker_hist['Low'], ticker_hist['Close'], period=14) if ticker_hist is not None else None
 
         # Moving averages and highlight status
         ma_windows = (30, 60, 120, 200)
@@ -206,6 +209,8 @@ class StockLiveComparison:
             "EMA_20": ema_20,
             "HMA_20": hma_20,
             "TSMOM_60": tsmom_60,
+            "RSI_14": rsi_14,
+            "ATR_14": atr_14,
             "EMA_20_highlight": ema_20_highlight,
             "HMA_20_highlight": hma_20_highlight,
             "TSMOM_60_highlight": tsmom_60_highlight,
@@ -282,6 +287,49 @@ class StockLiveComparison:
         except Exception:
             return None
 
+    @staticmethod
+    def calculate_rsi(series, period=14):
+        """Calculate Relative Strength Index (RSI)."""
+        if series is None or series.empty or len(series) < period:
+            return None
+        try:
+            delta = series.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return round(rsi.iloc[-1], 2)
+        except Exception:
+            return None
+
+    @staticmethod
+    def calculate_atr(high, low, close, period=14):
+        """Calculate Average True Range (ATR)."""
+        if high is None or low is None or close is None or len(close) < period:
+            return None
+        try:
+            import numpy as np
+            # TR = Max(High-Low, Abs(High-Close_prev), Abs(Low-Close_prev))
+            # Pandas approach
+            
+            # Need strict alignment
+            h = high[-period*2:] 
+            l = low[-period*2:]
+            c = close[-period*2:]
+            if len(c) < 2: return None
+            
+            c_prev = c.shift(1)
+            tr1 = h - l
+            tr2 = (h - c_prev).abs()
+            tr3 = (l - c_prev).abs()
+            
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = tr.rolling(window=period).mean().iloc[-1]
+            return round(atr, 2)
+        except Exception:
+            return None
+
     # ------------------------------------------------------------------
     def fetch_data(self, tickers_to_fetch):
         tickers_to_fetch = StockLiveComparison.unique_tickers(tickers_to_fetch)
@@ -353,7 +401,7 @@ class StockLiveComparison:
         missing = []
         ma_cols = ["MA_30", "MA_60", "MA_120", "MA_200"]
         # Include new indicators in validity check
-        new_cols = ["EMA_20", "HMA_20", "TSMOM_60"]
+        new_cols = ["EMA_20", "HMA_20", "TSMOM_60", "RSI_14", "ATR_14"]
         all_required_cols = ma_cols + new_cols
         
         for t in self.tickers:
@@ -474,7 +522,7 @@ class StockLiveComparison:
     def save_to_excel(self, df, put_col, call_col):
         # Ensure all MA and new columns exist in DataFrame before saving
         ma_windows = [30, 60, 120, 200]
-        new_cols = ["EMA_20", "HMA_20", "TSMOM_60"]
+        new_cols = ["EMA_20", "HMA_20", "TSMOM_60", "RSI_14", "ATR_14"]
         all_cols = new_cols + [f"MA_{w}" for w in ma_windows]
         
         for col in all_cols:

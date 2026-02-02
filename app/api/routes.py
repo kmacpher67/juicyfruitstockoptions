@@ -656,14 +656,21 @@ def get_opportunity_analysis(
         score += 10
         reasons.append("High Liquidity")
         
+    # --- Risk Analysis Integration ---
+    from app.services.risk_service import RiskService
+    risks = RiskService.analyze_risk(stock)
+    
     return {
         "symbol": symbol,
         "juicy_score": score,
         "reasons": reasons,
+        "risks": risks,  # New Field
         "metrics": {
              "iv_rank": iv_rank,
              "liquidity": liquidity,
              "call_put_skew": stock.get("Call/Put Skew"),
+             "rsi_14": stock.get("RSI_14"),
+             "atr_14": stock.get("ATR_14"),
         }
     }
 
@@ -710,6 +717,50 @@ def get_portfolio_optimizer(
             "strike_target": round(strike_dip, 1),
             "reason": "Acquire at discount (-10% Target)"
         })
+
+    # --- Smart Roll Assistant Integration ---
+    # Check if we hold options for this ticker to suggest rolls
+    holdings = list(db.ibkr_holdings.find({"symbol": symbol}, {"_id": 0}))
+    if holdings:
+        from app.services.roll_service import RollService
+        roll_service = RollService()
+        
+        for pos in holdings:
+            # We only care about options for rolling (secType usually 'OPT')
+            if pos.get("secType") == "OPT":
+                # Extract details (assuming standard IBKR fields)
+                # We need strike, exp, right. 
+                # Our schema might vary, let's try to extract safely.
+                try:
+                    current_strike = float(pos.get("strike", 0))
+                    exp_date = pos.get("expiry") # Format might be YYYYMMDD or YYYY-MM-DD
+                    if exp_date and len(exp_date) == 8:
+                        exp_date = f"{exp_date[:4]}-{exp_date[4:6]}-{exp_date[6:]}"
+                    
+                    right = pos.get("right") # 'C' or 'P'
+                    position = float(pos.get("position", 0))
+                    
+                    if position != 0:
+                        position_type = "call" if right == "C" else "put"
+                        # Use RollService
+                        rolls = roll_service.find_rolls(
+                            symbol=symbol,
+                            current_strike=current_strike,
+                            current_exp_date=exp_date,
+                            position_type=position_type
+                        )
+                        
+                        if "rolls" in rolls:
+                             # Add top 3 rolls as suggestions
+                             for r in rolls["rolls"][:3]:
+                                 suggestions.append({
+                                     "strategy": f"Roll {position_type.title()}",
+                                     "action": f"ROLL to {r['expiration']} {r['strike']} ({r['roll_type']})",
+                                     "reason": f"Net Credit: ${r['net_credit']:.2f}. {r['roll_type']} roll."
+                                 })
+                except Exception as e:
+                    # Log error but don't break generic suggestions
+                    print(f"Error calculating rolls for {symbol}: {e}")
     
     return suggestions
 

@@ -280,9 +280,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ## 7. Agile & Project Governance
 **Rules for Agents working on this Epic:**
-1.  **Decomposition**: Break Epics into tasks of ~1-2 hours.
+1.  **Decomposition**: Evaluate features and requirements, elaborate them, make sure if required add a new feature/requirement to generate a learning-opportunity or implementation-plan document. That fits into the context window of the technical limitations of the LLM and the project. Add questions or highlight to the user for feedback as needed. 
 2.  **Naming**: Use hierarchical IDs (e.g., `epic-001-trading-001-task-001`).
 3.  **Parallelism**: Note if tasks can be run by multiple agents concurrently.
+4.  **Next Steps**: If a feature is not completed, part of the plan should be next features-requirements to be implemented. 
 4.  **Cleanup**: If reviewing, add a "Review and Cleanup" section.
 5.  **Compliance**: Follow `.agent/rules/document.md` and `.agent/rules/implementation-plan.md`.
 

@@ -168,6 +168,7 @@ const OpportunityView = ({ data }) => {
                 </div>
             </div>
 
+            {/* Drivers Section (Restored) */}
             <div>
                 <h3 className="text-lg font-bold text-white mb-4">Drivers</h3>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -184,7 +185,25 @@ const OpportunityView = ({ data }) => {
                 </ul>
             </div>
 
-            {/* Raw Metrics dump if needed */}
+            {/* Risk Warnings */}
+            {data.risks && data.risks.length > 0 && (
+                <div>
+                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-500" />
+                        Risk Warnings
+                    </h3>
+                    <div className="space-y-2">
+                        {data.risks.map((risk, i) => (
+                            <div key={i} className={`p-3 rounded border-l-4 ${risk.level === 'danger' ? 'bg-red-900 border-red-500 text-red-100' : 'bg-yellow-900 border-yellow-500 text-yellow-100'}`}>
+                                <div className="font-bold text-sm uppercase">{risk.type}</div>
+                                <div className="text-sm">{risk.message}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Metrics */}
             <div>
                 <h3 className="text-lg font-bold text-white mb-2">Metrics</h3>
                 <div className="grid grid-cols-3 gap-4">
@@ -199,6 +218,16 @@ const OpportunityView = ({ data }) => {
                     <div className="bg-black bg-opacity-30 p-3 rounded text-center">
                         <div className="text-xs text-gray-400 uppercase">Skew</div>
                         <div className="text-xl font-mono text-white">{data.metrics?.call_put_skew}</div>
+                    </div>
+                    <div className="bg-black bg-opacity-30 p-3 rounded text-center">
+                        <div className="text-xs text-gray-400 uppercase">RSI (14)</div>
+                        <div className={`text-xl font-mono ${data.metrics?.rsi_14 > 70 ? 'text-red-400' : data.metrics?.rsi_14 < 30 ? 'text-green-400' : 'text-white'}`}>
+                            {data.metrics?.rsi_14}
+                        </div>
+                    </div>
+                    <div className="bg-black bg-opacity-30 p-3 rounded text-center">
+                        <div className="text-xs text-gray-400 uppercase">ATR (14)</div>
+                        <div className="text-xl font-mono text-white">{data.metrics?.atr_14}</div>
                     </div>
                 </div>
             </div>
@@ -222,7 +251,9 @@ const OptimizerView = ({ data }) => {
                     <div className="flex justify-between items-center">
                         <div>
                             <p className="text-gray-300 text-sm mb-1">{strat.reason}</p>
-                            <p className="text-xs text-gray-500">Target Strike: <span className="text-white font-mono">${strat.strike_target}</span></p>
+                            {strat.strike_target && (
+                                <p className="text-xs text-gray-500">Target Strike: <span className="text-white font-mono">${strat.strike_target}</span></p>
+                            )}
                         </div>
                         <button className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded">
                             Analyze

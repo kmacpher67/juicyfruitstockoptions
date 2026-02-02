@@ -10,7 +10,6 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Do default settings need to be updated?
 - [ ] Impact on existing code (front and backend) inclusive of database collections/records? 
 
-
 ## 2. ACL Security Roles Compliance
 - [ ] Does this feature introduce new users or roles?
 - [ ] Are permissions properly checked for new endpoints/features?
@@ -21,6 +20,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Does this affect existing ETL pipelines?
 - [ ] Do we need simple views or complex aggregations?
 - [ ] Is data migration required?
+- [ ] Always load raw data to work as a operational data store. Let the models create views on those collections.
 
 ## 4. New Routes or Service/Models
 - [ ] Are new API routes being added?
@@ -46,7 +46,8 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Security best practices (OWASP, input validation)?
 
 ## 9. Fit into Feature-Requirements master Planning
-- [ ] How does this relate to the current Epic? (Check `docs/Epic-level-planning.md`) 
+- [ ] How does this relate to the current Epic? (Check `docs/features-requirements.md) 
+- [ ] Mark item {@features-requirements.md#L###} as [/] In Progress immediately. 
 - [ ] Does it block other work?
 - [ ] Update and/or add sub items or comment on the exisitng items or sub-items. 
 - [ ] Is it a prerequisite for future features or predicate?
@@ -64,7 +65,8 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 
 ## 12. Definition of Done
 - [ ] **Verification**: ALL tests passed? (Run `/test-coverage` or `pytest`)
-- [ ] **Coverage**: New code covered by tests?
+- [ ] **Coverage**: New code covered by tests? 
+- [ ] Mark item {@features-requirements.md#L###} as [/] as fully completed. If not fully completed create a new feature-requirement for the remainder of work.  
 - [ ] **Documentation Update**:
   - [ ] `README.md` and `README_updates.md` updated?
   - [ ] Feature documentation created/updated in `docs/features/`?
@@ -81,3 +83,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Cross reference the other related documents. 
 - [ ] follow all the rules in global germini.md and all the rules in workspace 
 - [ ] any of the sub features not completed explain why they were not address and offer next steps to complete all of this. Add any qestions regarding how/or what to the features-requrements doc regarding the incompleted or partially completed items.
+
+## 14. Test and Check backend, front end, and infrastructure 
+- [ ] Always build tests UI or backend, always follow the .agent/workflows/test-coverage.md rules!
+- [ ] Always Check the UI for errors or working quality using the browser (no request prompting just do it.)
