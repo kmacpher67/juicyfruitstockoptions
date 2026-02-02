@@ -29,3 +29,63 @@ A set of hard rules/heuristics to block or warn against trades that historically
 ## 6. The "Revenge Trade"
 *   **Definition**: Opening a new position on Ticker X immediately after closing Ticker X for a loss.
 *   **Rule**: "Cool off" timer. Warning if opening same-ticker trade within 30 mins of a loss > $500.
+
+Details from Gemini discussion: 
+
+In the context of evaluating a portfolio, **Risk Type** categorizes the specific *source* of potential loss. Understanding the "why" behind a risk allows you to determine whether the correct action is to hedge, exit, or double down.
+
+---
+
+## 1. Execution Risk
+
+This occurs at the moment of the trade. It’s the risk that you are "losing" money simply by entering the market due to poor liquidity.
+
+* **What it means:** High slippage or wide bid-ask spreads.
+* **Trading Recommendation:** * **Action:** **Avoid or Limit Order.**
+* **Strategy:** Never use "Market Orders" on low-volume options. If the spread is too wide, **walk away**. If you must trade, use a "Mid-point Limit Order" and wait for the fill.
+
+
+
+## 2. Tactical (Event) Risk
+
+This is the risk tied to a specific "binary" event where the outcome is unpredictable (like an earnings report or a court ruling).
+
+* **What it means:** You are exposed to "IV Crush"—where volatility drops instantly after the news, causing option prices to plummet even if the stock doesn't move.
+* **Trading Recommendation:**
+* **Action:** **Create a Non-Directional Play.**
+* **Strategy:** Instead of "buying" a call (high risk), **Sell a Covered Call** or a **Credit Spread** to harvest the high volatility premium before the event. If you are long the stock, consider a **Protective Put** (Married Put) to floor your losses.
+
+
+
+## 3. Opportunity Cost (Efficiency) Risk
+
+This measures the risk of your money "sitting still" or underperforming.
+
+* **What it means:** Your capital is tied up in a "Zombie Trade" that isn't hitting your target annualized yield.
+* **Trading Recommendation:**
+* **Action:** **Sell/Exit.**
+* **Strategy:** Close the position and move the capital into a higher-yielding setup. It is better to take a small loss or break even to free up "buying power" for a trade with a better **Annualized Yield**.
+
+
+
+## 4. Account Survival (Systemic) Risk
+
+This is the "Game Over" risk. It’s when a single trade or a market-wide crash could wipe out your account or trigger a margin call.
+
+* **What it means:** Over-leverage or lack of diversification.
+* **Trading Recommendation:**
+* **Action:** **Hedge or Trim.**
+* **Strategy:** **Sell** a portion of the position to bring the "Size" back under 2% of your net liquidity. Alternatively, **Create a Put Option Play** (specifically a "Tail Hedge") on a broad index like SPY or QQQ to protect the entire portfolio from a "black swan" event.
+
+
+
+---
+
+### Summary Recommendation Table
+
+| Risk Type | Indicator | Primary Recommendation |
+| --- | --- | --- |
+| **Execution** | Wide Spreads | **Wait/Limit Order** |
+| **Tactical** | High IV/Earnings | **Sell Premium (Call/Put Spreads)** |
+| **Opportunity** | Low Annualized Yield | **Exit/Reallocate** |
+| **Survival** | High Beta-Delta/Margin | **Trim Position or Buy Protective Puts** |

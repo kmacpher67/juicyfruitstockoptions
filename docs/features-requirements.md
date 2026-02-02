@@ -96,7 +96,16 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ## 3. Algorithmic Trading Engines (Epic 2)
 **Owner:** Ken | **Goal:** Automated insights and strategy backtesting.
 
-### Portfolio Management
+
+### Stock Analysis UI
+- [x] **Stock Analysis**: Ticker list research grades averages and creates a .xlsx report for download of Call/Put Skew. 
+- [x] **Stock Analysis**: Run Live Analsis runs the live analysis of a ticker list updates the list.
+    - [x] **Run Live Analysis**: Disables button while analysis is running. Changes to "running" until ready again, reloads the grid.
+    - [ ] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
+    - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
+    - [ ] **Tickers**: Based on all the metrics of the ticker, news, momentum, call skew,  
+
+### Portfolio Management UI
 - [/] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
 - [ ] **Portfolio History Visualization**: Implement interactive time-series chart for NAV performance.
     - [ ] **Frontend**: Add graph component (e.g., Recharts) to "My Portfolio" view using data from `/portfolio/stats` (history field).
@@ -106,7 +115,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Portfolio Optimization**: Implement Portfolio Optimization (ie: `/portfolio/optimizer/{symbol}`) to show the most recent stats for an individual ticker. 
     - [x] **Bug Issue**: Adding stock ticker to analysis doesn't add the ticker to the active screen list, logs indicate a new file is created. A screen refresh reload shows this file at the top of the list. **Fixed**: Added job polling to `handleAddTicker` to wait for file generation and auto-refresh the report list.
     - [x] **Bug Issue**: UI for Portfolio could be wider so it doesn't require horizontal scrolling. Additionally the width of the Qty field is too wide for the size of qty and max size like doubtful that I would have more than 99,999 shares of a stock or option. Type field doesn't have to be that wide. Account doesn't need to be much wider than width of the title name. Whereas the ticker field would be better if it was wider **Fixed**: Optimized column widths in `PortfolioGrid.jsx`. Increased Ticker width (140->200), reduced Account, Qty, Type widths. Removed auto-flex to respect manual sizing. 
-    - [ ] **Frontend**: Create a new modal window that pops up an overlay with the ticker analytics, opportunity finder, and portfolio optimization data that uses all news, stock data, and option data to provide a comprehensive view of the ticker, all the anlytics and opportunity finder data should be in the modal window. Integration to agent chat allow the user ask questions about the ticker and get a response based on the data in the modal window. 
+- [/] **Frontend**: Create a new modal window that pops up an overlay with the ticker analytics, opportunity finder, and portfolio optimization data that uses all news, stock data, and option data to provide a comprehensive view of the ticker, all the anlytics and opportunity finder data should be in the modal window. Integration to agent chat allow the user ask questions about the ticker and get a response based on the data in the modal window. 
+    - [ ] **Ticker Details** Should aggregate News and details 
+    - [ ] **Ticker Details** Should aggregate Opportunity Finder data 
+    - [ ] **Ticker Details** Should aggregate Portfolio Optimization data 
 
 - [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
@@ -121,6 +133,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
+    - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
     - [x] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading. **Fixed**: Corrected parsing of "1D % Change" in OptionsAnalyzer and fixed scoring logic for trend.
     - [x] **Opportunity Scoring Rubric**: See [Opportunity Scoring](learning/opportunity-scoring.md). Defines the 0-100 rating scale and factors (IV, Trend, Liquidity). 
@@ -136,7 +149,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
     - [ ] Fetch Macro indicators (Fred API? Inflation, Interest Rates).
     - [ ] Create "Impact Score" for news events on portfolio tickers.
-- [ ] **Kalman Filters**: Implement Kalman filters for signal generation.
+    - [ ] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
+- [ ] **Kalman Filters**: Implement Kalman filters for signal generation. 
     - [ ] Research `filterpy` or `pykalman` libraries.
     - [ ] Prototype Mean Reversion and Trend Following models using Kalman.
     - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
@@ -158,7 +172,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Bull vs Bear Scenario**: Generate fundamental-based scenarios for the next 3-5 years.
     - [ ] **Valuation Thinking**: Determine key valuation drivers and assumptions for multiple expansion/contraction.
     - [ ] **Long-Term Thesis**: Synthesize a comprehensive investment thesis with clear "signs of being wrong."
-
+    - [ ] **Spread Drag**: (Ask - Bid) / Mid > 0.05  Execution
+    - [ ] **Volatility Crush**: Entry IV > 80th Percentile Tactical
+    - [ ] **Zombie Trade**: Days Held > 45 AND ROI < T-Bill Rate Opportunity Cost
+    - [ ] **Size Violation**: Trade Risk > 2% of Net Liquidity Account Survival
 
 ### Strategy & Backtesting
 - [ ] **Backtesting Engine**:
