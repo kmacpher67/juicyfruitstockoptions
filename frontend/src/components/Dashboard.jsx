@@ -10,6 +10,8 @@ import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import AlertsDashboard from './AlertsDashboard';
 import TradeHistory from './TradeHistory';
+import TickerModal from './TickerModal';
+// import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const AVAILABLE_COLUMNS = [
     { field: "Ticker", headerName: "Ticker" },
@@ -62,6 +64,9 @@ const Dashboard = () => {
         sortColumn: 'Ticker',
         sortOrder: 'asc'
     });
+
+    const [selectedTicker, setSelectedTicker] = useState(null);
+
 
     const { logout, user } = useAuth();
     const navigate = useNavigate();
@@ -472,6 +477,47 @@ const Dashboard = () => {
                         <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
                     </div>
 
+                    {/* Portfolio History Chart */}
+                    {/* Portfolio History Chart - DISABLED Pending Dependency Fix */}
+                    {/* {portfolioStats?.history?.length > 0 && (
+                        <div className="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 mb-4 h-64">
+                            <h3 className="text-gray-400 text-xs uppercase font-bold mb-2">Portfolio Performance</h3>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={portfolioStats.history}>
+                                    <defs>
+                                        <linearGradient id="colorNav" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis
+                                        dataKey="date"
+                                        stroke="#9CA3AF"
+                                        tick={{ fontSize: 10 }}
+                                        tickFormatter={(str) => {
+                                            const d = new Date(str);
+                                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                                        }}
+                                    />
+                                    <YAxis
+                                        domain={['auto', 'auto']}
+                                        stroke="#9CA3AF"
+                                        tick={{ fontSize: 10 }}
+                                        tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }}
+                                        itemStyle={{ color: '#818CF8' }}
+                                        formatter={(val) => [`$${val.toLocaleString()}`, "NAV"]}
+                                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                                    />
+                                    <Area type="monotone" dataKey="nav" stroke="#818CF8" fillOpacity={1} fill="url(#colorNav)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )} */}
+
                     <div className="mb-4">
                         {/* Dynamically load Alerts */}
                         <AlertsDashboard onSelectTicker={(ticker) => {
@@ -487,7 +533,11 @@ const Dashboard = () => {
                         </div>
                     )}
                     <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
-                        <PortfolioGrid data={portfolioHoldings} filterTicker={filterTicker} />
+                        <PortfolioGrid
+                            data={portfolioHoldings}
+                            filterTicker={filterTicker}
+                            onTickerClick={(ticker) => setSelectedTicker(ticker)}
+                        />
                     </div>
                 </>
             ) : viewMode === 'TRADES' ? (
@@ -573,12 +623,19 @@ const Dashboard = () => {
                                 onDelete={handleDeleteTicker}
                                 portfolioTickers={portfolioTickers}
                                 hasPortfolioAccess={user?.role === 'admin' || user?.role === 'portfolio'}
+                                onTickerClick={(ticker) => setSelectedTicker(ticker)}
                             />
                         )}
                     </div>
                 </>
             )
             }
+
+            <TickerModal
+                ticker={selectedTicker}
+                isOpen={!!selectedTicker}
+                onClose={() => setSelectedTicker(null)}
+            />
 
             <SettingsModal
                 isOpen={isSettingsOpen}

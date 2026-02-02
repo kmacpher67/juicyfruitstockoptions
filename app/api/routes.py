@@ -596,6 +596,122 @@ def analyze_rolls(
          
     return result
 
+# --- Ticker & Opportunity Analysis ---
+
+@router.get("/ticker/{symbol}")
+def get_ticker_analysis(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get detailed analytics for a single ticker.
+    Includes: Current Price, Stats, and basic metadata.
+    """
+    symbol = symbol.upper().strip()
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Fetch from stock_data
+    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    if not stock:
+        # transform default structure if not found
+        return {"symbol": symbol, "found": False, "price": 0.0}
+        
+    return {"symbol": symbol, "found": True, "data": stock}
+
+@router.get("/opportunity/{symbol}")
+def get_opportunity_analysis(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get 'Juicy' opportunity analysis for a ticker.
+    """
+    symbol = symbol.upper().strip()
+    # reuse scanner service logic or just return raw data meant for opportunity view
+    from app.services.scanner_service import scan_juicy_candidates
+    
+    # We might want to see if THIS specific symbol is juicy.
+    # For now, let's fetch the stock data and run a quick check?
+    # Or just return the pre-calculated metrics from the daily scan if available?
+    
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    
+    if not stock: # fallback
+         return {"symbol": symbol, "juicy_score": 0, "message": "Ticker not found in database"}
+
+    # Calculate simple score on the fly (reusing logic from scanner conceptually)
+    # TODO: Import a dedicated scorer
+    iv_rank = stock.get("IV Rank", 0)
+    liquidity = stock.get("Liquidity Rating", 0)
+    
+    score = 0
+    reasons = []
+    if iv_rank > 50: 
+        score += 20
+        reasons.append("High IV Rank")
+    if liquidity > 3:
+        score += 10
+        reasons.append("High Liquidity")
+        
+    return {
+        "symbol": symbol,
+        "juicy_score": score,
+        "reasons": reasons,
+        "metrics": {
+             "iv_rank": iv_rank,
+             "liquidity": liquidity,
+             "call_put_skew": stock.get("Call/Put Skew"),
+        }
+    }
+
+@router.get("/portfolio/optimizer/{symbol}")
+def get_portfolio_optimizer(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get optimization suggestions for a ticker (e.g. Covered Call candidates).
+    """
+    symbol = symbol.upper().strip()
+    
+    # Reuse option_optimizer.py logic if possible
+    # For V1, we return a stub or simple suggestions based on price
+    
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    
+    if not stock:
+        return []
+        
+    price = stock.get("Current Price", 0)
+    
+    # Simple heuristic suggestions
+    suggestions = []
+    
+    # 1. Covered Call (selling OTM)
+    if price > 0:
+        strike_target = price * 1.05 # 5% OTM
+        suggestions.append({
+            "strategy": "Covered Call",
+            "action": "SELL CALL",
+            "strike_target": round(strike_target, 1),
+            "reason": "Generate Income (5% OTM Target)"
+        })
+        
+        # 2. Cash Secured Put (buying dip)
+        strike_dip = price * 0.90 # 10% OTM
+        suggestions.append({
+            "strategy": "Cash Secured Put",
+            "action": "SELL PUT",
+            "strike_target": round(strike_dip, 1),
+            "reason": "Acquire at discount (-10% Target)"
+        })
+    
+    return suggestions
 
 
 @router.get("/portfolio/export/csv")

@@ -40,6 +40,8 @@ async def get_trades(
 @router.get("/analysis", response_model=dict)
 async def get_trade_analysis(
     symbol: Optional[str] = None,
+    start_date: Optional[str] = None, # YYYY-MM-DD
+    end_date: Optional[str] = None,   # YYYY-MM-DD
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -51,6 +53,24 @@ async def get_trade_analysis(
     if symbol:
         query["symbol"] = symbol
         
+    # Date Filtering
+    # The field in DB is "date_time" (e.g., "20240101") or ISO? 
+    # Let's check the model or assume standard string comparison works for YYYYMMDD if we covert input
+    # IBKR dates are usually YYYYMMDD or YYYY-MM-DD? Standardize on YYYYMMDD for query if needed.
+    # Looking at test_api_trades.py, DateTime is "20240101" (YYYYMMDD).
+    
+    if start_date or end_date:
+        date_filter = {}
+        if start_date:
+            # Convert YYYY-MM-DD to YYYYMMDD
+            s_val = start_date.replace("-", "")
+            date_filter["$gte"] = s_val
+        if end_date:
+            e_val = end_date.replace("-", "")
+            date_filter["$lte"] = e_val
+        if date_filter:
+            query["date_time"] = date_filter # Assuming 'date_time' is the field name in Mongo
+
     # Fetch ALL trades for analysis (metrics need full history ideally, or at least full history for the symbol)
     # TODO: Date range filtering
     cursor = db.ibkr_trades.find(query).sort("date_time", 1) # Metrics need FIFO, so sort Ascending

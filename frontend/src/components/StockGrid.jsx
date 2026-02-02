@@ -14,13 +14,22 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 const LinkRenderer = (params) => {
     if (!params.value) return null;
-    // Use query search as requested by user
-    const url = `https://www.google.com/finance?q=${params.value}`;
+    const onTickerClick = params.context.onTickerClick;
+
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center hover:text-blue-400 group">
-            <span className="font-bold">{params.value}</span>
-            <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </a>
+        <div className="flex items-center gap-2">
+            <span
+                className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                onClick={() => onTickerClick && onTickerClick(params.value)}
+            >
+                {params.value}
+                <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </span>
+            {/* Keep Google Link as small icon? Or just rely on modal? Modal has links inside? 
+                 Let's keep the direct google link as a separate small icon if needed, 
+                 but requirement implies "More Info" via Modal. 
+                 Let's make the text open the modal. */}
+        </div>
     );
 };
 
@@ -70,7 +79,7 @@ const ActionsRenderer = (params) => {
     );
 };
 
-const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolioTickers, hasPortfolioAccess }) => {
+const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolioTickers, hasPortfolioAccess, onTickerClick }) => {
 
     // Inject custom data into Row Data so we can filter/sort on it? 
     // Or just use ValueGetter. ValueGetter is better.
@@ -188,7 +197,7 @@ const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolio
                 rowSelection="multiple" // Enable multiple selection for the checkboxes
                 enableCellTextSelection={true}
                 onGridReady={onGridReady}
-                context={{ onDelete, portfolioTickers }} // Pass context to access inside Renderer
+                context={{ onDelete, portfolioTickers, onTickerClick }} // Pass context to access inside Renderer
             />
         </div>
     );

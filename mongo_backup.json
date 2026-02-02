@@ -1,62 +1,14 @@
 [
   {
-    "Ticker": "IREN",
-    "Last Update": "2026-02-02 01:21:07",
-    "_id": {
-      "$oid": "69800b8585fd4664fe60c9dc"
-    },
-    "Current Price": 53.74,
-    "1D % Change": "-10.19%",
-    "Market Cap (T$)": 0.017645082624,
-    "P/E": 34.44872,
-    "YoY Price %": "425.8%",
-    "EMA_20": 52.8,
-    "HMA_20": 59.47,
-    "TSMOM_60": -0.2068,
-    "MA_30": 47.83,
-    "MA_60": 48.56,
-    "MA_120": 45.17,
-    "MA_200": 31.72,
-    "EMA_20_highlight": 0.0178,
-    "HMA_20_highlight": -5.729999999999997,
-    "TSMOM_60_highlight": -0.2068,
-    "Ex-Div Date": {
-      "$numberDouble": "NaN"
-    },
-    "Div Yield": {
-      "$numberDouble": "NaN"
-    },
-    "Analyst 1-yr Target": 84.84615,
-    "1-yr 6% OTM PUT Price": 17.44,
-    "Annual Yield Put Prem": 32.45,
-    "3-mo Call Yield": 20.1,
-    "6-mo Call Yield": 25.03,
-    "1-yr Call Yield": 36.75,
-    "Annual Yield Call Prem": 68.38,
-    "Call/Put Skew": 2.107241910631741,
-    "6-mo Call Strike": 60.0,
-    "Error": {
-      "$numberDouble": "NaN"
-    },
-    "_PutExpDate_365": "2027-01-15",
-    "_CallExpDate_365": "2027-01-15",
-    "_CallExpDate_90": "2026-05-15",
-    "_CallExpDate_180": "2026-07-17",
-    "MA_30_highlight": 0.1236,
-    "MA_60_highlight": 0.1067,
-    "MA_120_highlight": 0.1897,
-    "MA_200_highlight": 0.6942
-  },
-  {
     "Ticker": "MSTR",
-    "Last Update": "2026-02-01 18:01:50",
+    "Last Update": "2026-02-02 08:46:58",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9dd"
+      "$oid": "6980aad62d3e822ae2f5760c"
     },
     "Current Price": 149.71,
     "1D % Change": "4.55%",
     "Market Cap (T$)": 0.043317788672,
-    "P/E": 5.877896,
+    "P/E": 6.145731,
     "YoY Price %": "-55.3%",
     "EMA_20": 161.27,
     "HMA_20": 155.61,
@@ -68,9 +20,7 @@
     "EMA_20_highlight": -0.0717,
     "HMA_20_highlight": -5.900000000000006,
     "TSMOM_60_highlight": -0.4344,
-    "Ex-Div Date": {
-      "$numberDouble": "NaN"
-    },
+    "Ex-Div Date": null,
     "Div Yield": {
       "$numberDouble": "NaN"
     },
@@ -97,9 +47,9 @@
   },
   {
     "Ticker": "AA",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9de"
+      "$oid": "6980aad62d3e822ae2f5760d"
     },
     "Current Price": 56.81,
     "1D % Change": "-6.32%",
@@ -141,9 +91,9 @@
   },
   {
     "Ticker": "AAPL",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9df"
+      "$oid": "6980aad62d3e822ae2f5760e"
     },
     "Current Price": 259.48,
     "1D % Change": "0.46%",
@@ -162,7 +112,7 @@
     "TSMOM_60_highlight": -0.0356,
     "Ex-Div Date": "2026-02-09",
     "Div Yield": 0.4,
-    "Analyst 1-yr Target": 290.39624,
+    "Analyst 1-yr Target": 290.89624,
     "1-yr 6% OTM PUT Price": 16.0,
     "Annual Yield Put Prem": 6.17,
     "3-mo Call Yield": 2.79,
@@ -184,10 +134,54 @@
     "MA_200_highlight": 0.0965
   },
   {
-    "Ticker": "AMAT",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "AEM",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e0"
+      "$oid": "6980aad62d3e822ae2f5760f"
+    },
+    "Current Price": 190.5,
+    "1D % Change": "-11.61%",
+    "Market Cap (T$)": 0.095639871488,
+    "P/E": 31.539736,
+    "YoY Price %": "105.0%",
+    "EMA_20": 200.45,
+    "HMA_20": 219.49,
+    "TSMOM_60": 0.1722,
+    "MA_30": 190.89,
+    "MA_60": 178.77,
+    "MA_120": 167.14,
+    "MA_200": 148.24,
+    "EMA_20_highlight": -0.0496,
+    "HMA_20_highlight": -28.99000000000001,
+    "TSMOM_60_highlight": 0.1722,
+    "Ex-Div Date": "2025-12-01",
+    "Div Yield": 0.74,
+    "Analyst 1-yr Target": 221.66667,
+    "1-yr 6% OTM PUT Price": 14.1,
+    "Annual Yield Put Prem": 7.4,
+    "3-mo Call Yield": 8.48,
+    "6-mo Call Yield": 13.07,
+    "1-yr Call Yield": 15.9,
+    "Annual Yield Call Prem": 8.35,
+    "Call/Put Skew": 1.1283783783783783,
+    "6-mo Call Strike": 210.0,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2027-02-19",
+    "_CallExpDate_365": "2027-02-19",
+    "_CallExpDate_90": "2026-05-15",
+    "_CallExpDate_180": "2026-07-17",
+    "MA_30_highlight": -0.002,
+    "MA_60_highlight": 0.0656,
+    "MA_120_highlight": 0.1398,
+    "MA_200_highlight": 0.2851
+  },
+  {
+    "Ticker": "AMAT",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57610"
     },
     "Current Price": 322.32,
     "1D % Change": "-5.57%",
@@ -229,9 +223,9 @@
   },
   {
     "Ticker": "AMD",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e1"
+      "$oid": "6980aad62d3e822ae2f57611"
     },
     "Current Price": 236.73,
     "1D % Change": "-6.13%",
@@ -275,9 +269,9 @@
   },
   {
     "Ticker": "AMZN",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e2"
+      "$oid": "6980aad62d3e822ae2f57612"
     },
     "Current Price": 239.3,
     "1D % Change": "-1.01%",
@@ -300,7 +294,7 @@
     "Div Yield": {
       "$numberDouble": "NaN"
     },
-    "Analyst 1-yr Target": 296.28824,
+    "Analyst 1-yr Target": 296.2274,
     "1-yr 6% OTM PUT Price": 19.75,
     "Annual Yield Put Prem": 8.25,
     "3-mo Call Yield": 5.7,
@@ -322,10 +316,54 @@
     "MA_200_highlight": 0.079
   },
   {
-    "Ticker": "AVGO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "ARMK",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e3"
+      "$oid": "6980aad62d3e822ae2f57613"
+    },
+    "Current Price": 38.49,
+    "1D % Change": "-0.00%",
+    "Market Cap (T$)": 0.010120333312,
+    "P/E": 31.549181,
+    "YoY Price %": "-1.1%",
+    "EMA_20": 38.58,
+    "HMA_20": 38.87,
+    "TSMOM_60": 0.0239,
+    "MA_30": 38.33,
+    "MA_60": 37.91,
+    "MA_120": 38.41,
+    "MA_200": 38.88,
+    "EMA_20_highlight": -0.0023,
+    "HMA_20_highlight": -0.3799999999999955,
+    "TSMOM_60_highlight": 0.0239,
+    "Ex-Div Date": "2025-12-05",
+    "Div Yield": 1.25,
+    "Analyst 1-yr Target": 44.6,
+    "1-yr 6% OTM PUT Price": 1.45,
+    "Annual Yield Put Prem": 3.77,
+    "3-mo Call Yield": 1.56,
+    "6-mo Call Yield": 5.33,
+    "1-yr Call Yield": 5.33,
+    "Annual Yield Call Prem": 13.85,
+    "Call/Put Skew": 3.673740053050398,
+    "6-mo Call Strike": 41.0,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2026-07-17",
+    "_CallExpDate_365": "2026-07-17",
+    "_CallExpDate_90": "2026-04-17",
+    "_CallExpDate_180": "2026-07-17",
+    "MA_30_highlight": 0.0042,
+    "MA_60_highlight": 0.0153,
+    "MA_120_highlight": 0.0021,
+    "MA_200_highlight": -0.01
+  },
+  {
+    "Ticker": "AVGO",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57614"
     },
     "Current Price": 331.3,
     "1D % Change": "0.17%",
@@ -367,9 +405,9 @@
   },
   {
     "Ticker": "BHP",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e4"
+      "$oid": "6980aad62d3e822ae2f57615"
     },
     "Current Price": 68.73,
     "1D % Change": "-4.77%",
@@ -411,9 +449,9 @@
   },
   {
     "Ticker": "BMY",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e5"
+      "$oid": "6980aad62d3e822ae2f57616"
     },
     "Current Price": 55.05,
     "1D % Change": "1.42%",
@@ -455,9 +493,9 @@
   },
   {
     "Ticker": "CCJ",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e6"
+      "$oid": "6980aad62d3e822ae2f57617"
     },
     "Current Price": 123.39,
     "1D % Change": "-7.69%",
@@ -476,7 +514,7 @@
     "TSMOM_60_highlight": 0.2235,
     "Ex-Div Date": "2025-12-01",
     "Div Yield": 0.13,
-    "Analyst 1-yr Target": 112.293495,
+    "Analyst 1-yr Target": 111.924324,
     "1-yr 6% OTM PUT Price": 16.97,
     "Annual Yield Put Prem": 13.75,
     "3-mo Call Yield": 4.94,
@@ -499,9 +537,9 @@
   },
   {
     "Ticker": "CEG",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e7"
+      "$oid": "6980aad62d3e822ae2f57618"
     },
     "Current Price": 280.68,
     "1D % Change": "-2.36%",
@@ -543,9 +581,9 @@
   },
   {
     "Ticker": "COPP",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e8"
+      "$oid": "6980aad62d3e822ae2f57619"
     },
     "Current Price": 39.99,
     "1D % Change": "-9.28%",
@@ -593,9 +631,9 @@
   },
   {
     "Ticker": "CPRX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9e9"
+      "$oid": "6980aad62d3e822ae2f5761a"
     },
     "Current Price": 24.3,
     "1D % Change": "-1.14%",
@@ -649,9 +687,9 @@
   },
   {
     "Ticker": "CRWD",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ea"
+      "$oid": "6980aad62d3e822ae2f5761b"
     },
     "Current Price": 441.405,
     "1D % Change": "-0.72%",
@@ -699,9 +737,9 @@
   },
   {
     "Ticker": "CRWV",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9eb"
+      "$oid": "6980aad62d3e822ae2f5761c"
     },
     "Current Price": 93.19,
     "1D % Change": "-6.37%",
@@ -726,7 +764,7 @@
     "Div Yield": {
       "$numberDouble": "NaN"
     },
-    "Analyst 1-yr Target": 125.62963,
+    "Analyst 1-yr Target": 127.22222,
     "1-yr 6% OTM PUT Price": 21.45,
     "Annual Yield Put Prem": 23.02,
     "3-mo Call Yield": 18.67,
@@ -748,10 +786,82 @@
     "MA_200_highlight": -0.1168
   },
   {
-    "Ticker": "CVS",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "CVM",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ec"
+      "$oid": "6980aad62d3e822ae2f5761d"
+    },
+    "Current Price": 5.8,
+    "1D % Change": "-1.19%",
+    "Market Cap (T$)": 4.8770728e-05,
+    "P/E": {
+      "$numberDouble": "NaN"
+    },
+    "YoY Price %": "-50.4%",
+    "EMA_20": 5.76,
+    "HMA_20": 6.21,
+    "TSMOM_60": -0.1819,
+    "MA_30": 5.45,
+    "MA_60": 6.05,
+    "MA_120": 7.73,
+    "MA_200": 6.71,
+    "EMA_20_highlight": 0.0069,
+    "HMA_20_highlight": -0.4100000000000001,
+    "TSMOM_60_highlight": -0.1819,
+    "Ex-Div Date": "1996-08-28",
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": 42.5,
+    "1-yr 6% OTM PUT Price": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Put Prem": {
+      "$numberDouble": "NaN"
+    },
+    "3-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "1-yr Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Call Prem": {
+      "$numberDouble": "NaN"
+    },
+    "Call/Put Skew": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Strike": {
+      "$numberDouble": "NaN"
+    },
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_90": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_180": {
+      "$numberDouble": "NaN"
+    },
+    "MA_30_highlight": 0.0642,
+    "MA_60_highlight": -0.0413,
+    "MA_120_highlight": -0.2497,
+    "MA_200_highlight": -0.1356
+  },
+  {
+    "Ticker": "CVS",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f5761e"
     },
     "Current Price": 74.52,
     "1D % Change": "0.11%",
@@ -793,9 +903,9 @@
   },
   {
     "Ticker": "CVX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ed"
+      "$oid": "6980aad62d3e822ae2f5761f"
     },
     "Current Price": 176.9,
     "1D % Change": "3.34%",
@@ -837,9 +947,9 @@
   },
   {
     "Ticker": "D",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ee"
+      "$oid": "6980aad62d3e822ae2f57620"
     },
     "Current Price": 60.17,
     "1D % Change": "-1.08%",
@@ -881,9 +991,9 @@
   },
   {
     "Ticker": "DUK",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ef"
+      "$oid": "6980aad62d3e822ae2f57621"
     },
     "Current Price": 121.35,
     "1D % Change": "0.38%",
@@ -925,9 +1035,9 @@
   },
   {
     "Ticker": "ENB",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f0"
+      "$oid": "6980aad62d3e822ae2f57622"
     },
     "Current Price": 48.84,
     "1D % Change": "-0.81%",
@@ -946,7 +1056,7 @@
     "TSMOM_60_highlight": 0.0476,
     "Ex-Div Date": "2026-02-17",
     "Div Yield": 5.63,
-    "Analyst 1-yr Target": 48.400795,
+    "Analyst 1-yr Target": 48.237087,
     "1-yr 6% OTM PUT Price": 2.15,
     "Annual Yield Put Prem": 4.4,
     "3-mo Call Yield": 0.51,
@@ -969,9 +1079,9 @@
   },
   {
     "Ticker": "ERO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f1"
+      "$oid": "6980aad62d3e822ae2f57623"
     },
     "Current Price": 33.51,
     "1D % Change": "-11.89%",
@@ -1017,9 +1127,9 @@
   },
   {
     "Ticker": "ETN",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f2"
+      "$oid": "6980aad62d3e822ae2f57624"
     },
     "Current Price": 351.42,
     "1D % Change": "-0.83%",
@@ -1061,9 +1171,9 @@
   },
   {
     "Ticker": "F",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f3"
+      "$oid": "6980aad62d3e822ae2f57625"
     },
     "Current Price": 13.88,
     "1D % Change": "-0.86%",
@@ -1105,9 +1215,9 @@
   },
   {
     "Ticker": "FCX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f4"
+      "$oid": "6980aad62d3e822ae2f57626"
     },
     "Current Price": 60.23,
     "1D % Change": "-7.52%",
@@ -1149,9 +1259,9 @@
   },
   {
     "Ticker": "FDX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f5"
+      "$oid": "6980aad62d3e822ae2f57627"
     },
     "Current Price": 322.25,
     "1D % Change": "0.73%",
@@ -1193,9 +1303,9 @@
   },
   {
     "Ticker": "FMNB",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f6"
+      "$oid": "6980aad62d3e822ae2f57628"
     },
     "Current Price": 12.98,
     "1D % Change": "1.01%",
@@ -1245,9 +1355,9 @@
   },
   {
     "Ticker": "GD",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f7"
+      "$oid": "6980aad62d3e822ae2f57629"
     },
     "Current Price": 351.09,
     "1D % Change": "0.33%",
@@ -1266,7 +1376,7 @@
     "TSMOM_60_highlight": 0.027,
     "Ex-Div Date": "2026-01-16",
     "Div Yield": 1.71,
-    "Analyst 1-yr Target": 393.556,
+    "Analyst 1-yr Target": 394.806,
     "1-yr 6% OTM PUT Price": 18.18,
     "Annual Yield Put Prem": 5.18,
     "3-mo Call Yield": 1.8,
@@ -1289,9 +1399,9 @@
   },
   {
     "Ticker": "GE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f8"
+      "$oid": "6980aad62d3e822ae2f5762a"
     },
     "Current Price": 306.79,
     "1D % Change": "2.65%",
@@ -1333,9 +1443,9 @@
   },
   {
     "Ticker": "GEV",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9f9"
+      "$oid": "6980aad62d3e822ae2f5762b"
     },
     "Current Price": 726.37,
     "1D % Change": "1.25%",
@@ -1354,7 +1464,7 @@
     "TSMOM_60_highlight": 0.2496,
     "Ex-Div Date": "2026-01-05",
     "Div Yield": 0.17,
-    "Analyst 1-yr Target": 802.58264,
+    "Analyst 1-yr Target": 809.916,
     "1-yr 6% OTM PUT Price": 98.1,
     "Annual Yield Put Prem": 13.51,
     "3-mo Call Yield": 7.49,
@@ -1377,9 +1487,9 @@
   },
   {
     "Ticker": "GOOG",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9fa"
+      "$oid": "6980aad62d3e822ae2f5762c"
     },
     "Current Price": 338.53,
     "1D % Change": "-0.04%",
@@ -1421,14 +1531,14 @@
   },
   {
     "Ticker": "GOOGL",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9fb"
+      "$oid": "6980aad62d3e822ae2f5762d"
     },
-    "Current Price": 338.0,
-    "1D % Change": "-0.07%",
-    "Market Cap (T$)": 4.093897080832,
-    "P/E": 33.432247,
+    "Current Price": 338.233,
+    "1D % Change": "-0.01%",
+    "Market Cap (T$)": 4.096719323136,
+    "P/E": 33.45529,
     "YoY Price %": "65.7%",
     "EMA_20": 328.75,
     "HMA_20": 334.89,
@@ -1437,19 +1547,19 @@
     "MA_60": 312.24,
     "MA_120": 275.24,
     "MA_200": 234.45,
-    "EMA_20_highlight": 0.0281,
-    "HMA_20_highlight": 3.110000000000014,
+    "EMA_20_highlight": 0.0288,
+    "HMA_20_highlight": 3.343000000000018,
     "TSMOM_60_highlight": 0.1913,
     "Ex-Div Date": "2025-12-08",
     "Div Yield": 0.25,
-    "Analyst 1-yr Target": 344.46594,
+    "Analyst 1-yr Target": 345.11407,
     "1-yr 6% OTM PUT Price": 31.05,
-    "Annual Yield Put Prem": 9.19,
+    "Annual Yield Put Prem": 9.18,
     "3-mo Call Yield": 5.47,
-    "6-mo Call Yield": 7.34,
+    "6-mo Call Yield": 7.33,
     "1-yr Call Yield": 12.62,
     "Annual Yield Call Prem": 3.73,
-    "Call/Put Skew": 0.4058759521218716,
+    "Call/Put Skew": 0.40631808278867104,
     "6-mo Call Strike": 360.0,
     "Error": {
       "$numberDouble": "NaN"
@@ -1458,16 +1568,16 @@
     "_CallExpDate_365": "2027-01-15",
     "_CallExpDate_90": "2026-05-15",
     "_CallExpDate_180": "2026-07-17",
-    "MA_30_highlight": 0.048,
-    "MA_60_highlight": 0.0825,
-    "MA_120_highlight": 0.228,
-    "MA_200_highlight": 0.4417
+    "MA_30_highlight": 0.0487,
+    "MA_60_highlight": 0.0832,
+    "MA_120_highlight": 0.2289,
+    "MA_200_highlight": 0.4427
   },
   {
     "Ticker": "IBM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9fc"
+      "$oid": "6980aad62d3e822ae2f5762e"
     },
     "Current Price": 306.7,
     "1D % Change": "-0.82%",
@@ -1508,10 +1618,60 @@
     "MA_200_highlight": 0.1046
   },
   {
-    "Ticker": "INTC",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "IBRX",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9fd"
+      "$oid": "6980aad62d3e822ae2f5762f"
+    },
+    "Current Price": 6.25,
+    "1D % Change": "5.75%",
+    "Market Cap (T$)": 0.006156032512,
+    "P/E": {
+      "$numberDouble": "NaN"
+    },
+    "YoY Price %": "81.2%",
+    "EMA_20": 4.89,
+    "HMA_20": 7.27,
+    "TSMOM_60": 1.7655,
+    "MA_30": 3.65,
+    "MA_60": 2.91,
+    "MA_120": 2.7,
+    "MA_200": 2.69,
+    "EMA_20_highlight": 0.2781,
+    "HMA_20_highlight": -1.02,
+    "TSMOM_60_highlight": 1.7655,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": 11.8,
+    "1-yr 6% OTM PUT Price": 1.8,
+    "Annual Yield Put Prem": 28.8,
+    "3-mo Call Yield": 18.4,
+    "6-mo Call Yield": 24.32,
+    "1-yr Call Yield": 32.8,
+    "Annual Yield Call Prem": 524.8,
+    "Call/Put Skew": 18.22222222222222,
+    "6-mo Call Strike": 7.5,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2027-01-15",
+    "_CallExpDate_365": "2027-01-15",
+    "_CallExpDate_90": "2026-05-15",
+    "_CallExpDate_180": "2026-07-17",
+    "MA_30_highlight": 0.7123,
+    "MA_60_highlight": 1.1478,
+    "MA_120_highlight": 1.3148,
+    "MA_200_highlight": 1.3234
+  },
+  {
+    "Ticker": "INTC",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57630"
     },
     "Current Price": 46.47,
     "1D % Change": "-4.50%",
@@ -1557,9 +1717,9 @@
   },
   {
     "Ticker": "IONQ",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9fe"
+      "$oid": "6980aad62d3e822ae2f57631"
     },
     "Current Price": 39.98,
     "1D % Change": "-7.54%",
@@ -1606,10 +1766,58 @@
     "MA_200_highlight": -0.1486
   },
   {
-    "Ticker": "JNJ",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "IREN",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60c9ff"
+      "$oid": "6980aad62d3e822ae2f57632"
+    },
+    "Current Price": 53.74,
+    "1D % Change": "-10.19%",
+    "Market Cap (T$)": 0.017645082624,
+    "P/E": 34.44872,
+    "YoY Price %": "425.8%",
+    "EMA_20": 52.8,
+    "HMA_20": 59.47,
+    "TSMOM_60": -0.2068,
+    "MA_30": 47.83,
+    "MA_60": 48.56,
+    "MA_120": 45.17,
+    "MA_200": 31.72,
+    "EMA_20_highlight": 0.0178,
+    "HMA_20_highlight": -5.729999999999997,
+    "TSMOM_60_highlight": -0.2068,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": 84.84615,
+    "1-yr 6% OTM PUT Price": 17.44,
+    "Annual Yield Put Prem": 32.45,
+    "3-mo Call Yield": 20.1,
+    "6-mo Call Yield": 25.03,
+    "1-yr Call Yield": 36.75,
+    "Annual Yield Call Prem": 68.38,
+    "Call/Put Skew": 2.107241910631741,
+    "6-mo Call Strike": 60.0,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2027-01-15",
+    "_CallExpDate_365": "2027-01-15",
+    "_CallExpDate_90": "2026-05-15",
+    "_CallExpDate_180": "2026-07-17",
+    "MA_30_highlight": 0.1236,
+    "MA_60_highlight": 0.1067,
+    "MA_120_highlight": 0.1897,
+    "MA_200_highlight": 0.6942
+  },
+  {
+    "Ticker": "JNJ",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57633"
     },
     "Current Price": 227.25,
     "1D % Change": "-0.02%",
@@ -1651,9 +1859,9 @@
   },
   {
     "Ticker": "JPM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca00"
+      "$oid": "6980aad62d3e822ae2f57634"
     },
     "Current Price": 305.89,
     "1D % Change": "-0.17%",
@@ -1695,9 +1903,9 @@
   },
   {
     "Ticker": "KMB",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca01"
+      "$oid": "6980aad62d3e822ae2f57635"
     },
     "Current Price": 99.99,
     "1D % Change": "1.35%",
@@ -1739,9 +1947,9 @@
   },
   {
     "Ticker": "KO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca02"
+      "$oid": "6980aad62d3e822ae2f57636"
     },
     "Current Price": 74.81,
     "1D % Change": "1.88%",
@@ -1783,9 +1991,9 @@
   },
   {
     "Ticker": "LAC",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca03"
+      "$oid": "6980aad62d3e822ae2f57637"
     },
     "Current Price": 4.87,
     "1D % Change": "-10.31%",
@@ -1833,9 +2041,9 @@
   },
   {
     "Ticker": "LRCX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca04"
+      "$oid": "6980aad62d3e822ae2f57638"
     },
     "Current Price": 233.46,
     "1D % Change": "-5.93%",
@@ -1877,9 +2085,9 @@
   },
   {
     "Ticker": "MCD",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca05"
+      "$oid": "6980aad62d3e822ae2f57639"
     },
     "Current Price": 315.0,
     "1D % Change": "-0.16%",
@@ -1921,9 +2129,9 @@
   },
   {
     "Ticker": "META",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca06"
+      "$oid": "6980aad62d3e822ae2f5763a"
     },
     "Current Price": 716.5,
     "1D % Change": "-2.95%",
@@ -1942,7 +2150,7 @@
     "TSMOM_60_highlight": 0.1236,
     "Ex-Div Date": "2025-12-15",
     "Div Yield": 0.29,
-    "Analyst 1-yr Target": 854.30505,
+    "Analyst 1-yr Target": 858.71185,
     "1-yr 6% OTM PUT Price": 64.65,
     "Annual Yield Put Prem": 9.02,
     "3-mo Call Yield": 5.24,
@@ -1965,9 +2173,9 @@
   },
   {
     "Ticker": "MO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca07"
+      "$oid": "6980aad62d3e822ae2f5763b"
     },
     "Current Price": 61.99,
     "1D % Change": "3.73%",
@@ -2009,9 +2217,9 @@
   },
   {
     "Ticker": "MRVL",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca08"
+      "$oid": "6980aad62d3e822ae2f5763c"
     },
     "Current Price": 78.92,
     "1D % Change": "-2.98%",
@@ -2053,9 +2261,9 @@
   },
   {
     "Ticker": "MSFT",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca09"
+      "$oid": "6980aad62d3e822ae2f5763d"
     },
     "Current Price": 430.29,
     "1D % Change": "-0.74%",
@@ -2097,9 +2305,9 @@
   },
   {
     "Ticker": "MU",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0a"
+      "$oid": "6980aad62d3e822ae2f5763e"
     },
     "Current Price": 414.88,
     "1D % Change": "-4.80%",
@@ -2141,9 +2349,9 @@
   },
   {
     "Ticker": "NEE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0b"
+      "$oid": "6980aad62d3e822ae2f5763f"
     },
     "Current Price": 87.9,
     "1D % Change": "-0.32%",
@@ -2162,7 +2370,7 @@
     "TSMOM_60_highlight": 0.0748,
     "Ex-Div Date": "2025-11-21",
     "Div Yield": 2.57,
-    "Analyst 1-yr Target": 92.64545,
+    "Analyst 1-yr Target": 92.69091,
     "1-yr 6% OTM PUT Price": 5.0,
     "Annual Yield Put Prem": 5.69,
     "3-mo Call Yield": 0.81,
@@ -2185,9 +2393,9 @@
   },
   {
     "Ticker": "NNE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0c"
+      "$oid": "6980aad62d3e822ae2f57640"
     },
     "Current Price": 29.395,
     "1D % Change": "-8.46%",
@@ -2234,10 +2442,86 @@
     "MA_200_highlight": -0.1425
   },
   {
-    "Ticker": "NUE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "NRDE",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0d"
+      "$oid": "6980aad62d3e822ae2f57641"
+    },
+    "Current Price": 1.43,
+    "1D % Change": "-2.72%",
+    "Market Cap (T$)": 2.3017704e-05,
+    "P/E": {
+      "$numberDouble": "NaN"
+    },
+    "YoY Price %": "13.5%",
+    "EMA_20": 1.43,
+    "HMA_20": 1.47,
+    "TSMOM_60": -0.2667,
+    "MA_30": 1.4,
+    "MA_60": 1.42,
+    "MA_120": 1.7,
+    "MA_200": 1.57,
+    "EMA_20_highlight": 0.0,
+    "HMA_20_highlight": -0.04000000000000004,
+    "TSMOM_60_highlight": -0.2667,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": {
+      "$numberDouble": "NaN"
+    },
+    "1-yr 6% OTM PUT Price": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Put Prem": {
+      "$numberDouble": "NaN"
+    },
+    "3-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "1-yr Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Call Prem": {
+      "$numberDouble": "NaN"
+    },
+    "Call/Put Skew": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Strike": {
+      "$numberDouble": "NaN"
+    },
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_90": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_180": {
+      "$numberDouble": "NaN"
+    },
+    "MA_30_highlight": 0.0214,
+    "MA_60_highlight": 0.007,
+    "MA_120_highlight": -0.1588,
+    "MA_200_highlight": -0.0892
+  },
+  {
+    "Ticker": "NUE",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57642"
     },
     "Current Price": 177.72,
     "1D % Change": "-1.22%",
@@ -2279,9 +2563,9 @@
   },
   {
     "Ticker": "NVDA",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0e"
+      "$oid": "6980aad62d3e822ae2f57643"
     },
     "Current Price": 191.13,
     "1D % Change": "-0.72%",
@@ -2323,9 +2607,9 @@
   },
   {
     "Ticker": "OKE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca0f"
+      "$oid": "6980aad62d3e822ae2f57644"
     },
     "Current Price": 79.19,
     "1D % Change": "0.80%",
@@ -2367,9 +2651,9 @@
   },
   {
     "Ticker": "OLN",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca10"
+      "$oid": "6980aad62d3e822ae2f57645"
     },
     "Current Price": 20.81,
     "1D % Change": "-6.85%",
@@ -2390,7 +2674,7 @@
     "TSMOM_60_highlight": 0.0379,
     "Ex-Div Date": "2025-11-28",
     "Div Yield": 3.84,
-    "Analyst 1-yr Target": 23.26667,
+    "Analyst 1-yr Target": 23.06667,
     "1-yr 6% OTM PUT Price": 3.0,
     "Annual Yield Put Prem": 14.42,
     "3-mo Call Yield": 8.17,
@@ -2413,9 +2697,9 @@
   },
   {
     "Ticker": "ORCL",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca11"
+      "$oid": "6980aad62d3e822ae2f57646"
     },
     "Current Price": 164.58,
     "1D % Change": "-2.62%",
@@ -2457,9 +2741,9 @@
   },
   {
     "Ticker": "PAAS",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca12"
+      "$oid": "6980aad62d3e822ae2f57647"
     },
     "Current Price": 54.6,
     "1D % Change": "-13.73%",
@@ -2501,9 +2785,9 @@
   },
   {
     "Ticker": "PFE",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca13"
+      "$oid": "6980aad62d3e822ae2f57648"
     },
     "Current Price": 26.44,
     "1D % Change": "1.30%",
@@ -2545,9 +2829,9 @@
   },
   {
     "Ticker": "PLTR",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca14"
+      "$oid": "6980aad62d3e822ae2f57649"
     },
     "Current Price": 146.59,
     "1D % Change": "-3.47%",
@@ -2593,9 +2877,9 @@
   },
   {
     "Ticker": "RIO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca15"
+      "$oid": "6980aad62d3e822ae2f5764a"
     },
     "Current Price": 91.03,
     "1D % Change": "-4.31%",
@@ -2636,10 +2920,60 @@
     "MA_200_highlight": 0.3587
   },
   {
-    "Ticker": "SCCO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "RXT",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca16"
+      "$oid": "6980aad62d3e822ae2f5764b"
+    },
+    "Current Price": 0.6116,
+    "1D % Change": "-3.23%",
+    "Market Cap (T$)": 0.000148980944,
+    "P/E": {
+      "$numberDouble": "NaN"
+    },
+    "YoY Price %": "-76.7%",
+    "EMA_20": 0.85,
+    "HMA_20": 0.67,
+    "TSMOM_60": -0.6102,
+    "MA_30": 0.93,
+    "MA_60": 1.03,
+    "MA_120": 1.22,
+    "MA_200": 1.25,
+    "EMA_20_highlight": -0.2805,
+    "HMA_20_highlight": -0.05840000000000001,
+    "TSMOM_60_highlight": -0.6102,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": 1.48333,
+    "1-yr 6% OTM PUT Price": 0.15,
+    "Annual Yield Put Prem": 24.53,
+    "3-mo Call Yield": 16.35,
+    "6-mo Call Yield": 24.53,
+    "1-yr Call Yield": 24.53,
+    "Annual Yield Call Prem": 4010.79,
+    "Call/Put Skew": 163.5055034651447,
+    "6-mo Call Strike": 1.0,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2026-08-21",
+    "_CallExpDate_365": "2026-08-21",
+    "_CallExpDate_90": "2026-05-15",
+    "_CallExpDate_180": "2026-08-21",
+    "MA_30_highlight": -0.3424,
+    "MA_60_highlight": -0.4062,
+    "MA_120_highlight": -0.4987,
+    "MA_200_highlight": -0.5107
+  },
+  {
+    "Ticker": "SCCO",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f5764c"
     },
     "Current Price": 190.32,
     "1D % Change": "-8.47%",
@@ -2658,7 +2992,7 @@
     "TSMOM_60_highlight": 0.3872,
     "Ex-Div Date": "2026-02-10",
     "Div Yield": 1.92,
-    "Analyst 1-yr Target": 146.4198,
+    "Analyst 1-yr Target": 149.3848,
     "1-yr 6% OTM PUT Price": 28.17,
     "Annual Yield Put Prem": 14.8,
     "3-mo Call Yield": 8.46,
@@ -2681,9 +3015,9 @@
   },
   {
     "Ticker": "SLB",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca17"
+      "$oid": "6980aad62d3e822ae2f5764d"
     },
     "Current Price": 48.38,
     "1D % Change": "-0.14%",
@@ -2702,7 +3036,7 @@
     "TSMOM_60_highlight": 0.3069,
     "Ex-Div Date": "2026-02-11",
     "Div Yield": 2.44,
-    "Analyst 1-yr Target": 53.79643,
+    "Analyst 1-yr Target": 53.83214,
     "1-yr 6% OTM PUT Price": 4.6,
     "Annual Yield Put Prem": 9.51,
     "3-mo Call Yield": 4.34,
@@ -2724,10 +3058,60 @@
     "MA_200_highlight": 0.3313
   },
   {
-    "Ticker": "SMG",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "SLV",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca18"
+      "$oid": "6980aad62d3e822ae2f5764e"
+    },
+    "Current Price": 75.44,
+    "1D % Change": "-28.54%",
+    "Market Cap (T$)": 0.025758988288,
+    "P/E": {
+      "$numberDouble": "NaN"
+    },
+    "YoY Price %": "164.6%",
+    "EMA_20": 84.5,
+    "HMA_20": 101.33,
+    "TSMOM_60": 0.7239,
+    "MA_30": 76.86,
+    "MA_60": 63.21,
+    "MA_120": 51.71,
+    "MA_200": 43.87,
+    "EMA_20_highlight": -0.1072,
+    "HMA_20_highlight": -25.89,
+    "TSMOM_60_highlight": 0.7239,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": 0.0,
+    "Analyst 1-yr Target": {
+      "$numberDouble": "NaN"
+    },
+    "1-yr 6% OTM PUT Price": 14.4,
+    "Annual Yield Put Prem": 19.09,
+    "3-mo Call Yield": 14.51,
+    "6-mo Call Yield": 15.91,
+    "1-yr Call Yield": 21.43,
+    "Annual Yield Call Prem": 28.41,
+    "Call/Put Skew": 1.4882137244630698,
+    "6-mo Call Strike": 80.0,
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": "2027-01-15",
+    "_CallExpDate_365": "2027-01-15",
+    "_CallExpDate_90": "2026-05-15",
+    "_CallExpDate_180": "2026-07-17",
+    "MA_30_highlight": -0.0185,
+    "MA_60_highlight": 0.1935,
+    "MA_120_highlight": 0.4589,
+    "MA_200_highlight": 0.7196
+  },
+  {
+    "Ticker": "SMG",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f5764f"
     },
     "Current Price": 64.22,
     "1D % Change": "-1.83%",
@@ -2769,9 +3153,9 @@
   },
   {
     "Ticker": "SMR",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca19"
+      "$oid": "6980aad62d3e822ae2f57650"
     },
     "Current Price": 17.48,
     "1D % Change": "-7.61%",
@@ -2818,10 +3202,82 @@
     "MA_200_highlight": -0.4339
   },
   {
-    "Ticker": "SPXS",
-    "Last Update": "2026-02-01 05:29:00",
+    "Ticker": "SPWR",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1a"
+      "$oid": "6980aad62d3e822ae2f57651"
+    },
+    "Current Price": 1.72,
+    "1D % Change": "-4.44%",
+    "Market Cap (T$)": 0.000192881456,
+    "P/E": 21.5,
+    "YoY Price %": "-6.0%",
+    "EMA_20": 1.77,
+    "HMA_20": 1.95,
+    "TSMOM_60": -0.0171,
+    "MA_30": 1.71,
+    "MA_60": 1.67,
+    "MA_120": 1.69,
+    "MA_200": 1.71,
+    "EMA_20_highlight": -0.0282,
+    "HMA_20_highlight": -0.23,
+    "TSMOM_60_highlight": -0.0171,
+    "Ex-Div Date": {
+      "$numberDouble": "NaN"
+    },
+    "Div Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Analyst 1-yr Target": 5.7,
+    "1-yr 6% OTM PUT Price": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Put Prem": {
+      "$numberDouble": "NaN"
+    },
+    "3-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "1-yr Call Yield": {
+      "$numberDouble": "NaN"
+    },
+    "Annual Yield Call Prem": {
+      "$numberDouble": "NaN"
+    },
+    "Call/Put Skew": {
+      "$numberDouble": "NaN"
+    },
+    "6-mo Call Strike": {
+      "$numberDouble": "NaN"
+    },
+    "Error": {
+      "$numberDouble": "NaN"
+    },
+    "_PutExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_365": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_90": {
+      "$numberDouble": "NaN"
+    },
+    "_CallExpDate_180": {
+      "$numberDouble": "NaN"
+    },
+    "MA_30_highlight": 0.0058,
+    "MA_60_highlight": 0.0299,
+    "MA_120_highlight": 0.0178,
+    "MA_200_highlight": 0.0058
+  },
+  {
+    "Ticker": "SPXS",
+    "Last Update": "2026-02-02 05:29:00",
+    "_id": {
+      "$oid": "6980aad62d3e822ae2f57652"
     },
     "Current Price": 34.21,
     "1D % Change": "1.03%",
@@ -2871,9 +3327,9 @@
   },
   {
     "Ticker": "STLD",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1b"
+      "$oid": "6980aad62d3e822ae2f57653"
     },
     "Current Price": 179.57,
     "1D % Change": "-1.32%",
@@ -2915,9 +3371,9 @@
   },
   {
     "Ticker": "T",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1c"
+      "$oid": "6980aad62d3e822ae2f57654"
     },
     "Current Price": 26.21,
     "1D % Change": "4.30%",
@@ -2959,9 +3415,9 @@
   },
   {
     "Ticker": "TECH",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1d"
+      "$oid": "6980aad62d3e822ae2f57655"
     },
     "Current Price": 64.09,
     "1D % Change": "0.17%",
@@ -3003,9 +3459,9 @@
   },
   {
     "Ticker": "TEM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1e"
+      "$oid": "6980aad62d3e822ae2f57656"
     },
     "Current Price": 59.82,
     "1D % Change": "-5.81%",
@@ -3053,9 +3509,9 @@
   },
   {
     "Ticker": "TMUS",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca1f"
+      "$oid": "6980aad62d3e822ae2f57657"
     },
     "Current Price": 197.21,
     "1D % Change": "4.19%",
@@ -3097,9 +3553,9 @@
   },
   {
     "Ticker": "TSLA",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca20"
+      "$oid": "6980aad62d3e822ae2f57658"
     },
     "Current Price": 430.41,
     "1D % Change": "3.32%",
@@ -3122,7 +3578,7 @@
     "Div Yield": {
       "$numberDouble": "NaN"
     },
-    "Analyst 1-yr Target": 415.8735,
+    "Analyst 1-yr Target": 418.76257,
     "1-yr 6% OTM PUT Price": 60.1,
     "Annual Yield Put Prem": 13.96,
     "3-mo Call Yield": 8.25,
@@ -3145,9 +3601,9 @@
   },
   {
     "Ticker": "TSM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca21"
+      "$oid": "6980aad62d3e822ae2f57659"
     },
     "Current Price": 330.56,
     "1D % Change": "-2.65%",
@@ -3189,9 +3645,9 @@
   },
   {
     "Ticker": "UPS",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca22"
+      "$oid": "6980aad62d3e822ae2f5765a"
     },
     "Current Price": 106.22,
     "1D % Change": "0.22%",
@@ -3233,9 +3689,9 @@
   },
   {
     "Ticker": "V",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca23"
+      "$oid": "6980aad62d3e822ae2f5765b"
     },
     "Current Price": 321.83,
     "1D % Change": "-3.00%",
@@ -3277,9 +3733,9 @@
   },
   {
     "Ticker": "VLO",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca24"
+      "$oid": "6980aad62d3e822ae2f5765c"
     },
     "Current Price": 181.43,
     "1D % Change": "-0.58%",
@@ -3321,9 +3777,9 @@
   },
   {
     "Ticker": "VSAT",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca25"
+      "$oid": "6980aad62d3e822ae2f5765d"
     },
     "Current Price": 45.17,
     "1D % Change": "-2.29%",
@@ -3371,9 +3827,9 @@
   },
   {
     "Ticker": "VST",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca26"
+      "$oid": "6980aad62d3e822ae2f5765e"
     },
     "Current Price": 158.35,
     "1D % Change": "-2.60%",
@@ -3415,9 +3871,9 @@
   },
   {
     "Ticker": "VZ",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca27"
+      "$oid": "6980aad62d3e822ae2f5765f"
     },
     "Current Price": 44.52,
     "1D % Change": "11.83%",
@@ -3436,7 +3892,7 @@
     "TSMOM_60_highlight": 0.1279,
     "Ex-Div Date": "2026-01-12",
     "Div Yield": 6.2,
-    "Analyst 1-yr Target": 47.34091,
+    "Analyst 1-yr Target": 47.56818,
     "1-yr 6% OTM PUT Price": 2.0,
     "Annual Yield Put Prem": 4.49,
     "3-mo Call Yield": 0.94,
@@ -3459,9 +3915,9 @@
   },
   {
     "Ticker": "WM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca28"
+      "$oid": "6980aad62d3e822ae2f57660"
     },
     "Current Price": 222.24,
     "1D % Change": "-0.40%",
@@ -3503,9 +3959,9 @@
   },
   {
     "Ticker": "WMT",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca29"
+      "$oid": "6980aad62d3e822ae2f57661"
     },
     "Current Price": 119.14,
     "1D % Change": "1.47%",
@@ -3547,9 +4003,9 @@
   },
   {
     "Ticker": "XOM",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca2a"
+      "$oid": "6980aad62d3e822ae2f57662"
     },
     "Current Price": 141.4,
     "1D % Change": "0.63%",
@@ -3591,9 +4047,9 @@
   },
   {
     "Ticker": "^DJI",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca2b"
+      "$oid": "6980aad62d3e822ae2f57663"
     },
     "Current Price": 48892.47,
     "1D % Change": "-0.36%",
@@ -3669,9 +4125,9 @@
   },
   {
     "Ticker": "^IXIC",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca2c"
+      "$oid": "6980aad62d3e822ae2f57664"
     },
     "Current Price": 23461.816,
     "1D % Change": "-0.94%",
@@ -3747,9 +4203,9 @@
   },
   {
     "Ticker": "^SPX",
-    "Last Update": "2026-02-01 05:29:00",
+    "Last Update": "2026-02-02 05:29:00",
     "_id": {
-      "$oid": "69800b8585fd4664fe60ca2d"
+      "$oid": "6980aad62d3e822ae2f57665"
     },
     "Current Price": 6939.03,
     "1D % Change": "-0.43%",

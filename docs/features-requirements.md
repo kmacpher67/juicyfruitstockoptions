@@ -82,13 +82,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Observability & Logging
 - [/] **Logging**: Implement logging for all backend services.  
-    - [/] Implement detailed DEBUG - **Style:** preface all logs with "{datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}"    the message text should tell the user what is happening (if possible, include the result of the action)
+    - [x] Implement detailed DEBUG - **Style:** preface all logs with "{datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}"    the message text should tell the user what is happening (if possible, include the result of the action)
 - [ ] **Logging**: Implement logging for all frontend services. 
     - [ ] Research centralized logging (e.g., sending frontend logs to backend API).
     - [ ] Implement React Error Boundary logging. 
-- [ ] **Structured Logging:** Use the standard `logging` library.
-- [ ] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
-- [ ] **Traceability:** Errors must provide context (e.g., "Failed to process file X due to Y").
+- [x] **Structured Logging:** Use the standard `logging` library.
+- [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
+- [ ] **Levels:** `TRACE` for verbose logging of internal state, `WARNING` for non-critical issues, `ERROR` for critical issues. `CRITICAL` for system failure. 
+- [ ] **Traceability:** Verify all errors provide context (e.g., "Failed to process file X due to Y").
 
 ---
 
@@ -100,11 +101,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Portfolio History Visualization**: Implement interactive time-series chart for NAV performance.
     - [ ] **Frontend**: Add graph component (e.g., Recharts) to "My Portfolio" view using data from `/portfolio/stats` (history field).
     - [ ] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
-    - [ ] **Ticker Analytics**: Sneak peek at the ticker analytics endpoint (ie: `/ticker/{symbol}`) to show the most recent stats for an individual ticker. 
+    - [ ] **Ticker Analytics**: Sneak peek at the ticker analytics endpoint (ie: `/ticker/{symbol}`) to show the most recent stats for an individual ticker. A modal window that pops up an overlay with 
     - [ ] **Opportunity Finder**: Implement Opportunity Finder (ie: `/opportunity/{symbol}`) to show the most recent stats for an individual ticker. 
     - [ ] **Portfolio Optimization**: Implement Portfolio Optimization (ie: `/portfolio/optimizer/{symbol}`) to show the most recent stats for an individual ticker. 
     - [x] **Bug Issue**: Adding stock ticker to analysis doesn't add the ticker to the active screen list, logs indicate a new file is created. A screen refresh reload shows this file at the top of the list. **Fixed**: Added job polling to `handleAddTicker` to wait for file generation and auto-refresh the report list.
     - [x] **Bug Issue**: UI for Portfolio could be wider so it doesn't require horizontal scrolling. Additionally the width of the Qty field is too wide for the size of qty and max size like doubtful that I would have more than 99,999 shares of a stock or option. Type field doesn't have to be that wide. Account doesn't need to be much wider than width of the title name. Whereas the ticker field would be better if it was wider **Fixed**: Optimized column widths in `PortfolioGrid.jsx`. Increased Ticker width (140->200), reduced Account, Qty, Type widths. Removed auto-flex to respect manual sizing. 
+    - [ ] **Frontend**: Create a new modal window that pops up an overlay with the ticker analytics, opportunity finder, and portfolio optimization data that uses all news, stock data, and option data to provide a comprehensive view of the ticker, all the anlytics and opportunity finder data should be in the modal window. Integration to agent chat allow the user ask questions about the ticker and get a response based on the data in the modal window. 
 
 - [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, Calendar } from 'lucide-react';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
@@ -25,6 +25,38 @@ const TradeHistory = () => {
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [timeRange, setTimeRange] = useState('ALL'); // ALL, MTD, 1M, 3M, 6M, YTD, 1Y
+
+    const calculateDateRange = (range) => {
+        const now = new Date();
+        let startDate = null;
+
+        if (range === 'ALL') return { start: null, end: null };
+
+        if (range === 'MTD') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        } else if (range === 'YTD') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+        } else if (range === '1M') {
+            startDate = new Date();
+            startDate.setMonth(now.getMonth() - 1);
+        } else if (range === '3M') {
+            startDate = new Date();
+            startDate.setMonth(now.getMonth() - 3);
+        } else if (range === '6M') {
+            startDate = new Date();
+            startDate.setMonth(now.getMonth() - 6);
+        } else if (range === '1Y') {
+            startDate = new Date();
+            startDate.setFullYear(now.getFullYear() - 1);
+        }
+
+        // Format YYYY-MM-DD
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = now.toISOString().split('T')[0];
+        return { start: startStr, end: endStr };
+    };
+
 
     const [colDefs] = useState([
         {
@@ -85,12 +117,17 @@ const TradeHistory = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [timeRange]);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/trades/analysis'); // Returns { trades: [], metrics: {} }
+            const { start, end } = calculateDateRange(timeRange);
+            const params = {};
+            if (start) params.start_date = start;
+            if (end) params.end_date = end;
+
+            const res = await api.get('/trades/analysis', { params }); // Returns { trades: [], metrics: {} }
             setRowData(res.data.trades);
             setMetrics(res.data.metrics);
         } catch (error) {
@@ -109,6 +146,22 @@ const TradeHistory = () => {
 
     return (
         <div className="flex flex-col gap-6">
+            {/* Controls */}
+            <div className="flex justify-end items-center gap-2">
+                <div className="flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700">
+                    <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                    {['ALL', 'MTD', '1M', '3M', '6M', 'YTD', '1Y'].map(range => (
+                        <button
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={`px-3 py-1 text-sm rounded transition-colors ${timeRange === range ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        >
+                            {range}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Metrics Section */}
             {metrics && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
