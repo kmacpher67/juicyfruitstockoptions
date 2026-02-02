@@ -101,6 +101,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Opportunity Finder**: Implement Opportunity Finder (ie: `/opportunity/{symbol}`) to show the most recent stats for an individual ticker. 
     - [ ] **Portfolio Optimization**: Implement Portfolio Optimization (ie: `/portfolio/optimizer/{symbol}`) to show the most recent stats for an individual ticker. 
     - [x] **Bug Issue**: Adding stock ticker to analysis doesn't add the ticker to the active screen list, logs indicate a new file is created. A screen refresh reload shows this file at the top of the list. **Fixed**: Added job polling to `handleAddTicker` to wait for file generation and auto-refresh the report list.
+    - [x] **Bug Issue**: UI for Portfolio could be wider so it doesn't require horizontal scrolling. Additionally the width of the Qty field is too wide for the size of qty and max size like doubtful that I would have more than 99,999 shares of a stock or option. Type field doesn't have to be that wide. Account doesn't need to be much wider than width of the title name. Whereas the ticker field would be better if it was wider **Fixed**: Optimized column widths in `PortfolioGrid.jsx`. Increased Ticker width (140->200), reduced Account, Qty, Type widths. Removed auto-flex to respect manual sizing. 
 
 
 - [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
@@ -133,6 +134,25 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Research `filterpy` or `pykalman` libraries.
     - [ ] Prototype Mean Reversion and Trend Following models using Kalman.
     - [ ] **Learning Opportunity**: .agent/workflows/learing-opportunity.md Is there a specific paper or reference strategy triggering the interest in Kalman Filters in trading, and portfolio management?
+- [ ] **PRICE ACTION**: Implement Price Action analysis. Integrate into Portfolio Management analysis views.
+    - [ ] Understand Market Movement 
+    - [ ] Market Structure (HH, HL, LH, LL) 
+    - [ ] Break of Structure (BOS) 
+    - [ ] Supply & Demand zones 
+    - [ ] Order Blocks (base) 
+    - [ ] Goal: Know 'why' price moves
+- [ ] **Stock Research**: Implement Stock Research module using Gemini AI.
+    - [ ] **Business Understanding**: Prompt Gemini to explain the business model, problem solved, and customer value proposition.
+    - [ ] **Revenue Breakdown**: Analyze revenue streams, segment growth, and product/customer dependencies.
+    - [ ] **Industry Context**: Evaluate industry maturity, long-term trends, and market dynamics.
+    - [ ] **Competitive Landscape**: Benchmark against competitors on pricing power, moats, and product strength.
+    - [ ] **Financial Quality**: Assess revenue consistency, margins, debt levels, and cash flow strength.
+    - [ ] **Risk & Downside**: Identify critical business, financial, and regulatory risks.
+    - [ ] **Management & Execution**: Evaluate historical execution and alignment with long-term shareholders.
+    - [ ] **Bull vs Bear Scenario**: Generate fundamental-based scenarios for the next 3-5 years.
+    - [ ] **Valuation Thinking**: Determine key valuation drivers and assumptions for multiple expansion/contraction.
+    - [ ] **Long-Term Thesis**: Synthesize a comprehensive investment thesis with clear "signs of being wrong."
+
 
 ### Strategy & Backtesting
 - [ ] **Backtesting Engine**:
