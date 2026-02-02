@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { X, TrendingUp, AlertTriangle, Lightbulb } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Lightbulb, Activity } from 'lucide-react';
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -88,6 +88,12 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     >
                         <AlertTriangle className="w-4 h-4" /> Optimizer
                     </button>
+                    <button
+                        onClick={() => setActiveTab('price_action')}
+                        className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'price_action' ? 'bg-gray-700 text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
+                    >
+                        <Activity className="w-4 h-4" /> Price Action
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -102,6 +108,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             {activeTab === 'analytics' && <AnalyticsView data={tickerData} />}
                             {activeTab === 'opportunity' && <OpportunityView data={opportunityData} />}
                             {activeTab === 'optimizer' && <OptimizerView data={optimizerData} />}
+                            {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
                         </>
                     )}
                 </div>
@@ -261,6 +268,86 @@ const OptimizerView = ({ data }) => {
                     </div>
                 </div>
             ))}
+        </div>
+    );
+};
+
+const PriceActionView = ({ data }) => {
+    if (!data?.data || !data.data["Price Action"]) return <div className="text-center text-gray-400 py-12">No Price Action data available.</div>;
+    const pa = data.data["Price Action"];
+    const structure = pa.structure || [];
+    const obs = pa.order_blocks || [];
+    const fvgs = pa.fvgs || [];
+
+    return (
+        <div className="space-y-6">
+            {/* Trend Header */}
+            <div className={`p-4 rounded-lg border-l-4 ${pa.trend === 'Bullish' ? 'bg-green-900 border-green-500' : pa.trend === 'Bearish' ? 'bg-red-900 border-red-500' : 'bg-gray-800 border-gray-500'}`}>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Activity className="w-6 h-6" />
+                    Trend: <span className={pa.trend === 'Bullish' ? 'text-green-300' : pa.trend === 'Bearish' ? 'text-red-300' : 'text-gray-300'}>{pa.trend}</span>
+                </h3>
+            </div>
+
+            {/* Structure Points */}
+            <div>
+                <h4 className="text-lg font-bold text-white mb-3">Recent Market Structure</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {structure.slice(-4).reverse().map((s, i) => (
+                        <div key={i} className="bg-gray-800 p-3 rounded text-center">
+                            <div className={`text-sm font-bold ${s.label.includes('H') && !s.label.includes('L') ? 'text-green-400' : s.label.includes('L') && !s.label.includes('H') ? 'text-red-400' : 'text-blue-400'}`}>
+                                {s.label}
+                            </div>
+                            <div className="text-white font-mono">${s.value}</div>
+                            <div className="text-xs text-gray-500">{new Date(s.date).toLocaleDateString()}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Order Blocks */}
+            <div>
+                <h4 className="text-lg font-bold text-white mb-3">Order Blocks</h4>
+                {obs.length > 0 ? (
+                    <div className="space-y-2">
+                        {obs.slice(-3).reverse().map((ob, i) => (
+                            <div key={i} className={`flex justify-between items-center p-3 rounded bg-gray-800 border-l-2 ${ob.type === 'Bullish' ? 'border-green-500' : 'border-red-500'}`}>
+                                <div>
+                                    <div className={`font-bold ${ob.type === 'Bullish' ? 'text-green-400' : 'text-red-400'}`}>{ob.type} OB</div>
+                                    <div className="text-xs text-gray-500">Origin of BOS at idx {ob.associated_bos_index}</div>
+                                </div>
+                                <div className="text-white font-mono text-sm">
+                                    ${ob.bottom} - ${ob.top}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-gray-500 italic">No recent Order Blocks detected.</div>
+                )}
+            </div>
+
+            {/* FVGs */}
+            <div>
+                <h4 className="text-lg font-bold text-white mb-3">Fair Value Gaps</h4>
+                {fvgs.length > 0 ? (
+                    <div className="space-y-2">
+                        {fvgs.slice(-3).reverse().map((fvg, i) => (
+                            <div key={i} className={`flex justify-between items-center p-3 rounded bg-gray-800 border-l-2 ${fvg.type === 'Bullish' ? 'border-green-500' : 'border-red-500'}`}>
+                                <div>
+                                    <div className={`font-bold ${fvg.type === 'Bullish' ? 'text-green-400' : 'text-red-400'}`}>{fvg.type} FVG</div>
+                                    <div className="text-xs text-gray-500">{new Date(fvg.date).toLocaleDateString()}</div>
+                                </div>
+                                <div className="text-white font-mono text-sm">
+                                    ${fvg.bottom} - ${fvg.top}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-gray-500 italic">No active FVG detected.</div>
+                )}
+            </div>
         </div>
     );
 };

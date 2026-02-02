@@ -65,7 +65,14 @@ def test_fetch_ticker_record(monkeypatch):
         "targetMeanPrice": 120,
         "exDividendDate": 1710000000,
     }
-    hist = pd.DataFrame({"Close": [90, 100]})
+    hist = pd.DataFrame({
+        "Close": [90, 100],
+        "High": [92, 102],
+        "Low": [88, 98],
+        "Open": [89, 99],
+        "Volume": [1000, 1000],
+        "Date": pd.date_range("2023-01-01", periods=2)
+    })
     record = comp.fetch_ticker_record("AAA", info, hist, DummyChain())
     assert record["Ticker"] == "AAA"
     assert record["1D % Change"] == "11.11%"
@@ -204,6 +211,7 @@ def test_get_missing_or_outdated_tickers():
             "Last Update": "2025-01-01 11:00:00",
             "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
             "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+            "RSI_14": 50, "ATR_14": 1.5, "Price Action": {},
             "_PutExpDate_365": "2026-01-01"
         },
         {
@@ -211,6 +219,7 @@ def test_get_missing_or_outdated_tickers():
             "Last Update": "2025-01-01 06:00:00", # 6 hours old
             "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
             "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+            "RSI_14": 50, "ATR_14": 1.5, "Price Action": {},
              "_PutExpDate_365": "2026-01-01"
         },
         {
@@ -251,6 +260,7 @@ def test_run_merge_logic(monkeypatch, tmp_path, caplog):
             "Annual Yield Call Prem": 5,
              "MA_30": 100, "MA_60": 100, "MA_120": 100, "MA_200": 100,
             "EMA_20": 100, "HMA_20": 100, "TSMOM_60": 0.05,
+            "RSI_14": 50, "ATR_14": 1.5, "Price Action": "{}",
              "_PutExpDate_365": "2026-01-01"
         }
     ])

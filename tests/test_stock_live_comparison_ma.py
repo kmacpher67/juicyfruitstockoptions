@@ -3,7 +3,13 @@ from stock_live_comparison import StockLiveComparison
 import pytest
 
 def make_hist(prices):
-    return pd.DataFrame({'Close': prices})
+    df = pd.DataFrame({'Close': prices})
+    df['High'] = prices
+    df['Low'] = prices
+    df['Open'] = prices
+    df['Volume'] = 1000
+    df['Date'] = pd.date_range("2023-01-01", periods=len(prices))
+    return df
 
 def test_calculate_moving_averages_positive():
     hist = make_hist([1]*200)

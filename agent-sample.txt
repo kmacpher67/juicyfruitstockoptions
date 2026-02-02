@@ -1,0 +1,14 @@
+{put link to convo in @features-requirements.md#L120 }
+
+Cross reference other features and requirements and follow all the internal rules and features and requirements specificed within the document. 
+Implement any other features which are predicates to completing this feature. 
+New questions arise or additional features are identified add those to the feature-requirements doc. 
+
+Cross reference the other related documents. 
+Any of the sub features not completed explain why they were not address and offer next steps to complete all of this. Add any qestions regarding how/or what to the features-requrements doc regarding the incompleted or partially completed items.
+
+Follow all the rules in global germini.md and all the rules in workspace 
+.agent/workflows/create-a-plan.md
+.agent/workflows/learing-opportunity.md
+.agent/workflows/misson.md
+.agent/workflows/test-coverage.md

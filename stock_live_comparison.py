@@ -8,6 +8,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment
 from Ai_Stock_Database import AiStockDatabase
 from export_mongo import export_data
+from app.services.price_action_service import PriceActionService
 
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
@@ -186,6 +187,14 @@ class StockLiveComparison:
         rsi_14 = self.calculate_rsi(ticker_hist['Close'], period=14) if ticker_hist is not None else None
         atr_14 = self.calculate_atr(ticker_hist['High'], ticker_hist['Low'], ticker_hist['Close'], period=14) if ticker_hist is not None else None
 
+        # Price Action Analysis
+        price_action = {}
+        if ticker_hist is not None and not ticker_hist.empty:
+            try:
+                price_action = PriceActionService.analyze_ticker(ticker_hist)
+            except Exception as e:
+                self.logger.error(f"Price Action Error for {ticker}: {e}")
+
         # Moving averages and highlight status
         ma_windows = (30, 60, 120, 200)
         ma_dict = self.calculate_moving_averages(ticker_hist, windows=ma_windows)
@@ -230,6 +239,7 @@ class StockLiveComparison:
             "_CallExpDate_365": call_date12,
             "_CallExpDate_90": call_date3,
             "_CallExpDate_180": call_date6,
+            "Price Action": price_action,
         }
         # Add moving averages and highlight info
         record.update(ma_dict)

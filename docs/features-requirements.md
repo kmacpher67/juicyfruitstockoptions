@@ -118,7 +118,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [/] **Frontend**: Create a new modal window that pops up an overlay with the ticker analytics, opportunity finder, and portfolio optimization data that uses all news, stock data, and option data to provide a comprehensive view of the ticker, all the anlytics and opportunity finder data should be in the modal window. Integration to agent chat allow the user ask questions about the ticker and get a response based on the data in the modal window. 
     - [ ] **Ticker Details** Should aggregate News and details 
     - [ ] **Ticker Details** Should aggregate Opportunity Finder data 
-    - [ ] **Ticker Details** Should aggregate Portfolio Optimization data 
+- [ ] **My Portfolio** Window screen size seems smaller than the analysis page causing the grid to have to horizontally scroll.  Can we increase the size of the screen size of the My Portfolio page to match the analysis page or the size of the screen, we have plenty of extra room. What's logical given we are going to be adding features and ui stuff?  
 
 - [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
@@ -154,12 +154,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Research `filterpy` or `pykalman` libraries.
     - [ ] Prototype Mean Reversion and Trend Following models using Kalman.
     - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
-- [ ] **PRICE ACTION**: Implement Price Action analysis. Integrate into Portfolio Management analysis views.
-    - [ ] Understand Market Movement 
-    - [ ] Market Structure (HH, HL, LH, LL) 
-    - [ ] Break of Structure (BOS) 
-    - [ ] Supply & Demand zones 
-    - [ ] Order Blocks (base) 
+- [/] **PRICE ACTION**: Implement Price Action analysis. Integrate into Portfolio Management analysis views.
+    - [x] **Analysis Plan**: See [Implementation Plan](plans/implementation_plan-20260202-price-action.md) and [Concepts](learning/price-action-concepts.md).
+    - [/] Understand Market Movement 
+    - [/] Market Structure (HH, HL, LH, LL) - *Using ZigZag Algorithm (n=5)*
+    - [/] Break of Structure (BOS) - *Body Candle Close*
+    - [/] Supply & Demand zones - *Fair Value Gaps (FVG)*
+    - [/] Order Blocks (base) - *Validated by FVG*
     - [ ] Goal: Know 'why' price moves
 - [ ] **Stock Research**: Implement Stock Research module using Gemini AI.
     - [ ] **Business Understanding**: Prompt Gemini to explain the business model, problem solved, and customer value proposition.

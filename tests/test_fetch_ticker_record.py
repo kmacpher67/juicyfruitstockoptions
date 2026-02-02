@@ -9,7 +9,14 @@ def mock_chain():
 
 def test_fetch_ticker_record_ma_and_highlight(mock_chain, monkeypatch):
     comp = StockLiveComparison([])
-    hist = pd.DataFrame({'Close': [100]*200})
+    hist = pd.DataFrame({
+        'Close': [100]*200,
+        'High': [100]*200,
+        'Low': [100]*200,
+        'Open': [100]*200,
+        'Volume': [1000]*200,
+        'Date': pd.date_range("2023-01-01", periods=200)
+    })
     info = {
         'regularMarketPrice': 90, 
         'marketCap': 1e12, 
