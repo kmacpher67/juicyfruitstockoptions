@@ -1,6 +1,8 @@
 import yfinance as yf
 from datetime import datetime, timedelta
 import logging
+import pandas as pd
+from app.utils.greeks_calculator import GreeksCalculator
 
 class RollService:
     def __init__(self):
@@ -80,7 +82,28 @@ class RollService:
                 # For Covered Calls: Generally want Strike >= Current Strike (Up & Out) or Strike >= Current Price
                 # Let's simple filter: Strike >= Current Strike
                 
-                candidates = df[df['strike'] >= current_strike]
+                candidates = df[df['strike'] >= current_strike].copy()
+                
+                if not candidates.empty:
+                    # Calculate Greeks for the batch
+                    # 1. Add Type
+                    candidates['type'] = 'c' if position_type == "call" else 'p'
+                    
+                    # 2. Add Time to Expiry (years)
+                    # d is String YYYY-MM-DD
+                    exp_dt = datetime.strptime(d, "%Y-%m-%d")
+                    # Use current time vs expiry time (approx 16:00)
+                    now = datetime.utcnow()
+                    diff = exp_dt - now
+                    # Ensure positive
+                    days = max(diff.days, 0)
+                    years = days / 365.0
+                    if years == 0: years = 1/365.0 # At least 1 day for math stability
+                    
+                    candidates['time_to_expiry_years'] = years
+                    
+                    # 3. Calculate
+                    candidates = GreeksCalculator.calculate_dataframe(candidates, current_price)
                 
                 for index, row in candidates.iterrows():
                     new_strike = row['strike']
@@ -103,9 +126,13 @@ class RollService:
                              "cost_to_close": cost_to_close,
                              "net_credit": round(net_credit, 2),
                              "roll_type": roll_type,
-                             "days_extended": days_diff
+                             "days_extended": days_diff,
+                             "delta": float(row.get('delta', 0)),
+                             "gamma": float(row.get('gamma', 0)),
+                             "theta": float(row.get('theta', 0))
                          })
-            except:
+            except Exception as e:
+                logging.error(f"Error processing chain for {d}: {e}")
                 continue
                 
         # Sort by Net Credit descending

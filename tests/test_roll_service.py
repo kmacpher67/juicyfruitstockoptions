@@ -26,9 +26,9 @@ def test_find_rolls_calls(mock_yf_ticker):
     # New Chain for 2025-02-21
     new_df = pd.DataFrame([
         # Strike 100 (Calendar Roll)
-        {'strike': 100.0, 'ask': 7.0, 'bid': 6.8, 'lastPrice': 6.9},
+        {'strike': 100.0, 'ask': 7.0, 'bid': 6.8, 'lastPrice': 6.9, 'impliedVolatility': 0.2, 'time_to_expiry_years': 0.1},
         # Strike 105 (Up and Out)
-        {'strike': 105.0, 'ask': 4.0, 'bid': 3.8, 'lastPrice': 3.9}
+        {'strike': 105.0, 'ask': 4.0, 'bid': 3.8, 'lastPrice': 3.9, 'impliedVolatility': 0.2, 'time_to_expiry_years': 0.1}
     ])
     mock_new_chain = MagicMock()
     mock_new_chain.calls = new_df
@@ -55,6 +55,9 @@ def test_find_rolls_calls(mock_yf_ticker):
     cal_roll = next(r for r in rolls if r["strike"] == 100.0)
     assert cal_roll["net_credit"] == 1.8
     assert cal_roll["roll_type"] == "Roll Out"
+    assert "delta" in cal_roll
+    assert "gamma" in cal_roll
+    assert "theta" in cal_roll
     
     # Check Up and Out Roll (Strike 105)
     # Sell Bid 3.8 - Buy Ask 5.0 = -1.2 Debit

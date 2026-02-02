@@ -139,14 +139,25 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Opportunity Scoring Rubric**: See [Opportunity Scoring](learning/opportunity-scoring.md). Defines the 0-100 rating scale and factors (IV, Trend, Liquidity). 
     - [x] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
         - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
+        - [x] **Greeks Data Ingestion (Analysis)**: Determined that `yfinance` does not provide Greeks. Created [Greeks Ingestion Strategy](../docs/learning/greeks-data-ingestion.md) detailing how to calculate them using Black-Scholes (`py_vollib`).
+        - [x] **Greeks Implementation**:
+            - [x] **Dependencies**: Add `py_vollib_vectorized` to `requirements.txt`.
+            - [x] **Calculator Util**: Create `app/utils/greeks_calculator.py` to process DataFrames.
+            - [x] **Service Update**: Integrate calculator into `RollService` to enrich option chains with Delta/Gamma/Theta.
         - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
         - [x] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
+        - [ ] **Add to UI**: Incorporate into the app, likely the opportunity finder section of the ticker modal and the portfolio view.
+        - [x] **Smart Roll Strategy**: See [Smart Roll & Diagonal Strategy](learning/smart-roll-diagonal.md). Defines heuristics for Short Duration (<10 days), Credit Priority, and Strike Improvement.
     - [x] Screen for call buying opportunities (momentum).
-    - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls.
+    - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls. Add this to the opportunity finder section of the ticker modal and the portfolio view.
     - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
     - [x] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
     - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
+    - [ ] Build a News Aggregator to fetch news events and store them in a database.
+    - [ ] **News headlines and Senitiments**: similar to "Sea Limited (SE) faces mixed investor sentiment amid a 7.5% recent share price decline and concerns over profitability versus growth investments. Despite a 38% revenue growth, the stock is currently perceived as overvalued by some analysts. Updated 9m ago · Powered by Yahoo Scout"
+    - [ ] **Sentiment**: write a sentiment analysis module using `transformers` or `nltk`. 
+    - [ ] **Sentiment**: write a learning features document for sentiment and headlines  .agent/workflows/learing-opportunity.md Same or extra doc as here: @features-requirements.md#L163 
     - [ ] Fetch Macro indicators (Fred API? Inflation, Interest Rates).
     - [ ] Create "Impact Score" for news events on portfolio tickers.
     - [ ] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 

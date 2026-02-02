@@ -37,6 +37,11 @@ class TradeRecord(BaseModel):
     date_time: Optional[str] = Field(None, alias="DateTime")
     quantity: Optional[float] = Field(0.0, alias="Quantity")
     
+    # Option Greeks
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    theta: Optional[float] = None
+    
     # Allow extra fields for ODS pattern (Store Everything)
     # Allow population by internal name (snake_case) or alias (CamelCase)
     model_config = {"extra": "allow", "populate_by_name": True}
