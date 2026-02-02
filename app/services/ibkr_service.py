@@ -151,9 +151,9 @@ def parse_csv_holdings(csv_str):
     """Parse IBKR Flex CSV for Holdings."""
     import csv
     import io
+    import re
     
     # IBKR CSVs sometimes have pre-headers or blank lines.
-    # We look for the header line starting with "Symbol" or similar.
     lines = csv_str.splitlines()
     start_idx = 0
     for i, line in enumerate(lines):
@@ -164,49 +164,91 @@ def parse_csv_holdings(csv_str):
     reader = csv.DictReader(lines[start_idx:])
     positions = []
     
+    # Pre-compile regex for OCC symbols if needed
+    # OCC Format: Root (6 chars) + Year(2) + Month(2) + Day(2) + Type(1) + Strike(8)
+    # Example: "AMD   260206C00230000" (Space padded root?)
+    # Actually usually Root is padded to 6 spaces.
+    
     for row in reader:
-        # IBKR CSV keys might be quoted? DictReader handles standard CSV.
-        # Map fields. keys are case sensitive based on CSV header.
-        if not row.get("Symbol"): continue # Skip empty rows
-        if row.get("Symbol") in ["EOS", "EOA", "EOF"]: continue # Skip IBKR End-of-Section markers
+        if not row.get("Symbol"): continue 
+        if row.get("Symbol") in ["EOS", "EOA", "EOF"]: continue 
         
         try:
-            doc = {
-                "date": datetime.utcnow(),
-                "report_date": datetime.utcnow().strftime("%Y-%m-%d"), # CSV doesn't always have report date in row
-                "account_id": row.get("ClientAccountID") or row.get("AccountId"),
-                "symbol": row.get("Symbol"),
-                "underlying_symbol": row.get("UnderlyingSymbol") or row.get("Symbol"),
-                "asset_class": row.get("AssetClass"),
-                "quantity": float(row.get("Quantity", 0)),
-                "cost_basis": float(row.get("CostBasisPrice", 0)),
-                "market_price": float(row.get("MarkPrice", 0)),
-                "market_value": float(row.get("PositionValue") or row.get("MarkValue", 0)),
-                "percent_of_nav": float(row.get("PercentOfNAV", 0)) / 100.0, # XML usually gave 0.05, check if CSV gives 5.0?
-                "unrealized_pnl": float(row.get("FifoPnlUnrealized", 0))
-            }
-            # Adjust percent if it looked like integer (e.g. 5.0 vs 0.05)
-            # The Example User file shows "6.07" for 6%. So /100 is likely correct if we want 0.06
-            if doc["percent_of_nav"] > 1.0: # If it was 6.07, dividing by 100 gives 0.0607.
-                 # Actually in XML it was usually unit scale? Let's assume % for now.
-                 pass
-                 
+            # 1. Start with ALL data from the row
+            doc = dict(row)
+            
+            # 2. Add Normalized Types for App Logic
+            doc["date"] = datetime.utcnow()
+            doc["report_date"] = datetime.utcnow().strftime("%Y-%m-%d")
+            
+            # Key Mapping for internal consistency
+            doc["symbol"] = row.get("Symbol") # Normalization for querying
+            doc["account_id"] = row.get("ClientAccountID") or row.get("AccountId")
+            doc["quantity"] = float(row.get("Quantity", 0))
+            
+            # 3. Enhanced Options Parsing (OCC Symbol)
+            # If AssetClass is OPT or symbol looks like OCC
+            sym = doc["symbol"]
+            
+            if row.get("AssetClass") in ["OPT", "FOP"] or len(sym) >= 21:
+                # Attempt Parse
+                # Format: Root(6) YYMMDD T SSSSSSSS (Total 21?)
+                # IBKR sometimes removes spaces? 
+                # Debug output showed: "AMD   260206C00230000" (3 spaces after AMD)
+                # AMD (3) + 3 spaces = 6. 
+                # 260206 (6)
+                # C (1)
+                # 00230000 (8)
+                # Total 6+6+1+8 = 21. Correct.
+                
+                if len(sym) >= 21:
+                    try:
+                        root = sym[0:6].strip()
+                        date_str = sym[6:12]
+                        right = sym[12]
+                        strike_str = sym[13:]
+                        
+                        # Normalize Expiry
+                        exp_date = datetime.strptime(date_str, "%y%m%d").strftime("%Y-%m-%d")
+                        
+                        # Normalize Strike (implied decimal places? usually / 1000)
+                        strike = float(strike_str) / 1000.0
+                        
+                        doc["secType"] = "OPT"
+                        doc["underlying_symbol"] = root
+                        doc["expiry"] = exp_date # YYYY-MM-DD
+                        doc["strike"] = strike
+                        doc["right"] = right # C or P
+                        
+                    except Exception as e:
+                        # Log but don't fail row
+                        logging.warning(f"Failed to parse OCC symbol {sym}: {e}")
+            
+            # Metrics
+            doc["cost_basis"] = float(row.get("CostBasisPrice", 0))
+            doc["market_price"] = float(row.get("MarkPrice", 0))
+            doc["market_value"] = float(row.get("PositionValue") or row.get("MarkValue", 0))
+            doc["unrealized_pnl"] = float(row.get("FifoPnlUnrealized", 0))
+            
+            # Percent NAV handling
+            p_nav = float(row.get("PercentOfNAV", 0))
+            if abs(p_nav) > 1.0: p_nav = p_nav / 100.0 # Normalize 6.0 -> 0.06
+            doc["percent_of_nav"] = p_nav
+
             positions.append(doc)
         except ValueError:
-            continue # Skip summary rows or malformed numbers
+            continue
 
     if positions:
         client = MongoClient(settings.MONGO_URI)
         db = client.get_default_database("stock_analysis")
         
-        # Store as discrete snapshot
-        # Using the first record's ingestion time as the ID for the whole batch
         snapshot_id = positions[0]["date"]
         for p in positions:
             p["snapshot_id"] = snapshot_id
             
         db.ibkr_holdings.insert_many(positions)
-        logging.info(f"Stored {len(positions)} holdings (CSV) in snapshot {snapshot_id}.")
+        logging.info(f"Stored {len(positions)} holdings in snapshot {snapshot_id} (Full Data).")
     else:
         logging.warning("No positions found in CSV.")
 
@@ -220,44 +262,57 @@ def parse_and_store_holdings(content):
 def parse_xml_holdings(xml_content):
     """
     Parse 'Daily_Portfolio' XML and store snapshot.
-    Expected Fields: Symbol, Quantity, CostBasis, ClosePrice, Value, etc.
     """
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
     root = ET.fromstring(xml_content)
-    # Structure depends on Flex Query Config. Assuming "OpenPositions" section.
-    # We look for <OpenPositions> -> <OpenPosition ... />
-    
     positions = []
-    # Flex queries often wrap in FlexStatements -> FlexStatement -> OpenPositions
+    
     for pos in root.findall(".//OpenPosition"):
-        # Extract attributes handling various Flex XML schemas
         data = pos.attrib
         
-        # Normalize Data
-        doc = {
-            "date": datetime.utcnow(), # Timestamp of ingestion
-            "report_date": root.find(".//FlexStatement").attrib.get("date") if root.find(".//FlexStatement") is not None else datetime.utcnow().strftime("%Y-%m-%d"),
-            "account_id": data.get("accountId"),
-            "symbol": data.get("symbol"),
-            "quantity": float(data.get("position", 0)),
-            "cost_basis": float(data.get("costBasisPrice", 0)),
-            "market_price": float(data.get("markPrice", 0)),
-            "market_value": float(data.get("markValue", 0)),
-            "percent_of_nav": float(data.get("percentOfNAV", 0)) if data.get("percentOfNAV") else 0.0,
-            "unrealized_pnl": float(data.get("fifoPnlUnrealized", 0))
-        }
+        # 1. Start with Raw Data
+        doc = dict(data)
+        
+        # 2. Normalize
+        doc["date"] = datetime.utcnow()
+        doc["report_date"] = root.find(".//FlexStatement").attrib.get("date") if root.find(".//FlexStatement") is not None else datetime.utcnow().strftime("%Y-%m-%d")
+        doc["symbol"] = data.get("symbol")
+        doc["quantity"] = float(data.get("position", 0))
+        doc["market_value"] = float(data.get("markValue", 0))
+        doc["unrealized_pnl"] = float(data.get("fifoPnlUnrealized", 0))
+        
+        # 3. OCC Parsing (XML usually has breakdown, but if symbol is OCC string, parse it)
+        sym = doc["symbol"]
+        if sym and len(sym) >= 21:
+             try:
+                root_sym = sym[0:6].strip()
+                date_str = sym[6:12]
+                right = sym[12]
+                strike_str = sym[13:]
+                
+                doc["secType"] = "OPT"
+                doc["expiry"] = datetime.strptime(date_str, "%y%m%d").strftime("%Y-%m-%d")
+                doc["strike"] = float(strike_str) / 1000.0
+                doc["right"] = right
+             except:
+                pass
+        
+        # If XML has explicit fields (sometimes it does depending on configuration)
+        if data.get("expiry"): doc["expiry"] = data.get("expiry") # Override if explicit
+        if data.get("strike"): doc["strike"] = float(data.get("strike"))
+        if data.get("putCall"): doc["right"] = data.get("putCall")
+
         positions.append(doc)
 
     if positions:
-        # Store as discrete snapshot
         snapshot_id = positions[0]["date"]
         for p in positions:
             p["snapshot_id"] = snapshot_id
             
         db.ibkr_holdings.insert_many(positions)
-        logging.info(f"Stored {len(positions)} holding records in snapshot {snapshot_id}.")
+        logging.info(f"Stored {len(positions)} holding records in snapshot {snapshot_id} (Full Data).")
     else:
         logging.warning("No positions found in Flex XML.")
 

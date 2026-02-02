@@ -129,13 +129,23 @@ class RollService:
         now = datetime.utcnow()
         
         for item in portfolio_items:
-            # Filter for Short Calls
-            if item.get("secType") not in ["OPT", "FOP"]: continue
-            if item.get("quantity", 0) >= 0: continue # Must be short
-            if item.get("right") != "C": continue # Calls only for now
+            # Check for Options (OPT/FOP) or explicit secType
+            sec_type = item.get("secType") or item.get("asset_class")
+            
+            # Simple check: If we have an 'expiry' field, it's likely an option we parsed
+            if not item.get("expiry"): 
+                 if sec_type not in ["OPT", "FOP"]: continue
+            
+            # Must be Short
+            if item.get("quantity", 0) >= 0: continue 
+
+            # Must be Call (for now)
+            # Check parse 'right' (C/P) or 'putCall' (Put/Call)
+            right = item.get("right") or item.get("putCall")
+            if str(right).upper() not in ["C", "CALL"]: continue
             
             # Parse Expiry
-            exp_str = item.get("expiry") # YYYYMMDD or YYYY-MM-DD
+            exp_str = item.get("expiry") # YYYY-MM-DD from parser
             if not exp_str: continue
             
             try:
@@ -144,8 +154,12 @@ class RollService:
                      exp_dt = datetime.strptime(exp_str, "%Y%m%d")
                      exp_fmt = exp_dt.strftime("%Y-%m-%d")
                 else:
-                     exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
-                     exp_fmt = exp_str
+                     try:
+                        exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
+                        exp_fmt = exp_str
+                     except:
+                        # Fallback for other formats? 
+                        continue
                 
                 # Check Duration Window
                 days_to_exp = (exp_dt - now).days
@@ -153,16 +167,21 @@ class RollService:
                     continue # Skip far out options
                 
                 # Find Rolls
-                symbol = item.get("symbol")
+                # Use underlying symbol if parsed
+                symbol = item.get("underlying_symbol") or item.get("symbol")
+                # If symbol is still the long string, we might have issues fetching data. 
+                # But 'underlying_symbol' should have been populated by parser.
+                
+                if len(symbol) > 6 and not item.get("underlying_symbol"):
+                     # Try to strip if parser failed?
+                     symbol = symbol[:6].strip()
+                
                 strike = float(item.get("strike", 0))
                 
                 current_pos = {
                     "strike": strike,
-                    "average_cost": float(item.get("averageCost", 0)) 
+                    "average_cost": float(item.get("averageCost") or item.get("cost_basis") or 0) 
                 }
-                
-                # Fetch Realtime Price for Context needed? 
-                # find_rolls does it internally.
                 
                 res = self.find_rolls(symbol, strike, exp_fmt, position_type="call", current_pos_context=current_pos)
                 

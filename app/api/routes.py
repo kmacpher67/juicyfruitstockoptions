@@ -618,7 +618,7 @@ def analyze_rolls(
     return result
 
 # --- Ticker & Opportunity Analysis ---
-@router.get("/api/analysis/rolls")
+@router.get("/analysis/rolls")
 def analyze_smart_rolls(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -666,86 +666,105 @@ def get_ticker_news(
 
 # --- X-DIV & Calendar Endpoints ---
 
-@router.get("/api/analysis/dividend-capture")
+@router.get("/analysis/dividend-capture")
 def scan_dividend_capture(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
-    """
-    Scan portfolio tickers (and watchlist?) for upcoming Dividend Capture opportunities.
-    """
-    # 1. Get Tickers from Portfolio
-    client = MongoClient(settings.MONGO_URI)
-    db = client.get_default_database("stock_analysis")
-    
-    # Get distinct symbols from latest holdings
-    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-    symbols = []
-    if latest:
-        query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
-        holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
-        symbols = list(set([h["symbol"] for h in holdings]))
-    
-    # Add some common high dividend tickers for discovery if list is small?
-    # For now just portfolio.
-    
-    if not symbols:
-        return []
+    logging.info(f"User {current_user.username} requested Dividend Capture Scan.")
+    try:
+        # 1. Get Tickers from Portfolio
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
         
-    from app.services.dividend_scanner import DividendScanner
-    scanner = DividendScanner()
-    return scanner.scan_dividend_capture_opportunities(symbols)
+        # Get distinct symbols from latest holdings
+        latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+        symbols = []
+        if latest:
+            query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+            holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
+            symbols = list(set([h["symbol"] for h in holdings]))
+            logging.info(f"Scanning {len(symbols)} tickers from portfolio snapshot.")
+        else:
+            logging.warning("No portfolio holdings found.")
+        
+        if not symbols:
+            return []
+            
+        from app.services.dividend_scanner import DividendScanner
+        scanner = DividendScanner()
+        results = scanner.scan_dividend_capture_opportunities(symbols)
+        logging.info(f"Scan complete. Found {len(results)} opportunities.")
+        return results
+    except Exception as e:
+        logging.error(f"Error in scan_dividend_capture: {e}", exc_info=True)
+        # Raise generic 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/api/calendar/dividends.ics")
-def get_dividend_calendar(
-    current_user: Annotated[User, Depends(get_current_active_user)] # Can make this public with token param if needed for GCal
-):
+@router.get("/calendar/dividends.ics")
+def get_dividend_calendar():
     """
-    Generate an ICS calendar file with upcoming Ex-Dividend dates for the portfolio.
+    Generate an ICS calendar file (or text fallback) with upcoming Ex-Dividend dates.
     """
-    from ics import Calendar, Event
     import yfinance as yf
     from datetime import datetime, timedelta
-    
+    from fastapi.responses import Response
+
     # 1. Get Symbols
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
+    
     latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
     symbols = []
     if latest:
         query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
         holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
         symbols = list(set([h["symbol"] for h in holdings]))
-
-    # 2. Create Calendar
-    c = Calendar()
-    c.creator = "JuicyFruitOptions"
     
     now = datetime.utcnow()
-    
+    events_data = []
+
+    # 2. Fetch Data
     for symbol in symbols:
         try:
-            # Use cached scanner logic or direct fetch? Direct fetch for now.
-            # Ideally we cache this info in DB.
             ticker = yf.Ticker(symbol)
             ts = ticker.info.get("exDividendDate")
             if ts:
                  dt = datetime.fromtimestamp(ts)
-                 if dt > now - timedelta(days=30): # Include recent past?
-                     e = Event()
-                     e.name = f"Ex-Div: {symbol}"
-                     e.begin = dt.strftime("%Y-%m-%d")
-                     e.make_all_day()
-                     # Description
+                 if dt > now - timedelta(days=30): 
                      rate = ticker.info.get("dividendRate", 0)
-                     e.description = f"Annual Rate: ${rate}\nEst Qtr: ${rate/4}"
-                     c.events.add(e)
+                     events_data.append({
+                         "symbol": symbol,
+                         "date": dt,
+                         "rate": rate
+                     })
         except:
              pass
+
+    # 3. Generate Output (ICS or Text)
+    try:
+        from ics import Calendar, Event
+        c = Calendar()
+        c.creator = "JuicyFruitOptions"
+        
+        for e_data in events_data:
+             e = Event()
+             e.name = f"Ex-Div: {e_data['symbol']}"
+             # Ensure date is string YYYY-MM-DD
+             e.begin = e_data['date'].strftime("%Y-%m-%d")
+             e.make_all_day()
+             e.description = f"Annual Rate: ${e_data['rate']}\nEst Qtr: ${e_data['rate']/4}"
+             c.events.add(e)
              
-    # Return file
-    from fastapi.responses import Response
-    return Response(content=str(c), media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=dividends.ics"})
+        return Response(content=str(c), media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=dividends.ics"})
+        
+    except ImportError:
+        # Fallback to Plain Text / CSV as requested if ICS missing
+        lines = ["Date,Symbol,AnnualRate,EstQtr"]
+        for e_data in events_data:
+            lines.append(f"{e_data['date'].strftime('%Y-%m-%d')},{e_data['symbol']},{e_data['rate']},{e_data['rate']/4}")
+            
+        return Response(content="\n".join(lines), media_type="text/plain")
 
 @router.get("/api/macro")
 def get_macro_summary(

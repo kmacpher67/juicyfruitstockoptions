@@ -13,17 +13,21 @@ class DividendScanner:
         - Ex-Dividend Date is within 3-10 days.
         - Dividend Yield (Annualized) > 2%.
         """
+        logging.info(f"[DividendScanner] Starting scan for {len(tickers)} tickers.")
         opportunities = []
         now = datetime.utcnow()
         
         for symbol in tickers:
             try:
+                # logging.debug(f"Checking {symbol}...")
                 ticker = yf.Ticker(symbol)
                 info = ticker.info
                 
                 # Check Dividend
                 ex_ts = info.get("exDividendDate")
-                if not ex_ts: continue
+                if not ex_ts: 
+                    # logging.debug(f"No ex-div date for {symbol}")
+                    continue
                 
                 ex_date = datetime.fromtimestamp(ex_ts)
                 days_to_ex = (ex_date - now).days
@@ -49,9 +53,11 @@ class DividendScanner:
                              "score": 80 # Base score for now
                          }
                          opportunities.append(opp)
+                         logging.info(f"[DividendScanner] Found opportunity for {symbol}")
                          
             except Exception as e:
                 logging.warning(f"Error scanning div for {symbol}: {e}")
                 continue
                 
+        logging.info(f"[DividendScanner] Completed scan. Found {len(opportunities)} opportunities.")
         return opportunities
