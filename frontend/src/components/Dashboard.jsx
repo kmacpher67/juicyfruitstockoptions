@@ -265,17 +265,46 @@ const Dashboard = () => {
         if (!newTicker) return;
         setAddingTicker(true);
         try {
-            await api.post('/stocks/tracked', { ticker: newTicker });
+            const res = await api.post('/stocks/tracked', { ticker: newTicker });
             setNewTicker("");
-            // Refresh logic? Wait a bit then refresh
-            alert(`Added ${newTicker}. Data is fetching in background.`);
-            setTimeout(() => {
-                loadLiveStocks();
-            }, 2000);
+
+            // If backend returned a job_id, poll for it
+            const jobId = res.data.job_id;
+            if (jobId) {
+                // Poll Status every 1s
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await api.get(`/jobs/${jobId}`);
+                        const job = statusRes.data;
+
+                        if (job.status === 'completed') {
+                            clearInterval(pollInterval);
+                            setAddingTicker(false);
+                            // Refresh reports to pick up the new file
+                            await loadReports();
+                        } else if (job.status === 'failed') {
+                            clearInterval(pollInterval);
+                            setAddingTicker(false);
+                            alert(`Failed to Fetch Data: ${job.error}`);
+                        }
+                    } catch (err) {
+                        console.error("Polling error", err);
+                        clearInterval(pollInterval);
+                        setAddingTicker(false);
+                    }
+                }, 1000);
+            } else {
+                // Fallback for immediate return (legacy behavior)
+                alert(`Added ${newTicker}. Data is fetching in background.`);
+                setTimeout(() => {
+                    loadLiveStocks();
+                    setAddingTicker(false);
+                }, 2000);
+            }
+
         } catch (error) {
             console.error("Failed to add ticker:", error);
             alert("Failed to add ticker");
-        } finally {
             setAddingTicker(false);
         }
     };

@@ -691,10 +691,13 @@ def add_tracked_ticker(
     )
     
     # 2. Trigger Fetch for this specific ticker
-    # We use the existing function but pass only this ticker to limit scope
-    background_tasks.add_task(background_job_wrapper, f"add_ticker_{ticker}", lambda: run_stock_live_comparison([ticker]))
+    from app.jobs import create_job
+    job = create_job()
     
-    return {"status": "success", "message": f"Added {ticker} to tracking list."}
+    # We use the existing function but pass only this ticker to limit scope
+    background_tasks.add_task(background_job_wrapper, job.id, lambda: run_stock_live_comparison([ticker]))
+    
+    return {"status": "success", "message": f"Added {ticker} to tracking list.", "job_id": job.id}
 
 @router.delete("/stocks/tracked/{ticker}")
 def remove_tracked_ticker(
