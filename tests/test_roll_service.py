@@ -12,7 +12,7 @@ def mock_yf_ticker():
 
 def test_find_rolls_calls(mock_yf_ticker):
     # Setup Data
-    mock_yf_ticker.fast_info = {'last_price': 100.0}
+    mock_yf_ticker.fast_info = {'last_price': 100.0, 'previous_close': 99.0}
     # Dates: Today is 2025-01-01. Old Exp 2025-01-17. New Exp 2025-02-21
     mock_yf_ticker.options = ("2025-01-17", "2025-02-21")
     

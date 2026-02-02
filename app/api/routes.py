@@ -597,18 +597,134 @@ def analyze_rolls(
     return result
 
 # --- Ticker & Opportunity Analysis ---
+@router.get("/api/analysis/rolls")
+def analyze_smart_rolls(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Scan the USER's portfolio for Short Calls expiring soon (default 10 days)
+    and find Smart Roll opportunities (Up & Out, Credit, Short Duration).
+    """
+    # 1. Fetch Portfolio
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Get latest holdings
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    if not latest:
+        return []
+        
+    query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+    holdings = list(db.ibkr_holdings.find(query, {"_id": 0}))
+    
+    if not holdings:
+        return []
+        
+    # 2. Analyze
+    from app.services.roll_service import RollService
+    service = RollService()
+    
+    # Analyze
+    suggestions = service.analyze_portfolio_rolls(holdings, max_days_to_expiration=10)
+    
+    return suggestions
+
 
 @router.get("/api/news/{symbol}")
 def get_ticker_news(
     symbol: str,
+    limit: int = 5,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
     Get aggregated news with sentiment and logic analysis for a ticker.
     """
-    from app.services.news_service import NewsService
-    service = NewsService()
-    return service.fetch_news_for_ticker(symbol)
+    from app.services.news_sentiment import NewsSentimentService
+    service = NewsSentimentService()
+    return service.get_ticker_news(symbol, limit)
+
+# --- X-DIV & Calendar Endpoints ---
+
+@router.get("/api/analysis/dividend-capture")
+def scan_dividend_capture(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Scan portfolio tickers (and watchlist?) for upcoming Dividend Capture opportunities.
+    """
+    # 1. Get Tickers from Portfolio
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Get distinct symbols from latest holdings
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    symbols = []
+    if latest:
+        query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+        holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
+        symbols = list(set([h["symbol"] for h in holdings]))
+    
+    # Add some common high dividend tickers for discovery if list is small?
+    # For now just portfolio.
+    
+    if not symbols:
+        return []
+        
+    from app.services.dividend_scanner import DividendScanner
+    scanner = DividendScanner()
+    return scanner.scan_dividend_capture_opportunities(symbols)
+
+
+@router.get("/api/calendar/dividends.ics")
+def get_dividend_calendar(
+    current_user: Annotated[User, Depends(get_current_active_user)] # Can make this public with token param if needed for GCal
+):
+    """
+    Generate an ICS calendar file with upcoming Ex-Dividend dates for the portfolio.
+    """
+    from ics import Calendar, Event
+    import yfinance as yf
+    from datetime import datetime, timedelta
+    
+    # 1. Get Symbols
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    symbols = []
+    if latest:
+        query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+        holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
+        symbols = list(set([h["symbol"] for h in holdings]))
+
+    # 2. Create Calendar
+    c = Calendar()
+    c.creator = "JuicyFruitOptions"
+    
+    now = datetime.utcnow()
+    
+    for symbol in symbols:
+        try:
+            # Use cached scanner logic or direct fetch? Direct fetch for now.
+            # Ideally we cache this info in DB.
+            ticker = yf.Ticker(symbol)
+            ts = ticker.info.get("exDividendDate")
+            if ts:
+                 dt = datetime.fromtimestamp(ts)
+                 if dt > now - timedelta(days=30): # Include recent past?
+                     e = Event()
+                     e.name = f"Ex-Div: {symbol}"
+                     e.begin = dt.strftime("%Y-%m-%d")
+                     e.make_all_day()
+                     # Description
+                     rate = ticker.info.get("dividendRate", 0)
+                     e.description = f"Annual Rate: ${rate}\nEst Qtr: ${rate/4}"
+                     c.events.add(e)
+        except:
+             pass
+             
+    # Return file
+    from fastapi.responses import Response
+    return Response(content=str(c), media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=dividends.ics"})
 
 @router.get("/api/macro")
 def get_macro_summary(

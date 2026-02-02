@@ -144,8 +144,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
             - [x] **Dependencies**: Add `py_vollib_vectorized` to `requirements.txt`.
             - [x] **Calculator Util**: Create `app/utils/greeks_calculator.py` to process DataFrames.
             - [x] **Service Update**: Integrate calculator into `RollService` to enrich option chains with Delta/Gamma/Theta.
+        - [ ] **X-DIV Strategy**: Get data for ticker's x-div dates and premiums for calls and puts and scoring for rolls, diagonals, and other strategies.
+            - [ ] **Research**: See [X-DIV Rolling Strategy](../docs/learning/x-div-rolling.md). Defines Assignment Risk heuristics.
+            - [ ] **Backend**: Fetch `exDividendDate` and `dividendRate` from `yfinance`.
+            - [ ] **Scoring**: Implement "Dividend Assignment Risk" penalty in `score_roll` (Extrinsic value < Dividend).
+            - [ ] **Dividend Capture**: (Buy-Write) strategies specifically in the Opportunity Finder? YES update this as requirement. 
+            - [ ] **x-div**: export a .ics list and details for calendar integration (copy and paste into google calendar)
         - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
-        - [x] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
+        - [x] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable, incorporate all the strategies available to make recommendations or opportunities on the portfolio.
         - [ ] **Add to UI**: Incorporate into the app, likely the opportunity finder section of the ticker modal and the portfolio view.
         - [x] **Smart Roll Strategy**: See [Smart Roll & Diagonal Strategy](learning/smart-roll-diagonal.md). Defines heuristics for Short Duration (<10 days), Credit Priority, and Strike Improvement.
     - [x] Screen for call buying opportunities (momentum).
