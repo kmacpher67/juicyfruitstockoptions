@@ -45,8 +45,8 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Is the solution scalable and maintainable?
 - [ ] Security best practices (OWASP, input validation)?
 
-## 9. Fit into Epic-level Planning
-- [ ] How does this relate to the current Epic? (Check `docs/features-requirements.md`) 
+## 9. Fit into Feature-Requirements master Planning
+- [ ] How does this relate to the current Epic? (Check `docs/Epic-level-planning.md`) 
 - [ ] Does it block other work?
 - [ ] Update and/or add sub items or comment on the exisitng items or sub-items. 
 - [ ] Is it a prerequisite for future features or predicate?
@@ -78,3 +78,6 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 
 ## 13. Learning and New Stuff
 - [ ] Any questions or items not reviewed evaluated aka learned in the `docs/` folder for existing files or subsections should be updated or added per Check `.agent/workflows/learning-opportunity.md` workflow.
+- [ ] Cross reference the other related documents. 
+- [ ] follow all the rules in global germini.md and all the rules in workspace 
+- [ ] any of the sub features not completed explain why they were not address and offer next steps to complete all of this. Add any qestions regarding how/or what to the features-requrements doc regarding the incompleted or partially completed items.
