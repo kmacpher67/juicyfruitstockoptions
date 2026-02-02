@@ -9,7 +9,7 @@ const PortfolioGrid = ({ data, filterTicker }) => {
         {
             field: "account_id",
             headerName: "Account",
-            width: 120,
+            width: 90,
             sort: 'asc',
             sortIndex: 0
         },
@@ -18,7 +18,7 @@ const PortfolioGrid = ({ data, filterTicker }) => {
             headerName: "Ticker",
             sortable: true,
             filter: true,
-            width: 140,
+            width: 200,
             pinned: 'left',
             sort: 'asc',
             sortIndex: 1,
@@ -40,15 +40,15 @@ const PortfolioGrid = ({ data, filterTicker }) => {
                 );
             }
         },
-        { field: "quantity", headerName: "Qty", sortable: true, width: 80, type: 'numericColumn' },
-        { field: "market_price", headerName: "Price", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toFixed(2)}` },
-        { field: "market_value", headerName: "Value", sortable: true, width: 110, valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
-        { field: "cost_basis", headerName: "Basis", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toFixed(2)}` },
+        { field: "quantity", headerName: "Qty", sortable: true, width: 70, type: 'numericColumn' },
+        { field: "market_price", headerName: "Price", sortable: true, width: 90, valueFormatter: p => `$${p.value?.toFixed(2)}` },
+        { field: "market_value", headerName: "Value", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+        { field: "cost_basis", headerName: "Basis", sortable: true, width: 90, valueFormatter: p => `$${p.value?.toFixed(2)}` },
         {
             field: "unrealized_pnl",
             headerName: "Unrealized P&L",
             sortable: true,
-            width: 130,
+            width: 120,
             cellClass: params => params.value >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold',
             valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         },
@@ -56,10 +56,10 @@ const PortfolioGrid = ({ data, filterTicker }) => {
             field: "percent_of_nav",
             headerName: "% NAV",
             sortable: true,
-            width: 90,
+            width: 80,
             valueFormatter: p => `${(p.value * 100).toFixed(2)}%`
         },
-        { field: "asset_class", headerName: "Type", sortable: true, width: 80 }
+        { field: "asset_class", headerName: "Type", sortable: true, width: 70 }
     ], []);
 
     // Filter Logic
@@ -84,8 +84,8 @@ const PortfolioGrid = ({ data, filterTicker }) => {
     }, [data, filterTicker]);
 
     const defaultColDef = {
-        flex: 1,
-        minWidth: 100,
+        // flex: 1, // Removed flex: 1 to respect manual widths and prevent squishing
+        minWidth: 60,
         resizable: true,
     };
 
