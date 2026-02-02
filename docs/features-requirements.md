@@ -103,7 +103,6 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Bug Issue**: Adding stock ticker to analysis doesn't add the ticker to the active screen list, logs indicate a new file is created. A screen refresh reload shows this file at the top of the list. **Fixed**: Added job polling to `handleAddTicker` to wait for file generation and auto-refresh the report list.
     - [x] **Bug Issue**: UI for Portfolio could be wider so it doesn't require horizontal scrolling. Additionally the width of the Qty field is too wide for the size of qty and max size like doubtful that I would have more than 99,999 shares of a stock or option. Type field doesn't have to be that wide. Account doesn't need to be much wider than width of the title name. Whereas the ticker field would be better if it was wider **Fixed**: Optimized column widths in `PortfolioGrid.jsx`. Increased Ticker width (140->200), reduced Account, Qty, Type widths. Removed auto-flex to respect manual sizing. 
 
-
 - [x] **Trade History Management**: Get entire history of trades (ie: with cost basis) and all relevant metrics
     - [x] Ingest Legacy Trade Files (See [Legacy Trade Ingestion](features/legacy_trade_ingestion.md))
     - [x] **Backend API**: Create `/api/trades` endpoint to serve historical data with pagination/filtering.
@@ -118,6 +117,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
+    - [ ] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading.
+    - [ ] **Learning Opportunity**: use .agent/workflows/learing-opportunity.md to write up a document on Rating value score rubric, how does it work? What tests are there for the functionality of the Opportunity Finder? What other factors could/should we rating each of the opportunities? 
     - [ ] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
         - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
         - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
@@ -127,7 +128,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Learning Opportunity**: What are the specific quantitative thresholds for "Juicy"? (e.g., IV Rank > 50, Delta 0.3-0.4?). Use .agent/workflows/learing-opportunity.md to guide this process.
     - [ ] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
-    - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed).
+    - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
     - [ ] Fetch Macro indicators (Fred API? Inflation, Interest Rates).
     - [ ] Create "Impact Score" for news events on portfolio tickers.
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation.

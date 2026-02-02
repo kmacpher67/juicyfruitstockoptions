@@ -13,18 +13,13 @@ def mock_mongo(monkeypatch):
     def mock_get_client(*args, **kwargs):
         return mock_client
     
-    # Mock MongoClient in routes
+    # Patch pymongo.MongoClient globally to catch all usages
+    monkeypatch.setattr("pymongo.MongoClient", mock_get_client)
+    
+    # Also patch direct usages in modules just in case they imported it before this fixture ran
+    # (Though global patch usually works if imported as 'from pymongo import MongoClient')
     monkeypatch.setattr("app.api.routes.MongoClient", mock_get_client)
-    
-    # Mock Ai_Stock_Database in service
-    # We patch the MongoClient used by Ai_Stock_Database internally
     monkeypatch.setattr("Ai_Stock_Database.MongoClient", mock_get_client)
-    
-    # Also patch direct usage in stock_live_comparison if it used it directly (it doesn't, it uses Ai_Stock_Database)
-    # But just in case
-    # monkeypatch.setattr("stock_live_comparison.MongoClient", mock_get_client)
-    
-    # Patch MongoClient in ticker_discovery
     monkeypatch.setattr("app.services.ticker_discovery.MongoClient", mock_get_client)
     
     return mock_client
@@ -73,10 +68,34 @@ def test_add_ticker(client_with_auth, mock_mongo):
 
     response = client_with_auth.post("/api/stocks/tracked", json={"ticker": "MSTR"})
     assert response.status_code == 200
+    data = response.json()
+    assert "job_id" in data
     
     doc = db.system_config.find_one({"_id": "tracked_tickers"})
     assert "MSTR" in doc["tickers"]
     assert "AAPL" in doc["tickers"]
+
+def test_job_polling(client_with_auth, monkeypatch, mock_mongo):
+    # Mock run_stock_live_comparison to verify it was called but not run real logic
+    mock_run = MagicMock()
+    monkeypatch.setattr("app.api.routes.run_stock_live_comparison", mock_run)
+
+    # Create a job (via add ticker)
+    response = client_with_auth.post("/api/stocks/tracked", json={"ticker": "NVDA"})
+    assert response.status_code == 200
+    job_id = response.json().get("job_id")
+    assert job_id
+
+    # Poll it 
+    # FastAPI TestClient finishes background tasks before returning control
+    status_res = client_with_auth.get(f"/api/jobs/{job_id}")
+    assert status_res.status_code == 200
+    job_data = status_res.json()
+    assert "status" in job_data
+    assert job_data["id"] == job_id
+    
+    # Verify our mock was called
+    mock_run.assert_called_once()
 
 def test_remove_ticker(client_with_auth, mock_mongo):
     # Pre-seed
