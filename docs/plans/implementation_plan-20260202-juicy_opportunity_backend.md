@@ -37,7 +37,44 @@ Implement the backend infrastructure to persist "Juicy Opportunities" as defined
 - **Collection**: `juicy_fruit.opportunities`
 - **Indexes**: `symbol`, `timestamp`, `status`, `trigger_source`.
 
+### Scheduler Implementation
+#### [NEW] [app/services/scheduler_service.py](file:///home/kenmac/personal/juicyfruitstockoptions/app/services/scheduler_service.py)
+- **Library**: `APScheduler` (BackgroundScheduler).
+- **Jobs**:
+    - `run_dividend_scan`: Runs `DividendScanner.scan()` every 30 mins during market hours (9:30 AM - 4:00 PM ET).
+    - `run_pre_market_scan`: Runs at 8:30 AM ET.
+    - `run_post_market_scan`: Runs at 5:00 PM ET.
+- **Integration**: Initialized in `app/__init__.py` or `main.py` startup event.
+
+### API & UI Updates
+#### [MODIFY] [app/api/routes.py](file:///home/kenmac/personal/juicyfruitstockoptions/app/api/routes.py)
+- **New Endpoint**: `GET /api/opportunities`
+    - Returns persisted opportunities from MongoDB.
+    - Filters: `source`, `status`, `min_score`.
+- **Update Endpoint**: `GET /api/analysis/dividend-capture`
+    - **Change**: Instead of triggering a live scan, this should now return *recent* results from the DB (via `OpportunityService`).
+    - **Legacy Support**: Optional `?force_scan=true` parameter to trigger live scan (async).
+
+#### [MODIFY] [frontend/src/components/DividendScanner.jsx](file:///home/kenmac/personal/juicyfruitstockoptions/frontend/src/components/DividendScanner.jsx)
+- **Logic Change**: Fetch from `/api/opportunities?source=DividendScanner` instead of triggering a long-running scan.
+- **UX**: Show "Last Updated" timestamp. Add "Refresh" button (calls `force_scan`).
+
 ## Verification Plan
+### Automated Tests
+- **Unit Tests**:
+    - Test `JuicyOpportunity` model validation.
+    - Test `OpportunityService` CRUD operations (mocking Mongo).
+    - Test `DividendScanner` integration (verify it calls the service).
+    - Test `SchedulerService` job registration (mock execution).
+- **Integration Tests**:
+    - Verify data is actually written to the local MongoDB instance.
+    - Verify API returns persisted data.
+
+### Manual Verification
+- Run the `DividendScanner` (via API or script).
+- Inspect MongoDB (via shell or Compass) to verify `opportunities` documents are created with the correct schema.
+- Start the application and verify Scheduler logs indicate jobs are added.
+- Check Frontend: "Dividend Capture" list should load instantly from DB.
 ### Automated Tests
 - **Unit Tests**:
     - Test `JuicyOpportunity` model validation.

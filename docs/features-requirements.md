@@ -133,9 +133,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
-    - [ ] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 
-        - [ ] **Data Schema**: Define `JuicyOpportunity` model (Symbol, Timestamp, Context: {Price, IV, Greeks}, Proposal, Trigger Source).
-        - [ ] **Persistence**: Store opportunities in MongoDB (`opportunities` collection) for historical analysis.
+    - [/] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 
+        - [x] **Data Schema**: Define `JuicyOpportunity` model (Symbol, Timestamp, Context: {Price, IV, Greeks}, Proposal, Trigger Source).
+        - [x] **Persistence**: Store opportunities in MongoDB (`opportunities` collection) for historical analysis.
         - [ ] **Outcome Tracking (Truth Engine)**:
             - [ ] **Requirement**: Automated tracker that monitors the specific option/stock for the duration of the proposed trade.
             - [ ] **Metrics**: Max Profit (MFE), Max Loss (MAE), Days to Profit, Expiration Value.
@@ -144,6 +144,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **Signal Correlation**: Dashboard to analyze Hit Rate by Signal Source (e.g., "Do Gap Ups work?"). 
         - [ ] **Options Due in X Days**: Signal for all options expiring in <7 Days (DTE).
             - [ ] **Auto-Roll Evaluation**: Automatically analyze rolling opportunities for these positions (e.g., Roll to next month if covered call is ITM).  
+        - [ ] **Scheduler Integration**: Scans scheduled every 30 mins (Market Hours) and 1 hr Pre/Post-Market.
+        - [ ] **UI Performance**: UI components (e.g., Dividend Capture) must read from DB persistence, NOT trigger blocking live scans.  
     - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
     - [x] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading. **Fixed**: Corrected parsing of "1D % Change" in OptionsAnalyzer and fixed scoring logic for trend.
