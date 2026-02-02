@@ -9,6 +9,7 @@ import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import AlertsDashboard from './AlertsDashboard';
+import DividendScanner from './DividendScanner';
 import TradeHistory from './TradeHistory';
 import TickerModal from './TickerModal';
 // import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -440,6 +441,15 @@ const Dashboard = () => {
                                             <Download className="inline-block w-3 h-3 mr-2" />
                                             Export CSV
                                         </a>
+                                        <a
+                                            href="/api/calendar/dividends.ics"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border-b border-gray-700"
+                                        >
+                                            <span className="inline-block w-3 h-3 mr-2">📅</span>
+                                            Export Calendar (.ics)
+                                        </a>
                                         <button
                                             onClick={syncAllPortfolio}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors rounded-b"
@@ -518,12 +528,13 @@ const Dashboard = () => {
                         </div>
                     )} */}
 
-                    <div className="mb-4">
+                    <div className="mb-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
                         {/* Dynamically load Alerts */}
                         <AlertsDashboard onSelectTicker={(ticker) => {
                             // Toggle filter: If clicking same ticker, clear filter. Else set it.
                             setFilterTicker(prev => prev === ticker ? null : ticker);
                         }} />
+                        <DividendScanner />
                     </div>
                     {/* Filter Indicator */}
                     {filterTicker && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { X, TrendingUp, AlertTriangle, Lightbulb, Activity } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw } from 'lucide-react';
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -8,6 +8,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [tickerData, setTickerData] = useState(null);
     const [opportunityData, setOpportunityData] = useState(null);
     const [optimizerData, setOptimizerData] = useState(null);
+    const [smartRollsData, setSmartRollsData] = useState(null);
 
     // Reset state when ticker changes
     useEffect(() => {
@@ -16,6 +17,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setTickerData(null);
             setOpportunityData(null);
             setOptimizerData(null);
+            setSmartRollsData(null);
             setActiveTab('analytics');
             fetchData();
         }
@@ -25,17 +27,17 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         setLoading(true);
         try {
             // Parallel fetch for all data derived from this ticker
-            // Note: In a real app, you might fetch only the active tab's data.
-            // But since these are lightweight, we fetch all for responsiveness.
-            const [tickerRes, oppRes, optRes] = await Promise.all([
+            const [tickerRes, oppRes, optRes, rollRes] = await Promise.all([
                 api.get(`/ticker/${ticker}`),
                 api.get(`/opportunity/${ticker}`),
-                api.get(`/portfolio/optimizer/${ticker}`)
+                api.get(`/portfolio/optimizer/${ticker}`),
+                api.get(`/analysis/rolls/${ticker}`).catch(e => ({ data: [] })) // Handle error gracefully if 404/error
             ]);
 
             setTickerData(tickerRes.data);
             setOpportunityData(oppRes.data);
             setOptimizerData(optRes.data);
+            setSmartRollsData(rollRes.data);
         } catch (error) {
             console.error("Failed to fetch ticker data", error);
         } finally {
@@ -94,6 +96,14 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     >
                         <Activity className="w-4 h-4" /> Price Action
                     </button>
+                    {(smartRollsData && !smartRollsData.error && smartRollsData.length > 0) && (
+                        <button
+                            onClick={() => setActiveTab('smart_rolls')}
+                            className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'smart_rolls' ? 'bg-gray-700 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
+                        >
+                            <RotateCcw className="w-4 h-4" /> Smart Rolls
+                        </button>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -109,6 +119,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             {activeTab === 'opportunity' && <OpportunityView data={opportunityData} />}
                             {activeTab === 'optimizer' && <OptimizerView data={optimizerData} />}
                             {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
+                            {activeTab === 'smart_rolls' && <SmartRollView data={smartRollsData} />}
                         </>
                     )}
                 </div>
@@ -347,6 +358,62 @@ const PriceActionView = ({ data }) => {
                 ) : (
                     <div className="text-gray-500 italic">No active FVG detected.</div>
                 )}
+            </div>
+        </div>
+    );
+};
+
+const SmartRollView = ({ data }) => {
+    if (!data || data.length === 0) return <div className="text-center text-gray-400 py-12">No smart roll opportunities found.</div>;
+
+    return (
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <RotateCcw className="w-6 h-6 text-indigo-400" />
+                Smart Roll Suggestions
+            </h3>
+            <div className="grid grid-cols-1 gap-4">
+                {data.map((roll, i) => (
+                    <div key={i} className="bg-gray-800 p-4 rounded border border-gray-700 hover:bg-gray-750 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg font-bold text-white">
+                                        {roll.strike} {roll.type}
+                                    </span>
+                                    <span className="text-sm text-gray-400">
+                                        Exp: {roll.expiration}
+                                    </span>
+                                </div>
+                                <div className="text-sm text-indigo-300 mt-1">
+                                    Net Credit: <span className="font-mono font-bold">${roll.net_credit?.toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <div className={`
+                                px-3 py-1 rounded text-sm font-bold
+                                ${roll.score >= 80 ? 'bg-green-900 text-green-300' :
+                                    roll.score >= 50 ? 'bg-yellow-900 text-yellow-300' :
+                                        'bg-red-900 text-red-300'}
+                            `}>
+                                Score: {roll.score}
+                            </div>
+                        </div>
+
+                        {/* Dividend Risk Warning (Inferred from low score + ITM check if available) */}
+                        {roll.score <= 30 && (
+                            <div className="mt-2 text-xs text-red-400 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                High Assignment Risk / Low Efficiency
+                            </div>
+                        )}
+
+                        <div className="mt-3 flex gap-2">
+                            <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-2 rounded transition-colors">
+                                Execute Roll (Paper)
+                            </button>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
