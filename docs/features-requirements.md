@@ -114,21 +114,21 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Metrics**: Add summary metrics (Total P&L, Win Rate, LT/ST P&L, etc.) to the history view.
     - [x] **Bug issue**: History view is not loading trades, 500 Internal Server Error http://localhost:3000/api/trades/analysis
     - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
-    - [ ] **learning opportunity**: Explain Win Rate, Profit Factor, and other metrics in the trade history view. How are they calculated? What impact does a diagonal roll have on the metrics aka: loss but it gives a underlying STK additional unrealized profit? How are dividends factored into the metrics?
+    - [x] **Trade Metrics Education**: See [Trade Metrics Guide](learning/trade-metrics.md). Explains Win Rate, Profit Factor, Diagonal Rolls, and Dividends.
     - [ ] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
     - [ ] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading.
-    - [ ] **Learning Opportunity**: use .agent/workflows/learing-opportunity.md to write up a document on Rating value score rubric, how does it work? What tests are there for the functionality of the Opportunity Finder? What other factors could/should we rating each of the opportunities? 
+    - [x] **Opportunity Scoring Rubric**: See [Opportunity Scoring](learning/opportunity-scoring.md). Defines the 0-100 rating scale and factors (IV, Trend, Liquidity). 
     - [ ] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
         - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
         - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
         - [ ] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable.
     - [ ] Screen for call buying opportunities (momentum).
     - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls.
-    - [ ] **Learning Opportunity**: What are the specific quantitative thresholds for "Juicy"? (e.g., IV Rank > 50, Delta 0.3-0.4?). Use .agent/workflows/learing-opportunity.md to guide this process.
+    - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
     - [ ] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
     - [ ] Integrate external News API (e.g., NewsAPI.org or IBKR News feed). 
@@ -137,7 +137,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation.
     - [ ] Research `filterpy` or `pykalman` libraries.
     - [ ] Prototype Mean Reversion and Trend Following models using Kalman.
-    - [ ] **Learning Opportunity**: .agent/workflows/learing-opportunity.md Is there a specific paper or reference strategy triggering the interest in Kalman Filters in trading, and portfolio management?
+    - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
 - [ ] **PRICE ACTION**: Implement Price Action analysis. Integrate into Portfolio Management analysis views.
     - [ ] Understand Market Movement 
     - [ ] Market Structure (HH, HL, LH, LL) 
@@ -162,7 +162,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Backtesting Engine**:
     - [ ] Ability to "back play" strategies using historical IBKR data.
     - [ ] Evaluate libraries: Zipline, VectorBT, or custom.
-    - [ ] **Engine Selection**: Do you prefer an event-driven engine (slower, more realistic) or vectorized (faster, less realistic)? use this workflow .agent/workflows/learing-opportunity.md to explain this to me and what matters in this decision. 
+    - [x] **Engine Selection**: See [Backtesting Engines](learning/backtesting-engines.md). Compares Vectorized vs Event-Driven (Recommended). 
     - [ ] Create Data Ingestion for OHLCV bars (1-min, 1-hour, 1-day).
 - [ ] **Metric Stack**: Implement standard metrics: Sharpe, Sortino, MaxDD, Hit-rate, Turnover.
     - [ ] Implement `empyrical` or equivalent library for standardized metric calculation.
@@ -227,7 +227,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Capabilities
 - [ ] **Prototype Agent**:
     - [ ] Lumibot is a fast library that will allow you to easily create trading robots for many different asset classes, including Stocks, Options, Futures, FOREX, and more. (documentation) https://lumibot.lumiwealth.com/
-    - [ ] **Learning Opportunity**: .agent/workflows/learing-opportunity.md using Langchain or some other framework for building agents vs specialized libraries for trading.
+    - [x] **Agent Framework Research**: See [Agent Frameworks](learning/agent-frameworks.md). Discusses LangChain vs Lumibot vs Hybrid approach.
     - [ ] Juicy Fruit Opportunity Finder for a given stock or option (diagonal spread or close position (stop loss or take advantage of momentum), or keep to expiration).
     - [ ] Define Agent Toolset (Price Lookup, Greeks Calculator, Database Query).
     - [ ] Setup Orchestration (LangChain/LangGraph). 
@@ -255,7 +255,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Slippage Control**: Warnings for illiquid options.
     - [ ] **Stop Rules**: Auto-exit criteria.
     - [ ] **"Ken's Bad Trades"**: Specific heuristic to detect and block historically poor impulsive setups.
-    - [ ] **Bad Trade Heuristics**: Please list specific "Bad Trade" patterns to detect (e.g., 0DTE, low liquidity, earnings plays). Create a.agent/workflows/learing-opportunity.md document to learn and discuss more about bad trades and heuristics.
+    - [x] **Bad Trade Heuristics**: See [Bad Trade Heuristics](learning/bad-trade-heuristics.md). Lists specific patterns to block (0DTE, Impatience, etc.).
 
 ---
 
