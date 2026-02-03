@@ -37,13 +37,13 @@ def test_score_roll_basic():
     # Credit > 0 (+20), yield bonus (+10), Strike improved (+20), Duration 7 (+10) -> ~60+50 base = 110 (capped 100)
     # Let's reduce net_credit to avoid yield bonus to see differentiation, or accept cap behavior
     roll = create_roll(net_credit=0.20, new_strike=105, current_strike=100, days=7)
-    score = service.score_roll(roll, create_current(), create_market())
+    score, _ = service.score_roll(roll, create_current(), create_market())
     assert score >= 90 # Should be very high
     
     # 2. Debit Roll 
     # Debit (-20)
     roll_bad = create_roll(net_credit=-0.50, new_strike=105, current_strike=100, days=7)
-    score_bad = service.score_roll(roll_bad, create_current(), create_market())
+    score_bad, _ = service.score_roll(roll_bad, create_current(), create_market())
     assert score_bad < score
     
     # 3. Long Duration Penalty
@@ -55,8 +55,8 @@ def test_score_roll_basic():
     roll_base_long = create_roll(net_credit=0.01, new_strike=100, current_strike=100, days=45)
     # Score: 50 + 20 (Credit) - 10 (Duration) + 10 (Delta) = 70
     
-    s_short = service.score_roll(roll_base_short, create_current(), create_market())
-    s_long = service.score_roll(roll_base_long, create_current(), create_market())
+    s_short, _ = service.score_roll(roll_base_short, create_current(), create_market())
+    s_long, _ = service.score_roll(roll_base_long, create_current(), create_market())
     
     assert s_long < s_short
 

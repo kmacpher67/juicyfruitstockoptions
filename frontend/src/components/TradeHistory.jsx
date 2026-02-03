@@ -75,14 +75,24 @@ const TradeHistory = () => {
             valueGetter: p => p.data.symbol || p.data.Symbol
         },
         {
+            headerName: "Action",
+            width: 90,
+            valueGetter: p => {
+                const qty = p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity;
+                if (!qty) return "-";
+                return qty > 0 ? "BUY" : "SELL";
+            },
+            cellClassRules: {
+                'text-green-400 font-bold': p => p.value === 'BUY',
+                'text-red-400 font-bold': p => p.value === 'SELL'
+            }
+        },
+        {
             field: "quantity",
             headerName: "Quantity",
             type: "numericColumn",
-            valueGetter: p => p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity,
-            cellClassRules: {
-                'text-green-400': p => p.value > 0,
-                'text-red-400': p => p.value < 0
-            }
+            width: 90,
+            valueGetter: p => Math.abs(p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity),
         },
         {
             field: "trade_price",
@@ -110,8 +120,16 @@ const TradeHistory = () => {
         {
             field: "asset_class",
             headerName: "Type",
-            width: 90,
-            valueGetter: p => p.data.asset_class || p.data.AssetClass
+            width: 80,
+            valueGetter: p => {
+                const ac = p.data.asset_class || p.data.AssetClass;
+                if (ac) return ac;
+                const sym = p.data.symbol || p.data.Symbol || "";
+                // Heuristic: Option symbols usually have spaces or > 6 chars with dates?
+                // IBKR formatted: "AAPL  230120C00150000"
+                if (sym.includes("  ") || (sym.length > 5 && /\d/.test(sym) && (sym.endsWith("C") || sym.endsWith("P")))) return "OPT";
+                return "STK";
+            }
         }
     ]);
 

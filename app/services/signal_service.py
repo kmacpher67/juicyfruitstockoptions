@@ -174,6 +174,10 @@ class SignalService:
             roll_score = prob_up * 100
             hold_score = prob_down * 100
             
+            # Calculate Confidence (Difference in scores, normalized 0-100)
+            # Max possible difference is 100 (100 vs 0)
+            confidence = abs(roll_score - hold_score)
+            
             recommendation = "HOLD"
             reason = f"Market showing weakness (Prob Down: {prob_down:.0%}). Good for Short Calls."
             
@@ -188,8 +192,11 @@ class SignalService:
             return {
                 "recommendation": recommendation,
                 "reason": reason,
-                "hold_score": hold_score,
-                "roll_score": roll_score,
+                "confidence": round(confidence, 1),
+                "hold_score": round(hold_score, 1),
+                "roll_score": round(roll_score, 1),
+                "prob_up": round(prob_up, 2),
+                "prob_down": round(prob_down, 2),
                 "current_state": current_state
             }
             

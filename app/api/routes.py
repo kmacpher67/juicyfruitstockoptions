@@ -656,6 +656,60 @@ def analyze_smart_rolls(
     return suggestions
 
 
+@router.get("/analysis/rolls/{ticker}")
+def analyze_ticker_smart_rolls(
+    ticker: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get Smart Roll opportunities for a specific ticker's held options.
+    Flattened list for TickerModal consumption.
+    """
+    ticker = ticker.upper().strip()
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    # Get latest holdings
+    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    if not latest:
+        return []
+        
+    query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+    # Filter by symbol in query to save bandwidth
+    query["symbol"] = ticker
+    
+    holdings = list(db.ibkr_holdings.find(query, {"_id": 0}))
+    
+    if not holdings:
+        return []
+        
+    from app.services.roll_service import RollService
+    service = RollService()
+    
+    # We use analyze_portfolio_rolls logic but specifically for this list
+    suggestions = service.analyze_portfolio_rolls(holdings, max_days_to_expiration=45) # Allow wider window for specific analysis
+    
+    # Flatten: TickerModal expects a list of rolls.
+    # But wait, TickerModal might expect the 'Candidate' objects directly?
+    # Each suggestion in 'suggestions' has 'rolls': [Candidate, Candidate...]
+    # If we return a flat list of candidates, we need to attach "Origin" info to them?
+    # SmartRollView (line 382) uses {roll.strike} {roll.type}
+    # Those are properties of the CANDIDATE.
+    
+    flattened_rolls = []
+    for s in suggestions:
+        candidates = s.get("rolls", [])
+        for c in candidates:
+            # Attach origin context if needed?
+            # c["origin_strike"] = ... 
+            flattened_rolls.append(c)
+            
+    # Sort by score across all positions?
+    flattened_rolls.sort(key=lambda x: x.get('score', 0), reverse=True)
+    
+    return flattened_rolls
+
+
 @router.get("/api/news/{symbol}")
 def get_ticker_news(
     symbol: str,
@@ -826,11 +880,13 @@ def get_ticker_signals(
         
         kalman = service.get_kalman_signal(data)
         markov = service.get_markov_probabilities(data)
+        advice = service.get_roll_vs_hold_advice(ticker, {}, mock_price_data=data)
         
         return {
             "ticker": ticker,
             "kalman": kalman,
-            "markov": markov
+            "markov": markov,
+            "advice": advice
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

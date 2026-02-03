@@ -3,10 +3,11 @@ from datetime import datetime, timedelta
 import logging
 import pandas as pd
 from app.utils.greeks_calculator import GreeksCalculator
+from app.services.signal_service import SignalService
 
 class RollService:
-    def __init__(self):
-        pass
+    def __init__(self, signal_service=None):
+        self.signal_service = signal_service or SignalService()
 
     def get_realtime_price(self, symbol):
         try:
@@ -27,63 +28,87 @@ class RollService:
             logging.error(f"Failed to get chain for {symbol} on {exp_date_str}: {e}")
             return None
 
-    def score_roll(self, roll_data, current_pos, market_data, dividend_info=None):
+    def score_roll(self, roll_data, current_pos, market_data, dividend_info=None, signal_data=None):
         """
         Calculate 0-100 score for a roll opportunity.
         roll_data: {net_credit, strike, days_extended, delta, gamma, bid, expiration...}
         current_pos: {strike, average_cost, ...}
         market_data: {current_price, one_day_change, ...}
         dividend_info: {ex_date: 'YYYY-MM-DD', amount: float} (Optional)
+        signal_data: {prob_up, prob_down, recommendation, ...} (Optional)
         """
         score = 50.0  # Base Score
+        reasons = []
 
         # 1. Net Credit (Weight: 40%)
         credit = roll_data.get("net_credit", 0)
         if credit > 0:
             score += 20
             # Bonus for Yield
-            # Assume 1 contract = 100 shares. Yield = Credit / Strike Price roughly
             strike = roll_data.get("strike", 100)
-            if strike > 0 and (credit / strike) > 0.005:  # > 0.5% return on notional
+            if strike > 0 and (credit / strike) > 0.005:
                 score += 10
+                reasons.append("High Yield (>0.5%)")
         elif credit < 0:
-            score -= 20  # Paying debit is discouraged unless defensive
+            score -= 20
+            reasons.append("Net Debit")
 
         # 2. Strike Improvement (Weight: 30%)
-        # Up and Out is preferred for Calls
         new_strike = roll_data.get("strike", 0)
         old_strike = current_pos.get("strike", 0)
         curr_price = market_data.get("current_price", 0)
         if new_strike > old_strike:
             score += 20
+            reasons.append("Strike Improved")
             # Bonus if we move from ITM to OTM
             if old_strike < curr_price < new_strike:
-                score += 10  # Rescued the position!
+                score += 10
+                reasons.append("Rescued ITM -> OTM")
 
         # 3. Duration Strategy (Weight: 20%)
-        # Preference: Short Duration (< 10 days)
-        days = roll_data.get("days_extended", 0) # Days between old exp and new exp
+        days = roll_data.get("days_extended", 0)
         if days < 10:
             score += 10
+            reasons.append("Short Duration")
         elif days > 30:
             score -= 10
+            reasons.append("Long Duration Penalty")
 
-        # 4. Momentum & Urgency (Weight: Variable)
-        # 1D Change
+        # 4. Momentum & Urgency
         one_day = market_data.get("one_day_change", 0)
-        # If Bullish (> 1%) and we are rolling up, that's good.
         if one_day > 1.0 and new_strike > old_strike:
             score += 10
+            reasons.append("Momentum Aligned")
+        
+        market_dte = market_data.get("days_to_expiry_current", 0)
 
         # 5. Greeks Optimization
-        # Delta: Prefer ~0.30 (Standard OTM target)
         delta = abs(roll_data.get("delta", 0))
         if 0.20 <= delta <= 0.40:
             score += 10
-        elif delta > 0.60: # Deep ITM
+            reasons.append("Optimal Delta (30)")
+        elif delta > 0.60: 
             score -= 10
+            reasons.append("Deep ITM Risk")
+            
+        # Gamma Penalty
+        new_dte_days = float(roll_data.get('time_to_expiry_years', 0)) * 365
+        moneyness = curr_price / new_strike if new_strike else 0
+        if new_dte_days < 2 and 0.98 < moneyness < 1.02:
+             score -= 20
+             reasons.append("Gamma/Pin Risk")
 
-        # 6. Dividend Assignment Risk (X-DIV Strategy)
+        # Signal Integration
+        if signal_data:
+            prob_up = signal_data.get('prob_up', 0.5)
+            if prob_up > 0.60:
+                if new_strike > old_strike:
+                    score += 15
+                    reasons.append("AI Signal: Bullish Roll")
+                elif new_strike <= old_strike:
+                    score -= 10
+
+        # 6. Dividend
         if dividend_info and dividend_info.get('amount', 0) > 0:
             div_date_str = dividend_info.get('ex_date')
             div_amount = dividend_info.get('amount')
@@ -92,33 +117,24 @@ class RollService:
             if div_date_str and roll_exp_str:
                 try:
                     div_dt = datetime.strptime(div_date_str, "%Y-%m-%d")
-                    # If roll expiry is AFTER or ON ex-date, we hold through it (Risk!)
-                    # Wait, if we roll TO a date, we are liable if that date is >= ExDate. 
-                    # If we roll to Exp < ExDate, we are safe? No, short options expire. 
-                    # If Short Call Expiry >= ExDate, we are at risk on ExDate - 1.
-                    
                     roll_exp_dt = datetime.strptime(roll_exp_str, "%Y-%m-%d")
                     
                     if roll_exp_dt >= div_dt:
-                        # We are holding through the dividend.
-                        # Check ITM status
                         if new_strike < curr_price:
-                            # We are ITM. Risk Analysis.
                             intrinsic = max(0.0, curr_price - new_strike)
-                            option_price = roll_data.get('bid', 0) # Using Bid as proxy for market price
+                            option_price = roll_data.get('bid', 0)
                             extrinsic = max(0.0, option_price - intrinsic)
                             
                             if extrinsic < div_amount:
-                                # DANGER ZONE
                                 score -= 50
-                                logging.info(f"Dividend Risk Detected: Extrinsic {extrinsic} < Div {div_amount}")
+                                reasons.append("Dividend Assignment Risk")
                             elif extrinsic > div_amount * 1.5:
-                                # Safe Buffer
                                 score += 10
+                                reasons.append("Dividend Safe")
                 except ValueError:
                     pass
 
-        return max(0.0, min(100.0, score))
+        return max(0.0, min(100.0, score)), reasons
 
 
     def analyze_portfolio_rolls(self, portfolio_items, max_days_to_expiration=10):
@@ -248,10 +264,19 @@ class RollService:
         except:
              return {"error": "Failed to fetch ticker data"}
              
+        # Calculate DTE (Calendar Days)
+        # Use .date() to ensure we count full calendar days (Mon->Fri = 4)
+        exp_dt = datetime.strptime(current_exp_date, "%Y-%m-%d")
+        dte_days = (exp_dt.date() - datetime.now().date()).days
+        
         market_data = {
             "current_price": current_price,
-            "one_day_change": one_day_change
+            "one_day_change": one_day_change,
+            "days_to_expiry_current": dte_days
         }
+        
+        # signal
+        signal_data = self.signal_service.get_roll_vs_hold_advice(symbol, {})
              
         # Filter Dates: Must be AFTER current_exp_date
         # Convert inputs
@@ -349,10 +374,28 @@ class RollService:
                              "gamma": float(row.get('gamma', 0)),
                              "theta": float(row.get('theta', 0))
                          }
-                         
+                         # Calculate Returns
+                         if current_price > 0:
+                             # UP Return: (New Strike - Price) / Price
+                             # Assuming we get assigned at Strike
+                             assigned_val = new_strike - current_price
+                             up_return_pct = (assigned_val / current_price) * 100
+                              
+                             # Yields
+                             # Static Yield (Credit / Price)
+                             static_yield_pct = (net_credit / current_price) * 100
+                              
+                             # Total Yield (Assigned)
+                             total_yield_pct = up_return_pct + static_yield_pct
+                              
+                             roll_item["up_return_pct"] = round(up_return_pct, 2)
+                             roll_item["static_yield_pct"] = round(static_yield_pct, 2)
+                             roll_item["total_yield_pct"] = round(total_yield_pct, 2)
+
                          # CALCULATE SCORE
-                         score = self.score_roll(roll_item, current_pos_context, market_data, dividend_info)
+                         score, reasons = self.score_roll(roll_item, current_pos_context, market_data, dividend_info, signal_data)
                          roll_item["score"] = score
+                         roll_item["reasons"] = reasons
                          
                          rolls.append(roll_item)
             except Exception as e:
@@ -370,5 +413,6 @@ class RollService:
             "current_price": current_price,
             "one_day_change": round(one_day_change, 2),
             "cost_to_close": cost_to_close,
-            "rolls": rolls
+            "rolls": rolls,
+            "signal_analysis": signal_data
         }

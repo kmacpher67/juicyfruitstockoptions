@@ -9,6 +9,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [opportunityData, setOpportunityData] = useState(null);
     const [optimizerData, setOptimizerData] = useState(null);
     const [smartRollsData, setSmartRollsData] = useState(null);
+    const [signalData, setSignalData] = useState(null);
 
     // Reset state when ticker changes
     useEffect(() => {
@@ -18,6 +19,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setOpportunityData(null);
             setOptimizerData(null);
             setSmartRollsData(null);
+            setSignalData(null);
             setActiveTab('analytics');
             fetchData();
         }
@@ -27,17 +29,19 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         setLoading(true);
         try {
             // Parallel fetch for all data derived from this ticker
-            const [tickerRes, oppRes, optRes, rollRes] = await Promise.all([
+            const [tickerRes, oppRes, optRes, rollRes, sigRes] = await Promise.all([
                 api.get(`/ticker/${ticker}`),
                 api.get(`/opportunity/${ticker}`),
                 api.get(`/portfolio/optimizer/${ticker}`),
-                api.get(`/analysis/rolls/${ticker}`).catch(e => ({ data: [] })) // Handle error gracefully if 404/error
+                api.get(`/analysis/rolls/${ticker}`).catch(e => ({ data: [] })),
+                api.get(`/analysis/signals/${ticker}`).catch(e => ({ data: null }))
             ]);
 
             setTickerData(tickerRes.data);
             setOpportunityData(oppRes.data);
             setOptimizerData(optRes.data);
             setSmartRollsData(rollRes.data);
+            setSignalData(sigRes.data);
         } catch (error) {
             console.error("Failed to fetch ticker data", error);
         } finally {
@@ -79,6 +83,12 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                         <TrendingUp className="w-4 h-4" /> Analytics
                     </button>
                     <button
+                        onClick={() => setActiveTab('signals')}
+                        className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'signals' ? 'bg-gray-700 text-pink-400 border-b-2 border-pink-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
+                    >
+                        <Activity className="w-4 h-4" /> Signals
+                    </button>
+                    <button
                         onClick={() => setActiveTab('opportunity')}
                         className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'opportunity' ? 'bg-gray-700 text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
                     >
@@ -116,6 +126,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     ) : (
                         <>
                             {activeTab === 'analytics' && <AnalyticsView data={tickerData} />}
+                            {activeTab === 'signals' && <SignalView data={signalData} />}
                             {activeTab === 'opportunity' && <OpportunityView data={opportunityData} />}
                             {activeTab === 'optimizer' && <OptimizerView data={optimizerData} />}
                             {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
@@ -248,6 +259,68 @@ const OpportunityView = ({ data }) => {
                         <div className="text-xl font-mono text-white">{data.metrics?.atr_14}</div>
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+
+
+const SignalView = ({ data }) => {
+    if (!data) return <div className="text-center text-gray-400 py-12">No signal data available.</div>;
+    const { kalman, markov, advice } = data;
+
+    return (
+        <div className="space-y-6">
+            {/* Advice Header */}
+            <div className={`p-4 rounded-lg border-l-4 flex justify-between items-center ${advice?.recommendation === 'ROLL' ? 'bg-indigo-900 border-indigo-500' : advice?.recommendation === 'HOLD' ? 'bg-yellow-900 border-yellow-500' : 'bg-gray-800 border-gray-500'}`}>
+                <div>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">{advice?.recommendation} Recommendation</h3>
+                    <p className="text-gray-300 text-sm mt-1">{advice?.reason}</p>
+                </div>
+                <div className="text-right">
+                    <div className="text-2xl font-bold text-white">{advice?.confidence}%</div>
+                    <div className="text-xs uppercase text-gray-400">Confidence</div>
+                </div>
+            </div>
+
+            {/* Kalman Trend */}
+            <div className="bg-gray-800 p-4 rounded border border-gray-700">
+                <h4 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-400" /> Kalman Filter Trend
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <div className="text-xs text-gray-500 uppercase">Signal</div>
+                        <div className="text-white font-mono text-lg">{kalman?.signal || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div className="text-xs text-gray-500 uppercase">Trend Mean</div>
+                        <div className="text-white font-mono">${kalman?.kalman_mean?.toFixed(2)}</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Markov Probabilities */}
+            <div className="bg-gray-800 p-4 rounded border border-gray-700">
+                <h4 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-pink-400" /> Markov Chain Probabilities
+                </h4>
+                <div className="mb-2 text-sm text-gray-400">
+                    Current State: <span className="font-bold text-white">{markov?.current_state}</span>
+                </div>
+                {markov?.transitions && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(markov.transitions).map(([state, prob]) => (
+                            <div key={state} className="bg-gray-900 p-2 rounded flex justify-between items-center">
+                                <span className="text-gray-300 text-xs">{state}</span>
+                                <span className={`font-mono font-bold ${state.includes('UP') ? 'text-green-400' : 'text-red-400'}`}>
+                                    {(prob * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -388,6 +461,21 @@ const SmartRollView = ({ data }) => {
                                 <div className="text-sm text-indigo-300 mt-1">
                                     Net Credit: <span className="font-mono font-bold">${roll.net_credit?.toFixed(2)}</span>
                                 </div>
+                                <div className="text-xs text-gray-500 mt-1 flex gap-2">
+                                    <span title="Yield if Stock stays at current price">Stat Yield: {roll.static_yield_pct}%</span>
+                                    <span className="text-gray-600">|</span>
+                                    <span title="Return if Assigned (Cap Gain + Premium)">Total Yield: <span className="text-green-300">{roll.total_yield_pct}%</span></span>
+                                </div>
+                                {/* Reasoning */}
+                                {roll.reasons && roll.reasons.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {roll.reasons.map((r, ri) => (
+                                            <span key={ri} className="px-1.5 py-0.5 rounded bg-gray-700 text-[10px] text-gray-300 border border-gray-600">
+                                                {r}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div className={`
                                 px-3 py-1 rounded text-sm font-bold
@@ -395,7 +483,7 @@ const SmartRollView = ({ data }) => {
                                     roll.score >= 50 ? 'bg-yellow-900 text-yellow-300' :
                                         'bg-red-900 text-red-300'}
                             `}>
-                                Score: {roll.score}
+                                Score: {Math.round(roll.score)}
                             </div>
                         </div>
 

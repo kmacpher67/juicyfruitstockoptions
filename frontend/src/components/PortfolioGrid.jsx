@@ -64,7 +64,19 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             width: 80,
             valueFormatter: p => `${(p.value * 100).toFixed(2)}%`
         },
-        { field: "asset_class", headerName: "Type", sortable: true, width: 70 }
+        {
+            field: "asset_class",
+            headerName: "Type",
+            sortable: true,
+            width: 70,
+            valueGetter: params => {
+                const d = params.data;
+                if (d.asset_class) return d.asset_class;
+                if (d.secType) return d.secType;
+                if (d.symbol && d.symbol.length > 6 && /\s/.test(d.symbol)) return "OPT"; // Heuristic
+                return "STK";
+            }
+        }
     ], []);
 
     // Filter Logic

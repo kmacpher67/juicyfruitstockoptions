@@ -150,10 +150,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Auto-Roll Fixes**: The "Dividend Capture Opportunities" button is huge and empty which is not a good user experience.
         - [x] **Auto-Roll Fixes**: After clicking on a roll there is spinner as it's thinking. Do these Smart Roll Analysis get saved somewhere?  
         - [x] **Auto-Roll Fixes**: No suitable rolls found for this position. Misses the point, WAIT, HOLD, or CLOSE. Are options also? If there are no suitable rolls found for this position, is the XDTE only offer a roll? 
-        - [ ] **UI fixes**: My portfolio is missing Type column data for each row.
-        - [ ] **UI fixes**: Trades view is shows an obvious OPT trade as STK trade? It should show open or close, BUY or SELL, if close show the profit yield. 
-        - [ ] **UI fixes**: My Portfolio the XDTE boxes only use 1/2 the width of the available space. 
-        - [ ] **UI fixes**: The XDTE still shows 2D as the i assume the number of days to expiration even though it's 4D. Debug why this is happening. ref docs/learning/dte-calculation-standards.md
+        - [/] **Smart Roll Analysis**: analysis misses UP value for the roll. Add info regarding UP Return/Yield and Tot: yield. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+        - [/] **UI fixes**: My portfolio is missing Type column data for each row. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+        - [/] **UI fixes**: Trades view is shows an obvious OPT trade as STK trade? It should show open or close, BUY or SELL, if close show the profit yield. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+        - [/] **UI fixes**: My Portfolio the XDTE boxes only use 1/2 the width of the available space. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+        - [/] **UI fixes**: The XDTE still shows 2D as the i assume the number of days to expiration even though it's 4D. Debug why this is happening. ref docs/learning/dte-calculation-standards.md. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
         - [x] **Scheduler Integration**: Scans scheduled every 30 mins (Market Hours) and 1 hr Pre/Post-Market.
         - [x] **UI Performance**: UI components (e.g., Dividend Capture) must read from DB persistence, NOT trigger blocking live scans.  
     - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md
@@ -173,13 +174,19 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
             - [x] **Scoring**: Implement "Dividend Assignment Risk" penalty in `score_roll` (Extrinsic value < Dividend).
             - [x] **Dividend Capture**: (Buy-Write) strategies specifically in the Opportunity Finder? YES update this as requirement. Implemented `DividendScanner`.
             - [x] **x-div**: export a .ics list and details for calendar integration (copy and paste into google calendar). implemented `/api/calendar/dividends.ics`.
-        - [ ] **Scoring**: Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes.
+        - [/] **Scoring**: Smart Roll Strategy - Roll UP Factor in underlying stock profit (increase in strike width), cost to close, and premiums of new strikes. When doing a Roll, consider paying for a better UP position and factor in the momentum effect of going too far OUT on a stock trending UP (velocity of stock).
+            - [ ] **NEXT STEP**: Implement "Momentum Trigger" in `RollService.score_roll`. Adjust score based on `1D % Change` vs `DTE` (See [Smart Roll Logic](learning/smart-roll-diagonal.md#b-dynamic-dte-scaling-momentum-trigger)).
+            - [ ] **NEXT STEP**: Implement "Gamma Penalty" for DTE < 2 and Moneyness > 0.98.
+            - [ ] **NEXT STEP**: Implement "Reset Protocol" (Defense Buy-Back) to suggest closing instead of rolling in bearish trends.
+            - [/] **Implementation Plan**: All above "NEXT STEP" items are covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+
         - [x] **strategy**: Find suitable Roll Calendar/Diagonal with favorable Return and Yield. Consider position move to more profit (unrealized stock gain) vs cost of buyback. Prefer near 0DTE or short term if profitable, incorporate all the strategies available to make recommendations or opportunities on the portfolio.
         - [x] **Add to UI**: Incorporate into the app.
             - [x] **Smart Roll Widget**: In `TickerModal` (for held positions) and `PortfolioGrid` (overview). Display score, net credit, and "Dividend Risk" warnings.
             - [x] **Dividend Capture List**: New section in `Dashboard` or modal to display logic from `/api/analysis/dividend-capture`.
             - [x] **Calendar Export**: Button in `PortfolioGrid` (via Dashboard Dropdown) to download `.ics` file.
         - [x] **Smart Roll Strategy**: See [Smart Roll & Diagonal Strategy](learning/smart-roll-diagonal.md). Defines heuristics for Short Duration (<10 days), Credit Priority, and Strike Improvement.
+        - [x] **Smart Roll Strategy**: See [Smart Roll & Diagonal Strategy](learning/smart-roll-diagonal.md). Update algo and heuristics to incorporate UP strategy benefit of the STK increase in return and yield.  Add UP value to scoring algo also  if it's not already there. Record in dB STK Return & Yield, Total Return &Yield (ie: OPT return & yield) 
     - [x] Screen for call buying opportunities (momentum).
     - [ ] Strategy: Use "Juicy Calls" premium to fund downward protection (puts) or long calls. Add this to the opportunity finder section of the ticker modal and the portfolio view.
     - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
@@ -206,9 +213,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Infrastrucutre**: Implement Backend Service and API.
         - [x] Create `SignalService` with Kalman trend smoothing and Markov state transitions.
         - [x] Expose `GET /api/analysis/signals/{ticker}` endpoint.
-    - [ ] **NEXT STEP**: Integrate experimental signals into **Smart Roll** assistant to improve "Roll vs Hold" advice.
-    - [ ] **NEXT STEP**: Markov Chains predictions stocks, Options,  signals in Frontend **Ticker Modal** for visual analysis.
-    - [ ] **NEXT STEP**: Markov Chains in the scoring algo. 
+    - [/] **NEXT STEP**: Integrate experimental signals into **Smart Roll** assistant to improve "Roll vs Hold" advice. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+    - [/] **NEXT STEP**: Markov Chains predictions stocks, Options,  signals in Frontend **Ticker Modal** for visual analysis. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+    - [/] **NEXT STEP**: Markov Chains in the scoring algo. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
     - [ ] **NEXT STEP**: Create a new section in the **Dashboard** to display signals for the portfolio.
     - [ ] **Predictions**: Use LMM or Markov Chains to predict future stock prices and options prices.  Use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
 - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
