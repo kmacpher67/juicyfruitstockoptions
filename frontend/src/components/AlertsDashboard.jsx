@@ -94,7 +94,7 @@ const AlertsDashboard = ({ onSelectTicker, onAnalyzeRoll }) => {
                 {expirations.map((opp, idx) => (
                     <div
                         key={`exp-${idx}`}
-                        className="p-2 pl-3 rounded text-sm border bg-indigo-900/30 border-indigo-700 text-indigo-200 flex items-center gap-2 shadow-sm"
+                        className="p-1.5 pl-2 rounded text-xs border bg-indigo-900/30 border-indigo-700 text-indigo-200 flex items-center gap-2 shadow-sm"
                     >
                         <div className="flex-shrink-0">
                             {/* Clock Icon inline */}
@@ -103,20 +103,21 @@ const AlertsDashboard = ({ onSelectTicker, onAnalyzeRoll }) => {
                         <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-0.5">
                                 <div className="flex items-center gap-1.5">
-                                    <span className="font-bold font-mono text-white">{opp.symbol}</span>
-                                    <span className="text-[10px] uppercase font-bold opacity-70 bg-indigo-900 px-1 rounded text-white border border-indigo-500">Expiring</span>
+                                    <span className="font-bold font-mono text-white text-sm">{opp.symbol}</span>
+                                    <span className="text-[9px] uppercase font-bold opacity-70 bg-indigo-900 px-1 rounded text-white border border-indigo-500">EXP</span>
                                 </div>
                                 <span className={`text-[10px] font-mono px-1.5 rounded font-bold ${opp.context?.days_to_exp <= 3 ? 'bg-red-900 text-red-200' : 'bg-black/20'}`}>
                                     {opp.context?.days_to_exp}d
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center mt-1">
-                                <p className="text-xs opacity-90 truncate" title={opp.proposal?.reason}>
-                                    {opp.proposal?.expiry} | {opp.proposal?.strike}
+                            <div className="flex justify-between items-center mt-0.5">
+                                <p className="text-[10px] opacity-90 truncate font-mono" title={opp.proposal?.expiry}>
+                                    {/* Slicing YYYY-MM-DD to MM-DD for space */}
+                                    {opp.proposal?.expiry?.slice(5)} | {opp.proposal?.strike}
                                 </p>
                                 <button
                                     onClick={() => onAnalyzeRoll && onAnalyzeRoll(opp)}
-                                    className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-0.5 rounded transition-colors"
+                                    className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-0.5 rounded transition-colors whitespace-nowrap"
                                 >
                                     Roll?
                                 </button>

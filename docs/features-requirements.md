@@ -145,6 +145,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Options Due in X Days**: Signal for all options expiring in <7 Days (DTE). *Backend Implemented via `ExpirationScanner`.*
         - [/] **X-DTE options UI**: Only show the DTE<7 list of options so they can be evaluated for rolling, holding, waiting, or closing. Leave space for showing greeks, probability, payouts, Returns, yields, LT vs ST P&L, create UX for showing opportunties available for rolling, holding, waiting, or closing. See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
         - [/] **Auto-Roll Evaluation**: Automatically analyze rolling opportunities for these positions (e.g., Roll to next week or month if covered call is ITM). See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
+        - [x] **Auto-Roll Fixes**: The roll doesn't show the yield and the return. It's unclear what the original ticker OPT details are it's MSFT put or call. Original strike price is unknown. Time of the original contract and return / yield is unknow. What about the whole sequence of that buy and sell? What part makes money? Under what scenario (price change Up/Down, time change, yield change) does it make money? 
+        - [x] **Auto-Roll Fixes**: What does the SELECT button do? **Definition**: Clicking "Select" logs the chosen roll strategy (Buy to Close Current + Sell to Open New) and provides a "Success" toast notification. Future state will persist this to a Trade Plan or trigger an IBKR Order ticket.
+        - [x] **Auto-Roll Fixes**: The "Dividend Capture Opportunities" button is huge and empty which is not a good user experience.
+        - [x] **Auto-Roll Fixes**: After clicking on a roll there is spinner as it's thinking. Do these Smart Roll Analysis get saved somewhere?  
+        - [x] **Auto-Roll Fixes**: No suitable rolls found for this position. Misses the point, WAIT, HOLD, or CLOSE. Are options also? If there are no suitable rolls found for this position, is the XDTE only offer a roll? 
+   
         - [x] **Scheduler Integration**: Scans scheduled every 30 mins (Market Hours) and 1 hr Pre/Post-Market.
         - [x] **UI Performance**: UI components (e.g., Dividend Capture) must read from DB persistence, NOT trigger blocking live scans.  
     - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md

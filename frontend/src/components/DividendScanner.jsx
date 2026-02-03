@@ -40,23 +40,7 @@ const DividendScanner = () => {
 
     if (loading && !opportunities.length) return <div className="p-4 text-gray-300">Loading Opportunities...</div>;
     if (error) return <div className="p-4 text-red-400">Error: {error}</div>;
-    if (opportunities.length === 0 && !loading && !refreshing) return (
-        <div className="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-green-400 flex items-center gap-2">
-                    <span className="text-2xl">💰</span> Dividend Capture Opportunities
-                </h2>
-                <button
-                    onClick={() => fetchOpps(true)}
-                    disabled={refreshing}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-                >
-                    {refreshing ? 'Scanning...' : 'Scan Now'}
-                </button>
-            </div>
-            <p className="text-gray-400">No opportunities found recently.</p>
-        </div>
-    );
+    if (opportunities.length === 0 && !loading && !refreshing) return null;
 
     return (
         <div className="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700">

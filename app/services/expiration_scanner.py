@@ -30,7 +30,7 @@ class ExpirationScanner:
             holdings = list(db.ibkr_holdings.find(query))
             
             count = 0
-            now = datetime.utcnow()
+            now = datetime.now()
             
             for item in holdings:
                 # Filter for Short Options
@@ -51,7 +51,9 @@ class ExpirationScanner:
                     else:
                          exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
                          
-                    days_to_exp = (exp_dt - now).days
+                    # Use Calendar Days (Date diff, not timestamp diff)
+                    # Use local time for "perception" of "Today"
+                    days_to_exp = (exp_dt.date() - now.date()).days
                     
                     if days_to_exp <= days_threshold:
                         self._create_opportunity(item, days_to_exp, exp_dt)
