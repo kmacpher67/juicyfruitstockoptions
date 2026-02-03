@@ -203,6 +203,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] Research `markovify` or `pykalman` libraries.
     - [x] Prototype Mean Reversion and Trend Following models using Kalman.
     - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to use Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock.  How does this work with Kalman filters, pros and cons, what's better for what scenario.  How to use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed. See [Markov Chains & Kalman Signals](learning/markov-chains-signals.md).
+    - [x] **Infrastrucutre**: Implement Backend Service and API.
+        - [x] Create `SignalService` with Kalman trend smoothing and Markov state transitions.
+        - [x] Expose `GET /api/analysis/signals/{ticker}` endpoint.
+    - [ ] **NEXT STEP**: Integrate experimental signals into **Smart Roll** assistant to improve "Roll vs Hold" advice.
+    - [ ] **NEXT STEP**: Markov Chains predictions stocks, Options,  signals in Frontend **Ticker Modal** for visual analysis.
+    - [ ] **NEXT STEP**: Markov Chains in the scoring algo. 
+    - [ ] **NEXT STEP**: Create a new section in the **Dashboard** to display signals for the portfolio.
     - [ ] **Predictions**: Use LMM or Markov Chains to predict future stock prices and options prices.  Use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
 - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation. 
