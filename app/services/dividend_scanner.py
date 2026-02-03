@@ -1,10 +1,12 @@
 import yfinance as yf
 from datetime import datetime, timedelta
 import logging
+from app.services.opportunity_service import OpportunityService
+from app.models.opportunity import JuicyOpportunity, OpportunityStatus
 
 class DividendScanner:
     def __init__(self):
-        pass
+        self.opp_service = OpportunityService()
 
     def scan_dividend_capture_opportunities(self, tickers: list[str]) -> list[dict]:
         """
@@ -42,7 +44,7 @@ class DividendScanner:
                      
                      if yield_pct > 2.0: # Filter for decent yield
                          # Suggest Opportunity
-                         opp = {
+                         opp_data = {
                              "symbol": symbol,
                              "ex_date": ex_date.strftime("%Y-%m-%d"),
                              "dividend_amount": div_rate / 4, # Est Quarterly
@@ -52,8 +54,28 @@ class DividendScanner:
                              "strategy": "Buy-Write (Dividend Capture)",
                              "score": 80 # Base score for now
                          }
-                         opportunities.append(opp)
-                         logging.info(f"[DividendScanner] Found opportunity for {symbol}")
+                         
+                         # Persist Opportunity
+                         try:
+                             juicy_opp = JuicyOpportunity(
+                                 symbol=symbol,
+                                 trigger_source="DividendScanner",
+                                 status=OpportunityStatus.DETECTED,
+                                 context={
+                                     "price": current_price,
+                                     "yield_annual": yield_pct,
+                                     "ex_date": ex_date.strftime("%Y-%m-%d"),
+                                     "days_to_ex": days_to_ex
+                                 },
+                                 proposal=opp_data
+                             )
+                             self.opp_service.create_opportunity(juicy_opp)
+                             logging.info(f"[DividendScanner] Persisted opportunity for {symbol}")
+                         except Exception as db_err:
+                             logging.error(f"[DividendScanner] Failed to persist {symbol}: {db_err}")
+                             
+                         opportunities.append(opp_data)
+                         
                          
             except Exception as e:
                 logging.warning(f"Error scanning div for {symbol}: {e}")

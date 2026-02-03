@@ -127,8 +127,9 @@ def test_find_rolls_with_dividend(mock_ticker_cls):
     # Penalty -50.
     # Score should be near 0 or < 30.
 
+@patch("app.services.dividend_scanner.OpportunityService")
 @patch("yfinance.Ticker")
-def test_dividend_scanner(mock_ticker_cls):
+def test_dividend_scanner(mock_ticker_cls, mock_opp_service):
     from app.services.dividend_scanner import DividendScanner
     scanner = DividendScanner()
     
@@ -168,44 +169,50 @@ def test_dividend_scanner(mock_ticker_cls):
 
 
 
-@patch("app.api.routes.MongoClient")
-@patch("app.services.dividend_scanner.DividendScanner.scan_dividend_capture_opportunities")
-def test_api_scan_dividend_capture_handling(mock_scan, mock_mongo):
-    from app.api.routes import scan_dividend_capture
+@patch("app.services.opportunity_service.OpportunityService")
+@patch("app.services.dividend_scanner.DividendScanner")
+def test_api_scan_dividend_capture_handling(mock_scanner_cls, mock_opp_service):
+    from app.api.routes import scan_dividend_capture, router
+    from app.database import get_db
     from fastapi import HTTPException
     
-    # Mock User
-    mock_user = MagicMock()
-    mock_user.username = "test_user"
+    # Mock DB Dependency
+    mock_db = MagicMock()
     
     # 1. Test Empty Portfolio (Success, returns empty list)
-    mock_db = MagicMock()
-    mock_mongo.return_value.get_default_database.return_value = mock_db
     mock_db.ibkr_holdings.find_one.return_value = None # No latest snapshot
     
-    res = scan_dividend_capture(mock_user)
+    # Helper to clean up scan arguments since we are testing function directly or via DI?
+    # If we test function directly, we pass mock_db as argument.
+    # Note: `scan_dividend_capture` now requires `db` argument.
+    
+    mock_user = MagicMock()
+    mock_user.username = "test_user"
+
+    res = scan_dividend_capture(mock_user, db=mock_db, force_scan=True)
     assert res == []
     
     # 2. Test Exception Handling (Should raise HTTPException 500)
     mock_db.ibkr_holdings.find_one.side_effect = Exception("Database Down")
     
     try:
-        scan_dividend_capture(mock_user)
+        scan_dividend_capture(mock_user, db=mock_db, force_scan=True)
         assert False, "Should have raised HTTPException"
     except HTTPException as e:
         assert e.status_code == 500
         assert "Database Down" in str(e.detail)
         
-    # 3. Test Scanner Exception (e.g. yfinance error propagated up, though service swallows mostly)
-    # If service throws, route assumes critical failure.
+    # 3. Test Scanner Exception
     mock_db.ibkr_holdings.find_one.side_effect = None
     mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "123"}
     mock_db.ibkr_holdings.find.return_value = [{"symbol": "AAPL"}]
     
-    mock_scan.side_effect = Exception("Scanner API Error")
+    # Configure the mock instance returned by the class constructor
+    mock_scanner_instance = mock_scanner_cls.return_value
+    mock_scanner_instance.scan_dividend_capture_opportunities.side_effect = Exception("Scanner API Error")
     
     try:
-        scan_dividend_capture(mock_user)
+        scan_dividend_capture(mock_user, db=mock_db, force_scan=True)
         assert False, "Should have raised HTTPException on scanner failure"
     except HTTPException as e:
         assert e.status_code == 500

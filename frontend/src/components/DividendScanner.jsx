@@ -3,41 +3,80 @@ import React, { useEffect, useState } from 'react';
 const DividendScanner = () => {
     const [opportunities, setOpportunities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
+
+    const fetchOpps = async (force = false) => {
+        if (force) setRefreshing(true);
+        try {
+            const token = localStorage.getItem('token');
+            const url = force
+                ? '/api/analysis/dividend-capture?force_scan=true'
+                : '/api/analysis/dividend-capture';
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch dividend opportunities');
+            }
+
+            const data = await response.json();
+            setOpportunities(data);
+            setLastUpdated(new Date());
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchOpps = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch('/api/analysis/dividend-capture', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to fetch dividend opportunities');
-                }
-
-                const data = await response.json();
-                setOpportunities(data);
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchOpps();
     }, []);
 
-    if (loading) return <div className="p-4 text-gray-300">Scanning for Dividend Capture Opportunities...</div>;
+    if (loading && !opportunities.length) return <div className="p-4 text-gray-300">Loading Opportunities...</div>;
     if (error) return <div className="p-4 text-red-400">Error: {error}</div>;
-    if (opportunities.length === 0) return null; // Hide if empty
+    if (opportunities.length === 0 && !loading && !refreshing) return (
+        <div className="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-green-400 flex items-center gap-2">
+                    <span className="text-2xl">💰</span> Dividend Capture Opportunities
+                </h2>
+                <button
+                    onClick={() => fetchOpps(true)}
+                    disabled={refreshing}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                >
+                    {refreshing ? 'Scanning...' : 'Scan Now'}
+                </button>
+            </div>
+            <p className="text-gray-400">No opportunities found recently.</p>
+        </div>
+    );
 
     return (
         <div className="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700">
-            <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
-                <span className="text-2xl">💰</span> Dividend Capture Opportunities
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-green-400 flex items-center gap-2">
+                    <span className="text-2xl">💰</span> Dividend Capture Opportunities
+                </h2>
+                <div className="flex items-center gap-4">
+                    {lastUpdated && <span className="text-xs text-gray-500">Updated: {lastUpdated.toLocaleTimeString()}</span>}
+                    <button
+                        onClick={() => fetchOpps(true)}
+                        disabled={refreshing}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {refreshing && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                        {refreshing ? 'Scanning...' : 'Refresh'}
+                    </button>
+                </div>
+            </div>
+
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-gray-900 rounded-lg overflow-hidden">
                     <thead className="bg-gray-800 text-gray-300">

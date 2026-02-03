@@ -3,6 +3,8 @@ from app.config import settings
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import run_ibkr_sync
+from app.services.dividend_scanner import DividendScanner
+from app.services.expiration_scanner import ExpirationScanner
 import logging
 import json
 import os
@@ -109,7 +111,89 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info("Scheduled Portfolio Fixer for 03:00 daily.")
+
+    # --- Dividend Scanner Jobs ---
+    def run_dividend_scan_wrapper():
+        """Wrapper to instantiate scanner and run."""
+        from app.services.dividend_scanner import DividendScanner
+        from pymongo import MongoClient
+        
+        # 1. Fetch Tickers
+        try:
+             client = MongoClient(settings.MONGO_URI)
+             db = client.get_default_database("stock_analysis")
+             latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+             if latest:
+                 query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+                 holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
+                 tickers = list(set([h["symbol"] for h in holdings]))
+                 
+                 if tickers:
+                     logging.info(f"Scheduler: Starting Dividend Scan for {len(tickers)} tickers.")
+                     scanner = DividendScanner()
+                     scanner.scan_dividend_capture_opportunities(tickers)
+                     logging.info("Scheduler: Dividend Scan Completed.")
+        except Exception as e:
+            logging.error(f"Scheduler: Failed to run dividend scan: {e}")
+
+    # 1. Market Hours (Monday-Friday, 9:30 - 16:00, every 30 mins)
+    # Cron: Mon-Fri, 9-16 hour, 0,30 minute
+    scheduler.add_job(
+        run_dividend_scan_wrapper,
+        trigger="cron",
+        day_of_week='mon-fri',
+        hour='9-16',
+        minute='0,30',
+        id='dividend_market_hours',
+        replace_existing=True
+    )
     
+    # 2. Pre-Market (8:30 AM)
+    scheduler.add_job(
+        run_dividend_scan_wrapper,
+        trigger="cron",
+        day_of_week='mon-fri',
+        hour='8',
+        minute='30',
+        id='dividend_pre_market',
+        replace_existing=True
+    )
+    
+    # 3. Post-Market (5:00 PM)
+    scheduler.add_job(
+        run_dividend_scan_wrapper,
+        trigger="cron",
+        day_of_week='mon-fri',
+        hour='17',
+        minute='0',
+        id='dividend_post_market',
+        replace_existing=True
+    )
+    logging.info("Scheduled Dividend Scans (Pre/Market/Post).")
+
+    # --- Expiration Scanner Job ---
+    def run_expiration_scan_wrapper():
+        """Wrapper to run Expiration Scanner."""
+        try:
+             logging.info("Scheduler: Starting Expiration Scan.")
+             scanner = ExpirationScanner()
+             scanner.scan_portfolio_expirations(days_threshold=7)
+             logging.info("Scheduler: Expiration Scan Completed.")
+        except Exception as e:
+            logging.error(f"Scheduler: Failed to run expiration scan: {e}")
+
+    # Daily at 9:30 AM (Market Open)
+    scheduler.add_job(
+        run_expiration_scan_wrapper,
+        trigger="cron",
+        day_of_week='mon-fri',
+        hour='9',
+        minute='30',
+        id='expiration_scanner_daily',
+        replace_existing=True
+    )
+    logging.info("Scheduled Expiration Scanner (Daily 09:30).")
+
     scheduler.start()
 
 def stop_scheduler():

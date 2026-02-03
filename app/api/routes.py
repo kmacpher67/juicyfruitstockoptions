@@ -11,6 +11,7 @@ from app.models import Token, User, StockRecord, IBKRConfig, IBKRStatus, NavRepo
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import fetch_and_store_nav_report
+from app.database import get_db
 
 router = APIRouter()
 
@@ -666,15 +667,37 @@ def get_ticker_news(
 
 # --- X-DIV & Calendar Endpoints ---
 
+@router.get("/api/opportunities")
+def get_opportunities(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    source: str = None,
+    limit: int = 100
+):
+    """
+    Get persisted opportunities from the database.
+    """
+    from app.services.opportunity_service import OpportunityService
+    service = OpportunityService()
+    return service.get_opportunities(source=source, limit=limit)
+
 @router.get("/analysis/dividend-capture")
 def scan_dividend_capture(
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[any, Depends(get_db)],
+    force_scan: bool = False
 ):
-    logging.info(f"User {current_user.username} requested Dividend Capture Scan.")
+    logging.info(f"User {current_user.username} requested Dividend Capture Scan (force_scan={force_scan}).")
     try:
+        if not force_scan:
+            # Return persisted results
+            from app.services.opportunity_service import OpportunityService
+            service = OpportunityService()
+            results = service.get_opportunities(source="DividendScanner", limit=100)
+            # Map back to original proposal format for backward compatibility
+            return [r.get("proposal", {}) for r in results]
+
         # 1. Get Tickers from Portfolio
-        client = MongoClient(settings.MONGO_URI)
-        db = client.get_default_database("stock_analysis")
+        # db is already connected via dependency
         
         # Get distinct symbols from latest holdings
         latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
