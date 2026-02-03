@@ -12,6 +12,7 @@ import AlertsDashboard from './AlertsDashboard';
 import DividendScanner from './DividendScanner';
 import TradeHistory from './TradeHistory';
 import TickerModal from './TickerModal';
+import RollAnalysisModal from './RollAnalysisModal';
 // import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const AVAILABLE_COLUMNS = [
@@ -399,6 +400,9 @@ const Dashboard = () => {
         }
     };
 
+    // --- Roll Analysis Logic ---
+    const [selectedRollOpportunity, setSelectedRollOpportunity] = useState(null);
+
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
             <header className="flex justify-between items-center mb-8">
@@ -487,53 +491,15 @@ const Dashboard = () => {
                         <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
                     </div>
 
-                    {/* Portfolio History Chart */}
-                    {/* Portfolio History Chart - DISABLED Pending Dependency Fix */}
-                    {/* {portfolioStats?.history?.length > 0 && (
-                        <div className="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 mb-4 h-64">
-                            <h3 className="text-gray-400 text-xs uppercase font-bold mb-2">Portfolio Performance</h3>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={portfolioStats.history}>
-                                    <defs>
-                                        <linearGradient id="colorNav" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                    <XAxis
-                                        dataKey="date"
-                                        stroke="#9CA3AF"
-                                        tick={{ fontSize: 10 }}
-                                        tickFormatter={(str) => {
-                                            const d = new Date(str);
-                                            return `${d.getMonth() + 1}/${d.getDate()}`;
-                                        }}
-                                    />
-                                    <YAxis
-                                        domain={['auto', 'auto']}
-                                        stroke="#9CA3AF"
-                                        tick={{ fontSize: 10 }}
-                                        tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }}
-                                        itemStyle={{ color: '#818CF8' }}
-                                        formatter={(val) => [`$${val.toLocaleString()}`, "NAV"]}
-                                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                                    />
-                                    <Area type="monotone" dataKey="nav" stroke="#818CF8" fillOpacity={1} fill="url(#colorNav)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )} */}
-
                     <div className="mb-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
                         {/* Dynamically load Alerts */}
-                        <AlertsDashboard onSelectTicker={(ticker) => {
-                            // Toggle filter: If clicking same ticker, clear filter. Else set it.
-                            setFilterTicker(prev => prev === ticker ? null : ticker);
-                        }} />
+                        <AlertsDashboard
+                            onSelectTicker={(ticker) => {
+                                // Toggle filter: If clicking same ticker, clear filter. Else set it.
+                                setFilterTicker(prev => prev === ticker ? null : ticker);
+                            }}
+                            onAnalyzeRoll={(opportunity) => setSelectedRollOpportunity(opportunity)}
+                        />
                         <DividendScanner />
                     </div>
                     {/* Filter Indicator */}
@@ -646,6 +612,12 @@ const Dashboard = () => {
                 ticker={selectedTicker}
                 isOpen={!!selectedTicker}
                 onClose={() => setSelectedTicker(null)}
+            />
+
+            <RollAnalysisModal
+                opportunity={selectedRollOpportunity}
+                isOpen={!!selectedRollOpportunity}
+                onClose={() => setSelectedRollOpportunity(null)}
             />
 
             <SettingsModal
