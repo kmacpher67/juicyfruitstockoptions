@@ -170,6 +170,29 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info("Scheduled Dividend Scans (Pre/Market/Post).")
+    # --- Dividend Calendar Generation Job ---
+    def run_dividend_calendar_job():
+        """Wrapper for ICS generation."""
+        try:
+             from app.services.dividend_scanner import DividendScanner
+             logging.info("Scheduler: Starting Dividend Calendar Generation.")
+             scanner = DividendScanner()
+             scanner.generate_dividend_calendar()
+             logging.info("Scheduler: Dividend Calendar Generation Completed.")
+        except Exception as e:
+            logging.error(f"Scheduler: Failed to generate dividend calendar: {e}")
+
+    # Run daily at 6:00 AM
+    scheduler.add_job(
+        run_dividend_calendar_job,
+        trigger="cron",
+        day_of_week='mon-sun',
+        hour='6',
+        minute='0',
+        id='dividend_calendar_gen',
+        replace_existing=True
+    )
+    logging.info("Scheduled Dividend Calendar Generation (Daily 06:00).")
 
     # --- Expiration Scanner Job ---
     def run_expiration_scan_wrapper():

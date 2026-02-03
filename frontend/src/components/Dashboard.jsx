@@ -9,7 +9,6 @@ import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import AlertsDashboard from './AlertsDashboard';
-import DividendScanner from './DividendScanner';
 import TradeHistory from './TradeHistory';
 import TickerModal from './TickerModal';
 import RollAnalysisModal from './RollAnalysisModal';
@@ -195,6 +194,22 @@ const Dashboard = () => {
             link.remove();
         } catch (error) {
             console.error("Download failed:", error);
+        }
+    };
+
+    const downloadICS = async () => {
+        try {
+            const response = await api.get('/calendar/dividends.ics', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'dividends.ics');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("ICS Download failed:", error);
         }
     };
 
@@ -445,15 +460,13 @@ const Dashboard = () => {
                                             <Download className="inline-block w-3 h-3 mr-2" />
                                             Export CSV
                                         </a>
-                                        <a
-                                            href="/api/calendar/dividends.ics"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            onClick={downloadICS}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border-b border-gray-700"
                                         >
                                             <span className="inline-block w-3 h-3 mr-2">📅</span>
                                             Export Calendar (.ics)
-                                        </a>
+                                        </button>
                                         <button
                                             onClick={syncAllPortfolio}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors rounded-b"
@@ -491,8 +504,8 @@ const Dashboard = () => {
                         <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
                     </div>
 
-                    <div className="mb-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-                        {/* Dynamically load Alerts */}
+                    <div className="mb-4">
+                        {/* Dynamically load Alerts & Opportunities */}
                         <AlertsDashboard
                             onSelectTicker={(ticker) => {
                                 // Toggle filter: If clicking same ticker, clear filter. Else set it.
@@ -500,7 +513,6 @@ const Dashboard = () => {
                             }}
                             onAnalyzeRoll={(opportunity) => setSelectedRollOpportunity(opportunity)}
                         />
-                        <DividendScanner />
                     </div>
                     {/* Filter Indicator */}
                     {filterTicker && (

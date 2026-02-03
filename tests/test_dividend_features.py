@@ -49,7 +49,7 @@ def test_score_roll_dividend_risk_penalty():
     
     # We need to pass this new arg.
     # Assuming code will be: score_roll(..., dividend_info)
-    score = service.score_roll(roll, create_current(), create_market(), dividend_info=dividend_info)
+    score, _ = service.score_roll(roll, create_current(), create_market(), dividend_info=dividend_info)
     
     # Expect Penalty. Base 50. 
     # Credit (+0.10) ? Let's say +20. 
@@ -72,7 +72,7 @@ def test_score_roll_dividend_safety_buffer():
         "amount": 1.00
     }
     
-    score = service.score_roll(roll, create_current(), create_market(), dividend_info=dividend_info)
+    score, _ = service.score_roll(roll, create_current(), create_market(), dividend_info=dividend_info)
     
     # Expect Bonus or at least no penalty.
     assert score > 50

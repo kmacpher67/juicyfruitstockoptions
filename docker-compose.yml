@@ -14,6 +14,7 @@ services:
       - ./Ai_Stock_Database.py:/app/Ai_Stock_Database.py
       - ./export_mongo.py:/app/export_mongo.py
       - ./tests:/app/tests # Map tests for execution
+      - ./xdivs:/app/xdivs # Persist ICS files
     environment:
       - MONGO_URI=mongodb://admin:admin123@mongo:27017/?authSource=admin
       - APP_NAME=JuicyFruit Stock Portal

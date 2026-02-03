@@ -83,3 +83,71 @@ class DividendScanner:
                 
         logging.info(f"[DividendScanner] Completed scan. Found {len(opportunities)} opportunities.")
         return opportunities
+
+    def generate_dividend_calendar(self) -> str:
+        """
+        Generates an ICS calendar file for all tracked holdings with upcoming dividends.
+        Persists to 'xdivs/' directory.
+        Returns the path to the generated file.
+        """
+        import os
+        from ics import Calendar, Event
+        from pymongo import MongoClient
+        from app.config import settings
+        
+        logging.info("[DividendScanner] Starting ICS Calendar Generation...")
+        
+        # 0. Setup Directory
+        cache_dir = "xdivs"
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir, exist_ok=True)
+            
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        filename = f"dividends_{today_str}.ics"
+        file_path = os.path.join(cache_dir, filename)
+        
+        # 1. Fetch Symbols (From IBKR Holdings)
+        # TODO: Abstract this symbol fetching logic shared with jobs.py
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        
+        latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+        symbols = []
+        if latest:
+            query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+            holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
+            symbols = list(set([h["symbol"] for h in holdings]))
+        
+        now = datetime.utcnow()
+        events_count = 0
+        c = Calendar()
+        c.creator = "JuicyFruitOptions"
+
+        # 2. Fetch Data & Build Calendar
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                ts = ticker.info.get("exDividendDate")
+                if ts:
+                     dt = datetime.fromtimestamp(ts)
+                     # Look back 30 days to capture recent, look forward plenty
+                     if dt > now - timedelta(days=30): 
+                         rate = ticker.info.get("dividendRate", 0)
+                         
+                         e = Event()
+                         e.name = f"Ex-Div: {symbol}"
+                         e.begin = dt.strftime("%Y-%m-%d")
+                         e.make_all_day()
+                         e.description = f"Annual Rate: ${rate}\nEst Qtr: ${rate/4}"
+                         c.events.add(e)
+                         events_count += 1
+            except Exception as e:
+                 # logging.warning(f"Failed to fetch div info for {symbol}: {e}")
+                 pass
+
+        # 3. Save to file
+        with open(file_path, 'w') as f:
+            f.write(str(c))
+            
+        logging.info(f"[DividendScanner] ICS Generation Complete. Saved {events_count} events to {file_path}")
+        return file_path

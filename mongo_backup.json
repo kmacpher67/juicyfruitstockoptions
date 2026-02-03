@@ -1,27 +1,27 @@
 [
   {
     "Ticker": "MSTR",
-    "Last Update": "2026-02-03 06:58:00",
+    "Last Update": "2026-02-03 14:26:37",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62e9e"
+      "$oid": "69824fc4c933d802d8dd387c"
     },
-    "Current Price": 139.63,
-    "1D % Change": "-6.73%",
-    "Market Cap (T$)": 0.040401195008,
-    "P/E": 5.7295856,
-    "YoY Price %": "-59.8%",
-    "EMA_20": 159.21,
-    "HMA_20": 151.16,
-    "TSMOM_60": -0.4347,
-    "RSI_14": 37.28,
-    "ATR_14": 10.52,
-    "MA_30": 160.41,
-    "MA_60": 176.72,
-    "MA_120": 250.03,
-    "MA_200": 306.29,
-    "EMA_20_highlight": -0.123,
-    "HMA_20_highlight": -11.53,
-    "TSMOM_60_highlight": -0.4347,
+    "Current Price": 129.22,
+    "1D % Change": "-7.46%",
+    "Market Cap (T$)": 0.037389115392,
+    "P/E": 5.302421,
+    "YoY Price %": "-62.8%",
+    "EMA_20": 156.36,
+    "HMA_20": 145.71,
+    "TSMOM_60": -0.4932,
+    "RSI_14": 25.28,
+    "ATR_14": 10.5,
+    "MA_30": 159.44,
+    "MA_60": 174.62,
+    "MA_120": 247.82,
+    "MA_200": 305.37,
+    "EMA_20_highlight": -0.1736,
+    "HMA_20_highlight": -16.49000000000001,
+    "TSMOM_60_highlight": -0.4932,
     "Ex-Div Date": {
       "$numberDouble": "NaN"
     },
@@ -29,14 +29,14 @@
       "$numberDouble": "NaN"
     },
     "Analyst 1-yr Target": 474.30768,
-    "1-yr 6% OTM PUT Price": 32.5,
-    "Annual Yield Put Prem": 23.28,
+    "1-yr 6% OTM PUT Price": 31.35,
+    "Annual Yield Put Prem": 24.26,
     "3-mo Call Yield": 14.22,
-    "6-mo Call Yield": 18.98,
-    "1-yr Call Yield": 29.06,
-    "Annual Yield Call Prem": 20.81,
-    "Call/Put Skew": 0.8939003436426116,
-    "6-mo Call Strike": 150.0,
+    "6-mo Call Yield": 20.51,
+    "1-yr Call Yield": 30.18,
+    "Annual Yield Call Prem": 23.36,
+    "Call/Put Skew": 0.9629018961253091,
+    "6-mo Call Strike": 140.0,
     "Error": {
       "$numberDouble": "NaN"
     },
@@ -44,17 +44,17 @@
     "_CallExpDate_365": "2027-01-15",
     "_CallExpDate_90": "2026-05-15",
     "_CallExpDate_180": "2026-07-17",
-    "MA_30_highlight": -0.1295,
-    "MA_60_highlight": -0.2099,
-    "MA_120_highlight": -0.4415,
-    "MA_200_highlight": -0.5441,
+    "MA_30_highlight": -0.1895,
+    "MA_60_highlight": -0.26,
+    "MA_120_highlight": -0.4786,
+    "MA_200_highlight": -0.5768,
     "Price Action": "{}"
   },
   {
     "Ticker": "AA",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62e9f"
+      "$oid": "69824fc4c933d802d8dd387d"
     },
     "Current Price": 58.21,
     "1D % Change": "2.46%",
@@ -101,7 +101,7 @@
     "Ticker": "AAPL",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea0"
+      "$oid": "69824fc4c933d802d8dd387e"
     },
     "Current Price": 270.01,
     "1D % Change": "4.06%",
@@ -148,7 +148,7 @@
     "Ticker": "AEM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea1"
+      "$oid": "69824fc4c933d802d8dd387f"
     },
     "Current Price": 190.82,
     "1D % Change": "0.17%",
@@ -195,7 +195,7 @@
     "Ticker": "AMAT",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea2"
+      "$oid": "69824fc4c933d802d8dd3880"
     },
     "Current Price": 328.4,
     "1D % Change": "1.89%",
@@ -242,7 +242,7 @@
     "Ticker": "AMD",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea3"
+      "$oid": "69824fc4c933d802d8dd3881"
     },
     "Current Price": 246.27,
     "1D % Change": "4.03%",
@@ -291,7 +291,7 @@
     "Ticker": "AMZN",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea4"
+      "$oid": "69824fc4c933d802d8dd3882"
     },
     "Current Price": 242.96,
     "1D % Change": "1.53%",
@@ -342,7 +342,7 @@
     "Ticker": "ARMK",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea5"
+      "$oid": "69824fc4c933d802d8dd3883"
     },
     "Current Price": 38.34,
     "1D % Change": "-0.39%",
@@ -389,7 +389,7 @@
     "Ticker": "AVGO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea6"
+      "$oid": "69824fc4c933d802d8dd3884"
     },
     "Current Price": 331.11,
     "1D % Change": "-0.06%",
@@ -436,7 +436,7 @@
     "Ticker": "BHP",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea7"
+      "$oid": "69824fc4c933d802d8dd3885"
     },
     "Current Price": 69.39,
     "1D % Change": "0.96%",
@@ -483,7 +483,7 @@
     "Ticker": "BMY",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea8"
+      "$oid": "69824fc4c933d802d8dd3886"
     },
     "Current Price": 55.89,
     "1D % Change": "1.53%",
@@ -530,7 +530,7 @@
     "Ticker": "CCJ",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ea9"
+      "$oid": "69824fc4c933d802d8dd3887"
     },
     "Current Price": 120.21,
     "1D % Change": "-2.58%",
@@ -577,7 +577,7 @@
     "Ticker": "CEG",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eaa"
+      "$oid": "69824fc4c933d802d8dd3888"
     },
     "Current Price": 270.88,
     "1D % Change": "-3.49%",
@@ -624,7 +624,7 @@
     "Ticker": "COPP",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eab"
+      "$oid": "69824fc4c933d802d8dd3889"
     },
     "Current Price": 40.34,
     "1D % Change": "0.88%",
@@ -677,7 +677,7 @@
     "Ticker": "CPRX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eac"
+      "$oid": "69824fc4c933d802d8dd388a"
     },
     "Current Price": 25.0,
     "1D % Change": "2.88%",
@@ -736,7 +736,7 @@
     "Ticker": "CRWD",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ead"
+      "$oid": "69824fc4c933d802d8dd388b"
     },
     "Current Price": 438.85,
     "1D % Change": "-0.58%",
@@ -789,7 +789,7 @@
     "Ticker": "CRWV",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eae"
+      "$oid": "69824fc4c933d802d8dd388c"
     },
     "Current Price": 88.94,
     "1D % Change": "-4.56%",
@@ -842,7 +842,7 @@
     "Ticker": "CVM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eaf"
+      "$oid": "69824fc4c933d802d8dd388d"
     },
     "Current Price": 5.4,
     "1D % Change": "-6.90%",
@@ -917,7 +917,7 @@
     "Ticker": "CVS",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb0"
+      "$oid": "69824fc4c933d802d8dd388e"
     },
     "Current Price": 75.42,
     "1D % Change": "1.21%",
@@ -964,7 +964,7 @@
     "Ticker": "CVX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb1"
+      "$oid": "69824fc4c933d802d8dd388f"
     },
     "Current Price": 174.03,
     "1D % Change": "-1.62%",
@@ -1011,7 +1011,7 @@
     "Ticker": "D",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb2"
+      "$oid": "69824fc4c933d802d8dd3890"
     },
     "Current Price": 60.03,
     "1D % Change": "-0.23%",
@@ -1058,7 +1058,7 @@
     "Ticker": "DUK",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb3"
+      "$oid": "69824fc4c933d802d8dd3891"
     },
     "Current Price": 119.49,
     "1D % Change": "-1.53%",
@@ -1105,7 +1105,7 @@
     "Ticker": "ENB",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb4"
+      "$oid": "69824fc4c933d802d8dd3892"
     },
     "Current Price": 48.28,
     "1D % Change": "-1.15%",
@@ -1152,7 +1152,7 @@
     "Ticker": "ERO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb5"
+      "$oid": "69824fc4c933d802d8dd3893"
     },
     "Current Price": 34.19,
     "1D % Change": "2.03%",
@@ -1203,7 +1203,7 @@
     "Ticker": "ETN",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb6"
+      "$oid": "69824fc4c933d802d8dd3894"
     },
     "Current Price": 359.44,
     "1D % Change": "2.28%",
@@ -1250,7 +1250,7 @@
     "Ticker": "F",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb7"
+      "$oid": "69824fc4c933d802d8dd3895"
     },
     "Current Price": 13.81,
     "1D % Change": "-0.50%",
@@ -1297,7 +1297,7 @@
     "Ticker": "FCX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb8"
+      "$oid": "69824fc4c933d802d8dd3896"
     },
     "Current Price": 60.76,
     "1D % Change": "0.88%",
@@ -1344,7 +1344,7 @@
     "Ticker": "FDX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eb9"
+      "$oid": "69824fc4c933d802d8dd3897"
     },
     "Current Price": 335.3,
     "1D % Change": "4.05%",
@@ -1391,7 +1391,7 @@
     "Ticker": "FMNB",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eba"
+      "$oid": "69824fc4c933d802d8dd3898"
     },
     "Current Price": 13.02,
     "1D % Change": "0.31%",
@@ -1446,7 +1446,7 @@
     "Ticker": "GD",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ebb"
+      "$oid": "69824fc4c933d802d8dd3899"
     },
     "Current Price": 346.37,
     "1D % Change": "-1.34%",
@@ -1493,7 +1493,7 @@
     "Ticker": "GE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ebc"
+      "$oid": "69824fc4c933d802d8dd389a"
     },
     "Current Price": 308.71,
     "1D % Change": "0.63%",
@@ -1540,7 +1540,7 @@
     "Ticker": "GEV",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ebd"
+      "$oid": "69824fc4c933d802d8dd389b"
     },
     "Current Price": 754.97,
     "1D % Change": "3.94%",
@@ -1587,7 +1587,7 @@
     "Ticker": "GOOG",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ebe"
+      "$oid": "69824fc4c933d802d8dd389c"
     },
     "Current Price": 344.9,
     "1D % Change": "1.88%",
@@ -1634,7 +1634,7 @@
     "Ticker": "GOOGL",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ebf"
+      "$oid": "69824fc4c933d802d8dd389d"
     },
     "Current Price": 343.69,
     "1D % Change": "1.68%",
@@ -1681,7 +1681,7 @@
     "Ticker": "IBM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec0"
+      "$oid": "69824fc4c933d802d8dd389e"
     },
     "Current Price": 314.73,
     "1D % Change": "2.62%",
@@ -1728,7 +1728,7 @@
     "Ticker": "IBRX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec1"
+      "$oid": "69824fc4c933d802d8dd389f"
     },
     "Current Price": 6.13,
     "1D % Change": "-1.92%",
@@ -1781,7 +1781,7 @@
     "Ticker": "INTC",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec2"
+      "$oid": "69824fc4c933d802d8dd38a0"
     },
     "Current Price": 48.81,
     "1D % Change": "5.04%",
@@ -1832,7 +1832,7 @@
     "Ticker": "IONQ",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec3"
+      "$oid": "69824fc4c933d802d8dd38a1"
     },
     "Current Price": 38.56,
     "1D % Change": "-3.55%",
@@ -1885,7 +1885,7 @@
     "Ticker": "IREN",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec4"
+      "$oid": "69824fc4c933d802d8dd38a2"
     },
     "Current Price": 53.08,
     "1D % Change": "-1.23%",
@@ -1936,7 +1936,7 @@
     "Ticker": "JNJ",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec5"
+      "$oid": "69824fc4c933d802d8dd38a3"
     },
     "Current Price": 230.75,
     "1D % Change": "1.54%",
@@ -1983,7 +1983,7 @@
     "Ticker": "JPM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec6"
+      "$oid": "69824fc4c933d802d8dd38a4"
     },
     "Current Price": 308.14,
     "1D % Change": "0.74%",
@@ -2030,7 +2030,7 @@
     "Ticker": "KMB",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec7"
+      "$oid": "69824fc4c933d802d8dd38a5"
     },
     "Current Price": 99.5,
     "1D % Change": "-0.49%",
@@ -2077,7 +2077,7 @@
     "Ticker": "KO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec8"
+      "$oid": "69824fc4c933d802d8dd38a6"
     },
     "Current Price": 75.33,
     "1D % Change": "0.70%",
@@ -2124,7 +2124,7 @@
     "Ticker": "LAC",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ec9"
+      "$oid": "69824fc4c933d802d8dd38a7"
     },
     "Current Price": 4.76,
     "1D % Change": "-2.26%",
@@ -2177,7 +2177,7 @@
     "Ticker": "LRCX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eca"
+      "$oid": "69824fc4c933d802d8dd38a8"
     },
     "Current Price": 237.5,
     "1D % Change": "1.73%",
@@ -2224,7 +2224,7 @@
     "Ticker": "MCD",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ecb"
+      "$oid": "69824fc4c933d802d8dd38a9"
     },
     "Current Price": 318.53,
     "1D % Change": "1.12%",
@@ -2271,7 +2271,7 @@
     "Ticker": "META",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ecc"
+      "$oid": "69824fc4c933d802d8dd38aa"
     },
     "Current Price": 706.41,
     "1D % Change": "-1.41%",
@@ -2318,7 +2318,7 @@
     "Ticker": "MO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ecd"
+      "$oid": "69824fc4c933d802d8dd38ab"
     },
     "Current Price": 62.23,
     "1D % Change": "0.39%",
@@ -2365,7 +2365,7 @@
     "Ticker": "MRVL",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ece"
+      "$oid": "69824fc4c933d802d8dd38ac"
     },
     "Current Price": 78.66,
     "1D % Change": "-0.33%",
@@ -2412,7 +2412,7 @@
     "Ticker": "MSFT",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ecf"
+      "$oid": "69824fc4c933d802d8dd38ad"
     },
     "Current Price": 423.37,
     "1D % Change": "-1.61%",
@@ -2459,7 +2459,7 @@
     "Ticker": "MU",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed0"
+      "$oid": "69824fc4c933d802d8dd38ae"
     },
     "Current Price": 437.8,
     "1D % Change": "5.52%",
@@ -2506,7 +2506,7 @@
     "Ticker": "NEE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed1"
+      "$oid": "69824fc4c933d802d8dd38af"
     },
     "Current Price": 86.33,
     "1D % Change": "-1.79%",
@@ -2553,7 +2553,7 @@
     "Ticker": "NNE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed2"
+      "$oid": "69824fc4c933d802d8dd38b0"
     },
     "Current Price": 27.71,
     "1D % Change": "-5.73%",
@@ -2606,7 +2606,7 @@
     "Ticker": "NRDE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed3"
+      "$oid": "69824fc4c933d802d8dd38b1"
     },
     "Current Price": 1.5,
     "1D % Change": "4.90%",
@@ -2685,7 +2685,7 @@
     "Ticker": "NUE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed4"
+      "$oid": "69824fc4c933d802d8dd38b2"
     },
     "Current Price": 180.96,
     "1D % Change": "1.82%",
@@ -2732,7 +2732,7 @@
     "Ticker": "NVDA",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed5"
+      "$oid": "69824fc4c933d802d8dd38b3"
     },
     "Current Price": 185.61,
     "1D % Change": "-2.89%",
@@ -2779,7 +2779,7 @@
     "Ticker": "OKE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed6"
+      "$oid": "69824fc4c933d802d8dd38b4"
     },
     "Current Price": 75.32,
     "1D % Change": "-4.89%",
@@ -2826,7 +2826,7 @@
     "Ticker": "OLN",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed7"
+      "$oid": "69824fc4c933d802d8dd38b5"
     },
     "Current Price": 22.17,
     "1D % Change": "6.54%",
@@ -2875,7 +2875,7 @@
     "Ticker": "ORCL",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed8"
+      "$oid": "69824fc4c933d802d8dd38b6"
     },
     "Current Price": 160.06,
     "1D % Change": "-2.75%",
@@ -2922,7 +2922,7 @@
     "Ticker": "PAAS",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ed9"
+      "$oid": "69824fc4c933d802d8dd38b7"
     },
     "Current Price": 53.63,
     "1D % Change": "-1.78%",
@@ -2969,7 +2969,7 @@
     "Ticker": "PFE",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eda"
+      "$oid": "69824fc4c933d802d8dd38b8"
     },
     "Current Price": 26.66,
     "1D % Change": "0.83%",
@@ -3016,7 +3016,7 @@
     "Ticker": "PLTR",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62edb"
+      "$oid": "69824fc4c933d802d8dd38b9"
     },
     "Current Price": 147.76,
     "1D % Change": "0.80%",
@@ -3067,7 +3067,7 @@
     "Ticker": "RIO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62edc"
+      "$oid": "69824fc4c933d802d8dd38ba"
     },
     "Current Price": 92.52,
     "1D % Change": "1.64%",
@@ -3114,7 +3114,7 @@
     "Ticker": "RXT",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62edd"
+      "$oid": "69824fc4c933d802d8dd38bb"
     },
     "Current Price": 0.5591,
     "1D % Change": "-8.64%",
@@ -3167,7 +3167,7 @@
     "Ticker": "SCCO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ede"
+      "$oid": "69824fc4c933d802d8dd38bc"
     },
     "Current Price": 192.8,
     "1D % Change": "1.30%",
@@ -3214,7 +3214,7 @@
     "Ticker": "SLB",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62edf"
+      "$oid": "69824fc4c933d802d8dd38bd"
     },
     "Current Price": 48.05,
     "1D % Change": "-0.68%",
@@ -3261,7 +3261,7 @@
     "Ticker": "SLV",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee0"
+      "$oid": "69824fc4c933d802d8dd38be"
     },
     "Current Price": 72.44,
     "1D % Change": "-3.98%",
@@ -3314,7 +3314,7 @@
     "Ticker": "SMG",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee1"
+      "$oid": "69824fc4c933d802d8dd38bf"
     },
     "Current Price": 62.34,
     "1D % Change": "-2.93%",
@@ -3361,7 +3361,7 @@
     "Ticker": "SMR",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee2"
+      "$oid": "69824fc4c933d802d8dd38c0"
     },
     "Current Price": 16.48,
     "1D % Change": "-5.72%",
@@ -3414,7 +3414,7 @@
     "Ticker": "SPWR",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee3"
+      "$oid": "69824fc4c933d802d8dd38c1"
     },
     "Current Price": 1.68,
     "1D % Change": "-2.33%",
@@ -3489,7 +3489,7 @@
     "Ticker": "SPXS",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee4"
+      "$oid": "69824fc4c933d802d8dd38c2"
     },
     "Current Price": 33.69,
     "1D % Change": "-1.52%",
@@ -3544,7 +3544,7 @@
     "Ticker": "STLD",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee5"
+      "$oid": "69824fc4c933d802d8dd38c3"
     },
     "Current Price": 186.55,
     "1D % Change": "3.89%",
@@ -3591,7 +3591,7 @@
     "Ticker": "T",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee6"
+      "$oid": "69824fc4c933d802d8dd38c4"
     },
     "Current Price": 26.3,
     "1D % Change": "0.34%",
@@ -3638,7 +3638,7 @@
     "Ticker": "TECH",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee7"
+      "$oid": "69824fc4c933d802d8dd38c5"
     },
     "Current Price": 65.25,
     "1D % Change": "1.81%",
@@ -3685,7 +3685,7 @@
     "Ticker": "TEM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee8"
+      "$oid": "69824fc4c933d802d8dd38c6"
     },
     "Current Price": 58.55,
     "1D % Change": "-2.12%",
@@ -3738,7 +3738,7 @@
     "Ticker": "TMUS",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ee9"
+      "$oid": "69824fc4c933d802d8dd38c7"
     },
     "Current Price": 194.99,
     "1D % Change": "-1.13%",
@@ -3785,7 +3785,7 @@
     "Ticker": "TSLA",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eea"
+      "$oid": "69824fc4c933d802d8dd38c8"
     },
     "Current Price": 421.81,
     "1D % Change": "-2.00%",
@@ -3836,7 +3836,7 @@
     "Ticker": "TSM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eeb"
+      "$oid": "69824fc4c933d802d8dd38c9"
     },
     "Current Price": 341.36,
     "1D % Change": "3.27%",
@@ -3883,7 +3883,7 @@
     "Ticker": "UPS",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eec"
+      "$oid": "69824fc4c933d802d8dd38ca"
     },
     "Current Price": 110.27,
     "1D % Change": "3.81%",
@@ -3930,7 +3930,7 @@
     "Ticker": "V",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eed"
+      "$oid": "69824fc4c933d802d8dd38cb"
     },
     "Current Price": 333.84,
     "1D % Change": "3.73%",
@@ -3977,7 +3977,7 @@
     "Ticker": "VLO",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eee"
+      "$oid": "69824fc4c933d802d8dd38cc"
     },
     "Current Price": 180.22,
     "1D % Change": "-0.67%",
@@ -4024,7 +4024,7 @@
     "Ticker": "VSAT",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62eef"
+      "$oid": "69824fc4c933d802d8dd38cd"
     },
     "Current Price": 43.75,
     "1D % Change": "-3.14%",
@@ -4077,7 +4077,7 @@
     "Ticker": "VST",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef0"
+      "$oid": "69824fc4c933d802d8dd38ce"
     },
     "Current Price": 154.26,
     "1D % Change": "-2.58%",
@@ -4124,7 +4124,7 @@
     "Ticker": "VZ",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef1"
+      "$oid": "69824fc4c933d802d8dd38cf"
     },
     "Current Price": 44.61,
     "1D % Change": "0.20%",
@@ -4171,7 +4171,7 @@
     "Ticker": "WM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef2"
+      "$oid": "69824fc4c933d802d8dd38d0"
     },
     "Current Price": 223.16,
     "1D % Change": "0.41%",
@@ -4218,7 +4218,7 @@
     "Ticker": "WMT",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef3"
+      "$oid": "69824fc4c933d802d8dd38d1"
     },
     "Current Price": 124.06,
     "1D % Change": "4.13%",
@@ -4265,7 +4265,7 @@
     "Ticker": "XOM",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef4"
+      "$oid": "69824fc4c933d802d8dd38d2"
     },
     "Current Price": 138.4,
     "1D % Change": "-2.12%",
@@ -4312,7 +4312,7 @@
     "Ticker": "^DJI",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef5"
+      "$oid": "69824fc4c933d802d8dd38d3"
     },
     "Current Price": 49407.66,
     "1D % Change": "1.05%",
@@ -4393,7 +4393,7 @@
     "Ticker": "^IXIC",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef6"
+      "$oid": "69824fc4c933d802d8dd38d4"
     },
     "Current Price": 23592.107,
     "1D % Change": "0.56%",
@@ -4474,7 +4474,7 @@
     "Ticker": "^SPX",
     "Last Update": "2026-02-03 05:29:00",
     "_id": {
-      "$oid": "6981e376fad0d658a2a62ef7"
+      "$oid": "69824fc4c933d802d8dd38d5"
     },
     "Current Price": 6976.44,
     "1D % Change": "0.54%",

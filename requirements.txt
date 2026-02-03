@@ -18,3 +18,5 @@ ics
 pydantic-settings
 markovify
 pykalman
+mongomock
+argon2-cffi

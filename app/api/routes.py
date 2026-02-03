@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -786,64 +786,36 @@ def scan_dividend_capture(
 def get_dividend_calendar():
     """
     Generate an ICS calendar file (or text fallback) with upcoming Ex-Dividend dates.
+    Persists daily files to 'xdivs/' directory to avoid re-fetching.
     """
     import yfinance as yf
-    from datetime import datetime, timedelta
-    from fastapi.responses import Response
+    from fastapi.responses import Response, FileResponse
+    import os
 
-    # 1. Get Symbols
-    client = MongoClient(settings.MONGO_URI)
-    db = client.get_default_database("stock_analysis")
+    # 0. Check Persistence (Cache)
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    cache_dir = "xdivs"
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
+        
+    # 1. Helper function to check cache
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    cache_dir = "xdivs"
+    filename = f"dividends_{today_str}.ics"
+    file_path = os.path.join(cache_dir, filename)
     
-    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-    symbols = []
-    if latest:
-        query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
-        holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
-        symbols = list(set([h["symbol"] for h in holdings]))
-    
-    now = datetime.utcnow()
-    events_data = []
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="text/calendar", filename="dividends.ics")
 
-    # 2. Fetch Data
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            ts = ticker.info.get("exDividendDate")
-            if ts:
-                 dt = datetime.fromtimestamp(ts)
-                 if dt > now - timedelta(days=30): 
-                     rate = ticker.info.get("dividendRate", 0)
-                     events_data.append({
-                         "symbol": symbol,
-                         "date": dt,
-                         "rate": rate
-                     })
-        except:
-             pass
-
-    # 3. Generate Output (ICS or Text)
+    # 2. Generate if missing
+    from app.services.dividend_scanner import DividendScanner
+    scanner = DividendScanner()
     try:
-        from ics import Calendar, Event
-        c = Calendar()
-        c.creator = "JuicyFruitOptions"
-        
-        for e_data in events_data:
-             e = Event()
-             e.name = f"Ex-Div: {e_data['symbol']}"
-             # Ensure date is string YYYY-MM-DD
-             e.begin = e_data['date'].strftime("%Y-%m-%d")
-             e.make_all_day()
-             e.description = f"Annual Rate: ${e_data['rate']}\nEst Qtr: ${e_data['rate']/4}"
-             c.events.add(e)
-             
-        return Response(content=str(c), media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=dividends.ics"})
-        
-    except ImportError:
-        # Fallback to Plain Text / CSV as requested if ICS missing
-        lines = ["Date,Symbol,AnnualRate,EstQtr"]
-        for e_data in events_data:
-            lines.append(f"{e_data['date'].strftime('%Y-%m-%d')},{e_data['symbol']},{e_data['rate']},{e_data['rate']/4}")
+        generated_path = scanner.generate_dividend_calendar()
+        return FileResponse(generated_path, media_type="text/calendar", filename="dividends.ics")
+    except Exception as e:
+        # Fallback empty response or error
+        return Response(content=f"Error generating calendar: {str(e)}", status_code=500)
             
         return Response(content="\n".join(lines), media_type="text/plain")
 

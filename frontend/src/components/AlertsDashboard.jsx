@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { AlertTriangle, CheckCircle, TrendingUp, X } from 'lucide-react';
+import DividendScanner from './DividendScanner';
 
 const AlertsDashboard = ({ onSelectTicker, onAnalyzeRoll }) => {
     const [alerts, setAlerts] = useState([]);
@@ -57,8 +58,8 @@ const AlertsDashboard = ({ onSelectTicker, onAnalyzeRoll }) => {
 
     return (
         <div className="mb-4">
-            {/* Mixed Grid of Alerts & Expirations */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* Mixed Grid of Alerts & Expirations - Dense 8-wide grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                 {/* 1. Portfolio Alerts */}
                 {alerts.map((alert, idx) => {
                     const { color, icon: Icon, label } = getTypeConfig(alert.type, alert.score || 0);
@@ -125,6 +126,7 @@ const AlertsDashboard = ({ onSelectTicker, onAnalyzeRoll }) => {
                         </div>
                     </div>
                 ))}
+                <DividendScanner />
             </div>
         </div>
     );
