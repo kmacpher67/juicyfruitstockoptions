@@ -128,8 +128,14 @@ def test_find_rolls_with_dividend(mock_ticker_cls):
     # Score should be near 0 or < 30.
 
 @patch("app.services.dividend_scanner.OpportunityService")
+@patch("app.services.dividend_scanner.MongoClient")
 @patch("yfinance.Ticker")
-def test_dividend_scanner(mock_ticker_cls, mock_opp_service):
+def test_dividend_scanner(mock_ticker_cls, mock_mongo, mock_opp_service):
+    # Setup Mock DB
+    mock_db = MagicMock()
+    mock_mongo.return_value.get_default_database.return_value = mock_db
+    mock_db.ibkr_holdings.find_one.return_value = None # No holdings map for this test
+    
     from app.services.dividend_scanner import DividendScanner
     scanner = DividendScanner()
     

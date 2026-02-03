@@ -35,13 +35,15 @@ class OpportunityService:
             logger.error(f"Failed to create opportunity: {e}", exc_info=True)
             raise
 
-    def get_opportunities(self, source: Optional[str] = None, status: Optional[str] = None, limit: int = 100) -> List[dict]:
+    def get_opportunities(self, source: Optional[str] = None, status: Optional[str] = None, symbol: Optional[str] = None, limit: int = 100) -> List[dict]:
         """Retrieve opportunities with optional filtering."""
         query = {}
         if source:
             query["trigger_source"] = source
         if status:
             query["status"] = status
+        if symbol:
+            query["symbol"] = symbol
             
         cursor = self.collection.find(query).sort("timestamp", -1).limit(limit)
         results = []

@@ -750,9 +750,19 @@ def scan_dividend_capture(
             # Return persisted results
             from app.services.opportunity_service import OpportunityService
             service = OpportunityService()
-            results = service.get_opportunities(source="DividendScanner", limit=100)
-            # Map back to original proposal format for backward compatibility
-            return [r.get("proposal", {}) for r in results]
+            results = service.get_opportunities(source="DividendScanner", limit=200)
+            
+            # Dedupe: Keep latest per symbol
+            # Assuming results are sorted by created_at desc (or natural insertion order desc)
+            # We use a dict to keep the first occurrence (latest)
+            unique_results = {}
+            for r in results:
+                proposal = r.get("proposal", {})
+                sym = proposal.get("symbol")
+                if sym and sym not in unique_results:
+                     unique_results[sym] = proposal
+            
+            return list(unique_results.values())
 
         # 1. Get Tickers from Portfolio
         # db is already connected via dependency
@@ -779,6 +789,23 @@ def scan_dividend_capture(
     except Exception as e:
         logging.error(f"Error in scan_dividend_capture: {e}", exc_info=True)
         # Raise generic 500
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/analysis/dividend-capture/{ticker}")
+def get_dividend_capture_analysis(
+    ticker: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get detailed Buy-Write analysis for a ticker.
+    """
+    try:
+        from app.services.dividend_scanner import DividendScanner
+        scanner = DividendScanner()
+        strategies = scanner.analyze_capture_strategy(ticker)
+        return strategies
+    except Exception as e:
+        logging.error(f"Error getting analysis for {ticker}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

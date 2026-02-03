@@ -202,3 +202,86 @@ class SignalService:
             
         except Exception as e:
             return {"recommendation": "ERROR", "reason": str(e)}
+
+    def predict_future_price(self, ticker: str, days_ahead: int, current_price: float, mock_data: pd.DataFrame = None) -> Dict[str, Any]:
+        """
+        Predict future price using Monte Carlo simulation on Markov Chain of returns.
+        """
+        if days_ahead <= 0:
+             return {"predicted_price": current_price, "confidence": 1.0}
+
+        try:
+            # 1. Get Data
+            if mock_data is not None:
+                data = mock_data
+            else:
+                import yfinance as yf
+                # Need enough history for Markov
+                data = yf.download(ticker, period="1y", interval="1d", progress=False)
+                if isinstance(data.columns, pd.MultiIndex):
+                     data.columns = data.columns.get_level_values(0)
+            
+            # 2. Build Transitions & Return Stats
+            df = data.copy()
+            df['Return'] = df['Close'].pct_change()
+            df.dropna(inplace=True)
+            
+            def get_state(ret):
+                if ret > 0.015: return "UP_BIG"
+                if ret > 0.002: return "UP_SMALL"
+                if ret > -0.002: return "FLAT"
+                if ret > -0.015: return "DOWN_SMALL"
+                return "DOWN_BIG"
+
+            df['State'] = df['Return'].apply(get_state)
+            
+            # Calculate average return per state for reconstruction
+            state_avg_returns = df.groupby('State')['Return'].mean().to_dict()
+            
+            # Simple Transitions Dict
+            states = df['State'].tolist()
+            transitions = {}
+            for i in range(len(states) - 1):
+                curr = states[i]
+                nxt = states[i+1]
+                if curr not in transitions: transitions[curr] = []
+                transitions[curr].append(nxt)
+            
+            # 3. Monte Carlo Simulation
+            num_sims = 100
+            final_prices = []
+            
+            current_state = states[-1] if states else "FLAT"
+            
+            import random
+            
+            for _ in range(num_sims):
+                sim_price = current_price
+                sim_state = current_state
+                
+                for _ in range(days_ahead):
+                    # Pick next state
+                    if sim_state in transitions:
+                        next_state = random.choice(transitions[sim_state])
+                    else:
+                        next_state = "FLAT" # Fallback
+                    
+                    # Apply return
+                    ret = state_avg_returns.get(next_state, 0.0)
+                    sim_price = sim_price * (1 + ret)
+                    sim_state = next_state
+                
+                final_prices.append(sim_price)
+            
+            mean_price = sum(final_prices) / len(final_prices)
+            
+            return {
+                "predicted_price": round(mean_price, 2),
+                "min_sim": round(min(final_prices), 2),
+                "max_sim": round(max(final_prices), 2),
+                "simulations": num_sims
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in Price Prediction: {e}")
+            return {"predicted_price": current_price, "error": str(e)}
