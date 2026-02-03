@@ -150,7 +150,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Auto-Roll Fixes**: The "Dividend Capture Opportunities" button is huge and empty which is not a good user experience.
         - [x] **Auto-Roll Fixes**: After clicking on a roll there is spinner as it's thinking. Do these Smart Roll Analysis get saved somewhere?  
         - [x] **Auto-Roll Fixes**: No suitable rolls found for this position. Misses the point, WAIT, HOLD, or CLOSE. Are options also? If there are no suitable rolls found for this position, is the XDTE only offer a roll? 
-   
+        - [ ] **UI fixes**: My portfolio is missing Type column data for each row.
+        - [ ] **UI fixes**: Trades view is shows an obvious OPT trade as STK trade? It should show open or close, BUY or SELL, if close show the profit yield. 
+        - [ ] **UI fixes**: My Portfolio the XDTE boxes only use 1/2 the width of the available space. 
+        - [ ] **UI fixes**: The XDTE still shows 2D as the i assume the number of days to expiration even though it's 4D. Debug why this is happening. ref docs/learning/dte-calculation-standards.md
         - [x] **Scheduler Integration**: Scans scheduled every 30 mins (Market Hours) and 1 hr Pre/Post-Market.
         - [x] **UI Performance**: UI components (e.g., Dividend Capture) must read from DB persistence, NOT trigger blocking live scans.  
     - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md
@@ -196,10 +199,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **Research**: Evaluate X (Twitter) API v2 Basic Tier (~$100/mo) vs Free Limits for "Alpha Lists".
         - [ ] **Research**: Investigate Yahoo Scout integration (Scraping vs User Manual Copy/Paste).
     - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
-- [ ] **Markov Chains**: Implement Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock. 
-    - [ ] Research `markovify` or `pykalman` libraries.
-    - [ ] Prototype Mean Reversion and Trend Following models using Kalman.
-    - [ ] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to use Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock.  How does this work with Kalman filters, pros and cons, what's better for what scenario.  How to use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
+- [/] **Markov Chains**: Implement Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock. 
+    - [x] Research `markovify` or `pykalman` libraries.
+    - [x] Prototype Mean Reversion and Trend Following models using Kalman.
+    - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to use Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock.  How does this work with Kalman filters, pros and cons, what's better for what scenario.  How to use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed. See [Markov Chains & Kalman Signals](learning/markov-chains-signals.md).
+    - [ ] **Predictions**: Use LMM or Markov Chains to predict future stock prices and options prices.  Use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
 - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation. 
     - [ ] Research `filterpy` or `pykalman` libraries.

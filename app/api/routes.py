@@ -1,8 +1,11 @@
 from datetime import timedelta
 from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pymongo import MongoClient
+import yfinance as yf
+import pandas as pd
 
 from app.auth.dependencies import get_current_active_user
 from app.auth.utils import create_access_token, verify_password, get_password_hash
@@ -12,6 +15,7 @@ from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import fetch_and_store_nav_report
 from app.database import get_db
+from app.services.signal_service import SignalService
 
 router = APIRouter()
 
@@ -798,6 +802,39 @@ def get_macro_summary(
     """
     from app.services.macro_service import MacroService
     service = MacroService()
+    return service.get_macro_summary()
+
+
+@router.get("/analysis/signals/{ticker}")
+def get_ticker_signals(
+    ticker: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Get experimental Kalman Filter and Markov Chain signals for a ticker.
+    (Requires daily data history).
+    """
+    
+    # 1. Fetch Data (optimize: use database if available and fresh)
+    # For now, quick fetch
+    try:
+        data = yf.download(ticker, period="1y", interval="1d", progress=False)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+            
+        service = SignalService()
+        
+        kalman = service.get_kalman_signal(data)
+        markov = service.get_markov_probabilities(data)
+        
+        return {
+            "ticker": ticker,
+            "kalman": kalman,
+            "markov": markov
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     
     # Define key indicators to fetch
     indicators = [

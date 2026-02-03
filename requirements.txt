@@ -16,3 +16,5 @@ py_vollib_vectorized>=0.1.0
 nltk
 ics
 pydantic-settings
+markovify
+pykalman
