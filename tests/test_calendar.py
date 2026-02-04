@@ -31,7 +31,7 @@ def mock_xdivs_dir():
     # Actual implementation uses real date, so we need to be careful not to delete real files if running on production machine
     pass
 
-@patch("app.api.routes.MongoClient")
+@patch("pymongo.MongoClient")
 @patch("app.api.routes.yf.Ticker")
 def test_get_dividend_calendar_generation(mock_ticker, mock_mongo, mock_xdivs_dir):
     """Test that the endpoint generates a file when none exists."""
@@ -40,7 +40,7 @@ def test_get_dividend_calendar_generation(mock_ticker, mock_mongo, mock_xdivs_di
     # Since import is local to function, we must patch the source class
     with patch("app.services.dividend_scanner.DividendScanner") as MockScanner:
         mock_instance = MockScanner.return_value
-        expected_file_path = "xdivs/dividends_2099-01-01.ics"
+        expected_file_path = "xdivs/corporate_events_2099-01-01.ics"
         
         # Define side effect to create file ONLY when called (simulating generation)
         def create_dummy_file():
@@ -49,7 +49,7 @@ def test_get_dividend_calendar_generation(mock_ticker, mock_mongo, mock_xdivs_di
                  f.write("DUMMY ICS CONTENT")
              return expected_file_path
 
-        mock_instance.generate_dividend_calendar.side_effect = create_dummy_file
+        mock_instance.generate_corporate_events_calendar.side_effect = create_dummy_file
         
         # Ensure file does NOT exist before call
         if os.path.exists(expected_file_path):
@@ -69,19 +69,19 @@ def test_get_dividend_calendar_generation(mock_ticker, mock_mongo, mock_xdivs_di
              # VERIFY
              assert response.path == expected_file_path
              MockScanner.assert_called()
-             mock_instance.generate_dividend_calendar.assert_called_once()
+             mock_instance.generate_corporate_events_calendar.assert_called_once()
              
         # Cleanup
         if os.path.exists(expected_file_path):
              os.remove(expected_file_path)
 
-@patch("app.api.routes.MongoClient")
+@patch("pymongo.MongoClient")
 def test_get_dividend_calendar_cache_hit(mock_mongo):
     """Test that we serve existing file without hitting DB."""
     
     # 1. Setup Mock Today
     fixed_date = "2099-01-02"
-    expected_file = f"xdivs/dividends_{fixed_date}.ics"
+    expected_file = f"xdivs/corporate_events_{fixed_date}.ics"
     
     # Create Dummy File
     if not os.path.exists("xdivs"):
@@ -101,9 +101,7 @@ def test_get_dividend_calendar_cache_hit(mock_mongo):
         # Mongo should NOT be called
         mock_mongo.assert_not_called()
         
-        # Response should be file response? 
-        # Fastapi FileResponse is returned.
-        # We can check if response object is FileResponse
+        # Response should be file response
         assert response.path == expected_file
 
     # Clean up

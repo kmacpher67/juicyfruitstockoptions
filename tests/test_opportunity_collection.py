@@ -55,9 +55,10 @@ def test_opportunity_service_create(mock_mongo):
     assert "timestamp" in inserted_data
 
 # 3. Test Dividend Scanner Persistence
+@patch("app.services.dividend_scanner.MongoClient")
 @patch("app.services.dividend_scanner.OpportunityService")
 @patch("yfinance.Ticker")
-def test_dividend_scanner_persistence(mock_ticker, mock_opp_service_cls):
+def test_dividend_scanner_persistence(mock_ticker, mock_opp_service_cls, mock_mongo_client):
     # Mock Ticker Data (Matches criteria: >2% yield, 2-14 days out)
     mock_inst = MagicMock()
     mock_ticker.return_value = mock_inst

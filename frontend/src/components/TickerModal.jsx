@@ -446,62 +446,87 @@ const SmartRollView = ({ data }) => {
                 Smart Roll Suggestions
             </h3>
             <div className="grid grid-cols-1 gap-4">
-                {data.map((roll, i) => (
-                    <div key={i} className="bg-gray-800 p-4 rounded border border-gray-700 hover:bg-gray-750 transition-colors">
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-lg font-bold text-white">
-                                        {roll.strike} {roll.type}
-                                    </span>
-                                    <span className="text-sm text-gray-400">
-                                        Exp: {roll.expiration}
-                                    </span>
-                                </div>
-                                <div className="text-sm text-indigo-300 mt-1">
-                                    Net Credit: <span className="font-mono font-bold">${roll.net_credit?.toFixed(2)}</span>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1 flex gap-2">
-                                    <span title="Yield if Stock stays at current price">Stat Yield: {roll.static_yield_pct}%</span>
-                                    <span className="text-gray-600">|</span>
-                                    <span title="Return if Assigned (Cap Gain + Premium)">Total Yield: <span className="text-green-300">{roll.total_yield_pct}%</span></span>
-                                </div>
-                                {/* Reasoning */}
-                                {roll.reasons && roll.reasons.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {roll.reasons.map((r, ri) => (
-                                            <span key={ri} className="px-1.5 py-0.5 rounded bg-gray-700 text-[10px] text-gray-300 border border-gray-600">
-                                                {r}
+                {data.map((roll, i) => {
+                    const isClosePosition = roll.roll_type === "CLOSE POSITION";
+                    const scoreColor = roll.score >= 80 ? 'bg-green-900 text-green-300' :
+                        roll.score >= 50 ? 'bg-yellow-900 text-yellow-300' :
+                            'bg-red-900 text-red-300';
+
+                    const borderColor = isClosePosition ? 'border-red-500' : 'border-gray-700';
+                    const bgClass = isClosePosition ? 'bg-red-900 bg-opacity-20' : 'bg-gray-800 hover:bg-gray-750';
+
+                    return (
+                        <div key={i} className={`${bgClass} p-4 rounded border ${borderColor} transition-colors`}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg font-bold text-white">
+                                            {isClosePosition ? "CLOSE POSITION (BTC)" : `${roll.strike} ${roll.type}`}
+                                        </span>
+                                        {!isClosePosition && (
+                                            <span className="text-sm text-gray-400">
+                                                Exp: {roll.expiration}
                                             </span>
-                                        ))}
+                                        )}
+                                        {isClosePosition && (
+                                            <span className="px-2 py-0.5 rounded bg-red-600 text-white text-xs font-bold uppercase">
+                                                Defensive
+                                            </span>
+                                        )}
                                     </div>
-                                )}
+                                    <div className="text-sm text-indigo-300 mt-1">
+                                        {isClosePosition ? (
+                                            <span>Cost to Close: <span className="font-mono font-bold text-white">${roll.cost_to_close?.toFixed(2)}</span></span>
+                                        ) : (
+                                            <span>Net Credit: <span className="font-mono font-bold text-white">${roll.net_credit?.toFixed(2)}</span></span>
+                                        )}
+                                    </div>
+
+                                    {!isClosePosition && (
+                                        <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-2">
+                                            <span title="Yield from Premium / Stock Price">Stat Yield: {roll.static_yield_pct}%</span>
+                                            <span className="text-gray-600">|</span>
+                                            <span title="Return if Stock rises to new Strike">Up Return: {roll.up_return_pct}%</span>
+                                            <span className="text-gray-600">|</span>
+                                            <span title="Total Potential Return (Premium + Cap Gain)">Total Yield: <span className="text-green-300 font-bold">{roll.total_yield_pct}%</span></span>
+                                        </div>
+                                    )}
+
+                                    {/* Reasoning */}
+                                    {roll.reasons && roll.reasons.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                            {roll.reasons.map((r, ri) => (
+                                                <span key={ri} className={`px-1.5 py-0.5 rounded text-[10px] border ${r.includes("Risk") || r.includes("Penalty") ? "bg-red-900 text-red-300 border-red-700" : "bg-gray-700 text-gray-300 border-gray-600"}`}>
+                                                    {r}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className={`
+                                    px-3 py-1 rounded text-sm font-bold
+                                    ${scoreColor}
+                                `}>
+                                    Score: {Math.round(roll.score)}
+                                </div>
                             </div>
-                            <div className={`
-                                px-3 py-1 rounded text-sm font-bold
-                                ${roll.score >= 80 ? 'bg-green-900 text-green-300' :
-                                    roll.score >= 50 ? 'bg-yellow-900 text-yellow-300' :
-                                        'bg-red-900 text-red-300'}
-                            `}>
-                                Score: {Math.round(roll.score)}
+
+                            {/* Dividend Risk Warning */}
+                            {roll.score <= 30 && (
+                                <div className="mt-2 text-xs text-red-400 flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    High Assignment Risk / Low Efficiency
+                                </div>
+                            )}
+
+                            <div className="mt-3 flex gap-2">
+                                <button className={`flex-1 text-white text-xs py-2 rounded transition-colors ${isClosePosition ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                                    {isClosePosition ? "Execute Buy-To-Close" : "Execute Roll (Paper)"}
+                                </button>
                             </div>
                         </div>
-
-                        {/* Dividend Risk Warning (Inferred from low score + ITM check if available) */}
-                        {roll.score <= 30 && (
-                            <div className="mt-2 text-xs text-red-400 flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3" />
-                                High Assignment Risk / Low Efficiency
-                            </div>
-                        )}
-
-                        <div className="mt-3 flex gap-2">
-                            <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-2 rounded transition-colors">
-                                Execute Roll (Paper)
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

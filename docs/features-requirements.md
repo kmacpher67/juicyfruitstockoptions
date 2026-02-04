@@ -175,6 +175,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
             - [x] **Dividend Capture**: (Buy-Write) strategies specifically in the Opportunity Finder? YES update this as requirement. Implemented `DividendScanner`.
             - [x] **x-div**: create a new folder xdivs top level of workspace, docker map this folder to the development folder for persistance. Save all x-div .ics files here, with daily name stamps. If it already exists then it doesn't need to be created again.  
             - [x] **x-div**: Have this file be able to be download this physical file like the .xlsx file is `/api/calendar/dividends.ics`.
+            - [/] **events**: Find all corporate events (Earnings, x-div, etc) for all the tickers being tracked and add them to calendar.ics download file out 30 make this a settings configurable number of days calendar. The calendar should have a link to the news feed for that event x-div should have a link to yahoo finace that ticker.  
+            - [/] **events**: Only search STK tickers or find the underlying OPT's STK tickers. **bug fix** add this bug fix feeature to xdiv and events scanner to filter only STKs not to search for options: from logs:  quote.py-yfinance-_fetch - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: AMD   260220C00235000"}}}
+            - [/] **events**: Add these to the database per the *News Feeds* backend database. Maintain historical record of all events for lookup?
+            - [ ] **events**: Create ical calennder URL end point so another calendar can subscribe the combined xdiv and corporate events juicy calendar.
             - [x] **x-div**: Change the Dividend Capture to be the same size button as the "Smart Roll" opportunity button (use a differnt color motif to differentiate) and have a click link to pop a new window to show the details of the ticker, xdiv date, dividend amount, and the recommended strike price and premium to sell clean simple summary list,  Using the Smart Roll Analysis window as a template, allow the user to select and evaluate the Dividend Capture strategy Analysis. There should be an intermediate screen that lists out all the dividend opportunties by date, account, ticker, Clicking on a specific dividend opportunity should bring up the analysis window for that specific dividend opportunity. 
             * [x] **Analysis Selection Template**: Given that there will be multiple strategies each should use the same look and feel for the analysis window for selection so we don't have to recode the selection window for each Opportunity type.
             * [x] **Opportunity Widgets**: Keep compact so they fit 8 wide on the grid. Color code the different buttons based on the strategy type.
@@ -203,14 +207,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Juicy Thresholds**: See [Juicy Thresholds](learning/juicy-thresholds.md). Defines quantitative limits (IV Rank > 50, Delta 0.3-0.4).
     - [x] Implement Scanners/Screeners module in Python.
 - [ ] **Targeting Logic**: Integrate Macro trends and News events into the analysis and portfolio views.
-    - [x] Integrate external News API (e.g., NewsAPI.org). *Backend Implemented*
-    - [x] Build a News Aggregator to fetch news events and store them in a database. *Backend Implemented*
+    - [x] **News Feeds**: Integrate external News API (e.g., NewsAPI.org). *Backend Implemented*
+    - [x] **News Feeds**: Build a News Aggregator to fetch news events and store them in a database. *Backend Implemented*
     - [/] **News headlines and Senitiments**: stored with Logic/Reasoning. *UI Pending*. similar to "Sea Limited (SE)..."
         - [x] **Data Structure**: Enforce strict JSON output with `logic`, `reasoning`, `impact_window`, and `opportunity_score`.
         - [x] **Validation**: Ensure "Sea Limited" example case is strictly reproducible. 
     - [x] **Sentiment**: write a sentiment analysis module using `transformers` or `nltk`. 
         - [x] **Heuristics**: Implement "Logic Check" (Stage 1) to assign Short/Long term impact based on keywords.
-        - [ ] **Future LLM**: Prepare hook for Gemini/LLM to generate natural language `reasoning`. 
     - [x] **Sentiment**: write a learning features document for sentiment and headlines  .agent/workflows/learing-opportunity.md Same or extra doc as here: @features-requirements.md#L163 
     - [x] Fetch Macro indicators (Fred API). *Backend Implemented*
     - [/] Create "Impact Score" for news events on portfolio tickers. *Logic Implemented, UI Pending*
@@ -228,7 +231,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [/] **NEXT STEP**: Markov Chains predictions stocks, Options,  signals in Frontend **Ticker Modal** for visual analysis. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
     - [/] **NEXT STEP**: Markov Chains in the scoring algo. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
     - [ ] **NEXT STEP**: Create a new section in the **Dashboard** to display signals for the portfolio.
-    - [ ] **Predictions**: Use LMM or Markov Chains to predict future stock prices and options prices.  Use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
+
 - [x] **Kalman Filters Research**: See [Kalman Filters in Trading](learning/kalman-filters.md). Explains Mean Reversion and Trend Following applications.
 - [ ] **Kalman Filters**: Implement Kalman filters for signal generation. 
     - [ ] Research `filterpy` or `pykalman` libraries.
@@ -258,6 +261,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Zombie Trade**: Days Held > 45 AND ROI < T-Bill Rate Opportunity Cost
     - [ ] **Size Violation**: Trade Risk > 2% of Net Liquidity Account Survival
 
+- [ ] **Predictions**: Use LMM or Markov Chains to predict future stock prices and options prices.  Use this to generate signals for the portfolio.  Recommend next steps and update feature-requirements.md lists for Markov chains as needed.
+- [x] **Future LLM**: Prepare hook for Gemini/LLM to generate natural language `reasoning`. Implemented `GeminiService` and `GOOGLE_API_KEY` config.
+- [/] **Trading Agent**: Update using my Gemini pro account with api or link to gemini with the context of the question (GIVEN: STX qty, cost basis and OPT or situation what is the best trade based on a certain pattern of strategies availables and have it evaluate the risk and reward, news, etc for that scenario maybe even in a seperate tab/window Update See [Agent Frameworks](learning/agent-frameworks.md)
+- [x] **Trading Agent**: UI create a link on TYPE column of the My Portfolio detials for each ticker item STK or OPT that opens a new tab/window with the trading agent interface passing all the relevant information. Implemented in `PortfolioGrid.jsx`.
+ 
 ### Strategy & Backtesting
 - [ ] **Backtesting Engine**:
     - [ ] Ability to "back play" strategies using historical IBKR data.

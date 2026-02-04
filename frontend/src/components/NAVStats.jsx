@@ -129,14 +129,14 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
 
     return (
         <div className="mb-4">
-            <div className="flex flex-wrap lg:flex-nowrap gap-2 items-center">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 items-center w-full">
                 {/* Current NAV */}
-                <div className="flex-grow min-w-[120px]">
+                <div className="w-full">
                     <StatCard label="Current NAV" value={mergedStats.current_nav} isCurrency />
                 </div>
 
                 {/* Histograms */}
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="1 Day"
                         value={mergedStats.change_1d}
@@ -148,7 +148,7 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                         loading={loadingStates[REPORT_MAP["1 Day"]]}
                     />
                 </div>
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="7 Day"
                         value={mergedStats.change_7d}
@@ -160,7 +160,7 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                         loading={loadingStates[REPORT_MAP["7 Day"]]}
                     />
                 </div>
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="30 Day"
                         value={mergedStats.change_30d}
@@ -172,7 +172,7 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                         loading={loadingStates[REPORT_MAP["30 Day"]]}
                     />
                 </div>
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="MTD"
                         value={mergedStats.change_mtd}
@@ -184,7 +184,7 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                         loading={loadingStates[REPORT_MAP["MTD"]]}
                     />
                 </div>
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="YTD"
                         value={mergedStats.change_ytd}
@@ -196,7 +196,7 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                         loading={loadingStates[REPORT_MAP["YTD"]]}
                     />
                 </div>
-                <div className="flex-grow min-w-[100px]">
+                <div className="w-full">
                     <StatCard
                         label="1 Year"
                         value={mergedStats.change_yoy}
@@ -210,19 +210,20 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
                 </div>
 
                 {/* Sync Button */}
-                <button
-                    onClick={handleLiveSync}
-                    className={`
-                        h-20 px-4 rounded border border-gray-600 bg-gray-800 hover:bg-gray-700 
-                        text-[10px] font-bold uppercase tracking-wider transition-colors 
-                        flex flex-col items-center justify-center gap-1
-                        min-w-[80px]
-                    `}
-                    title="Force Live Update All"
-                >
-                    <div className={`w-3 h-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
-                    <span>SYNC ALL</span>
-                </button>
+                <div className="w-full">
+                    <button
+                        onClick={handleLiveSync}
+                        className={`
+                            h-20 w-full px-4 rounded border border-gray-600 bg-gray-800 hover:bg-gray-700 
+                            text-[10px] font-bold uppercase tracking-wider transition-colors 
+                            flex flex-col items-center justify-center gap-1
+                        `}
+                        title="Force Live Update All"
+                    >
+                        <div className={`w-3 h-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
+                        <span>SYNC ALL</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

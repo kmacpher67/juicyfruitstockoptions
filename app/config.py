@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     FRED_API_KEY: str = ""
     X_API_KEY: str | None = None
     X_API_SECRET: str | None = None
+    
+    # LLM / Agent
+    GOOGLE_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-pro"
+    
+    # Calendar
+    CALENDAR_LOOKAHEAD_DAYS: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -122,13 +122,17 @@ const TradeHistory = () => {
             headerName: "Type",
             width: 80,
             valueGetter: p => {
-                const ac = p.data.asset_class || p.data.AssetClass;
-                if (ac) return ac;
+                let ac = p.data.asset_class || p.data.AssetClass;
                 const sym = p.data.symbol || p.data.Symbol || "";
-                // Heuristic: Option symbols usually have spaces or > 6 chars with dates?
-                // IBKR formatted: "AAPL  230120C00150000"
-                if (sym.includes("  ") || (sym.length > 5 && /\d/.test(sym) && (sym.endsWith("C") || sym.endsWith("P")))) return "OPT";
-                return "STK";
+
+                if (!ac) {
+                    if (sym.includes("  ") || (sym.length > 5 && /\d/.test(sym) && (sym.endsWith("C") || sym.endsWith("P")))) ac = "OPT";
+                    else ac = "STK";
+                }
+
+                if (ac === "OPT" || ac === "FOP") return "Option";
+                if (ac === "STK") return "Stock";
+                return ac;
             }
         }
     ]);

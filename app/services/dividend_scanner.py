@@ -1,5 +1,5 @@
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 from app.services.opportunity_service import OpportunityService
 from app.models.opportunity import JuicyOpportunity, OpportunityStatus
@@ -8,6 +8,9 @@ from pymongo import MongoClient
 from app.config import settings
 
 from app.services.roll_service import RollService
+from app.services.news_service import NewsService
+from app.models_news import CorporateEvent
+import os
 
 class DividendScanner:
     def __init__(self):
@@ -269,18 +272,18 @@ class DividendScanner:
         logging.info(f"[DividendScanner] Completed scan. Found {len(opportunities)} opportunities.")
         return opportunities
 
-    def generate_dividend_calendar(self) -> str:
+    def generate_corporate_events_calendar(self) -> str:
         """
-        Generates an ICS calendar file for all tracked holdings with upcoming dividends.
-        Persists to 'xdivs/' directory.
-        Returns the path to the generated file.
+        Generates an ICS calendar file for all tracked holdings with upcoming Corporate Events.
+        Includes Earnings, Ex-Dividends, etc.
+        Enriches with News and Sentiment for near-term events.
+        Persists events to DB.
         """
-        import os
         from ics import Calendar, Event
         from pymongo import MongoClient
         from app.config import settings
         
-        logging.info("[DividendScanner] Starting ICS Calendar Generation...")
+        logging.info("[DividendScanner] Starting Corporate Events Calendar Generation...")
         
         # 0. Setup Directory
         cache_dir = "xdivs"
@@ -288,51 +291,187 @@ class DividendScanner:
             os.makedirs(cache_dir, exist_ok=True)
             
         today_str = datetime.utcnow().strftime("%Y-%m-%d")
-        filename = f"dividends_{today_str}.ics"
+        filename = f"corporate_events_{today_str}.ics"
         file_path = os.path.join(cache_dir, filename)
         
-        # 1. Fetch Symbols (From IBKR Holdings)
-        # TODO: Abstract this symbol fetching logic shared with jobs.py
         client = MongoClient(settings.MONGO_URI)
         db = client.get_default_database("stock_analysis")
         
+        # 1. Fetch Symbols (From IBKR Holdings)
         latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
         symbols = []
         if latest:
             query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
-            holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
-            symbols = list(set([h["symbol"] for h in holdings]))
+            # Fetch extra fields to filter options
+            holdings = list(db.ibkr_holdings.find(query, {"symbol": 1, "secType": 1, "AssetClass": 1, "asset_class": 1, "underlying_symbol": 1}))
+            
+            symbols = set()
+            for h in holdings:
+                sym = h.get("symbol")
+                underlying = h.get("underlying_symbol")
+                
+                # If we have an explicit underlying (e.g. from OPT parse), use it
+                if underlying:
+                    symbols.add(underlying)
+                    continue
+                
+                # If no underlying but looks like option, try to parse root or skip
+                is_opt = h.get("secType") in ["OPT", "FOP"] or h.get("AssetClass") in ["OPT", "FOP"] or h.get("asset_class") in ["OPT", "FOP"]
+                
+                if is_opt:
+                     # If we didn't get underlying from DB, maybe we can extract from sym?
+                     # e.g. "MSTR  260220..." -> MSTR
+                     if sym and len(sym) > 6:
+                         parts = sym.split()
+                         if parts: 
+                             symbols.add(parts[0])
+                     continue
+                
+                if not sym: continue
+                
+                # Heuristic: Length (Tickers usually < 10)
+                if len(sym) > 10: 
+                    # Try split
+                    parts = sym.split()
+                    if parts: symbols.add(parts[0])
+                    continue
+                
+                symbols.add(sym)
+                
+            symbols = list(symbols)
         
         now = datetime.utcnow()
-        events_count = 0
-        c = Calendar()
-        c.creator = "JuicyFruitOptions"
-
-        # 2. Fetch Data & Build Calendar
+        lookahead_days = settings.CALENDAR_LOOKAHEAD_DAYS
+        window_end = now + timedelta(days=lookahead_days)
+        
+        logging.info(f"Scanning events for {len(symbols)} symbols (Window: {lookahead_days} days)")
+        
+        news_service = NewsService()
+        
+        # 2. Fetch & Persist Events
         for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)
+                
+                # --- Ex-Dividend ---
                 ts = ticker.info.get("exDividendDate")
                 if ts:
-                     dt = datetime.fromtimestamp(ts)
-                     # Look back 30 days to capture recent, look forward plenty
-                     if dt > now - timedelta(days=30): 
-                         rate = ticker.info.get("dividendRate", 0)
-                         
-                         e = Event()
-                         e.name = f"Ex-Div: {symbol}"
-                         e.begin = dt.strftime("%Y-%m-%d")
-                         e.make_all_day()
-                         e.description = f"Annual Rate: ${rate}\nEst Qtr: ${rate/4}"
-                         c.events.add(e)
-                         events_count += 1
-            except Exception as e:
-                 # logging.warning(f"Failed to fetch div info for {symbol}: {e}")
-                 pass
+                    dt = datetime.fromtimestamp(ts)
+                    self._persist_event(db, symbol, "Ex-Dividend", dt, f"Rate: {ticker.info.get('dividendRate', 0)}")
+                
+                # --- Earnings ---
+                # yfinance 'calendar' returns a dict or dataframe
+                cal = ticker.calendar
+                
+                # Check emptiness safely
+                has_calendar = False
+                if cal is not None:
+                    if isinstance(cal, dict):
+                        has_calendar = bool(cal)
+                    elif hasattr(cal, "empty"):
+                        has_calendar = not cal.empty
+                
+                if has_calendar:
+                    # cal is usually a Dict with 'Earnings Date' list
+                    # Or a DataFrame
+                    if 'Earnings Date' in cal:
+                        # It's a list of dates
+                        for d in cal['Earnings Date']:
+                            # d might be datetime, date, or pandas Timestamp
+                            event_dt = None
+                            
+                            # Order matters: datetime is subclass of date
+                            if isinstance(d, datetime):
+                                event_dt = d
+                            elif isinstance(d, date):
+                                # Convert date to datetime (midnight)
+                                event_dt = datetime.combine(d, datetime.min.time())
+                            elif hasattr(d, "to_pydatetime"): # pandas Timestamp
+                                event_dt = d.to_pydatetime()
+                            
+                            if event_dt:
+                                self._persist_event(db, symbol, "Earnings", event_dt, "Estimated Earnings")
 
-        # 3. Save to file
+            except Exception as e:
+                logging.warning(f"Failed to fetch event info for {symbol}: {e}")
+
+        # 3. Generate ICS from DB (Single Source of Truth)
+        c = Calendar()
+        c.creator = "JuicyFruitOptions"
+        
+        # Query events in window
+        # We look back a bit (e.g. 7 days) to show recent context, and forward lookahead
+        query_start = now - timedelta(days=7)
+        db_events = db.corporate_events.find({
+            "date": {"$gte": query_start, "$lte": window_end}
+        })
+        
+        events_count = 0
+        for ev in db_events:
+            e = Event()
+            sym = ev["ticker"]
+            etype = ev["event_type"]
+            date_obj = ev["date"]
+            
+            e.name = f"{etype}: {sym}"
+            e.begin = date_obj.strftime("%Y-%m-%d")
+            e.make_all_day()
+            
+            desc_lines = [f"Ticker: {sym}", f"Type: {etype}", f"Details: {ev.get('details', '')}"]
+            
+            # --- Links ---
+            if etype == "Ex-Dividend":
+                desc_lines.append(f"Link: https://finance.yahoo.com/quote/{sym}")
+            else:
+                desc_lines.append(f"Link: https://finance.yahoo.com/quote/{sym}/news")
+
+            # --- News Enrichment (Only for upcoming 14 days) ---
+            days_until = (date_obj - now).days
+            if 0 <= days_until <= 14:
+                # Fetch recent news
+                 try:
+                     news = news_service.fetch_news_for_ticker(sym) # limit default is 5, maybe just take top 1
+                     if news:
+                         top_article = news[0]
+                         desc_lines.append("\n--- Market Context ---")
+                         desc_lines.append(f"Headline: {top_article.title}")
+                         desc_lines.append(f"Sentiment: {top_article.sentiment_score} ({top_article.logic})")
+                         if etype != "Ex-Dividend": # Override generic link with specific news link
+                             desc_lines[-4] = f"Link: {top_article.url}" # Update the Link line (hacky index, but functional)
+                 except Exception as e:
+                     logging.warning(f"News fetch failed for {sym}: {e}")
+
+            e.description = "\n".join(desc_lines)
+            c.events.add(e)
+            events_count += 1
+
+        # 4. Save to file
         with open(file_path, 'w') as f:
             f.write(str(c))
             
         logging.info(f"[DividendScanner] ICS Generation Complete. Saved {events_count} events to {file_path}")
         return file_path
+
+    def _persist_event(self, db, ticker, etype, date_obj, details):
+        """Helper to upsert corporate events."""
+        try:
+             # Unique key: ticker + type + date
+             db.corporate_events.update_one(
+                 {
+                     "ticker": ticker,
+                     "event_type": etype,
+                     "date": date_obj
+                 },
+                 {
+                     "$set": {
+                         "details": details,
+                         "updated_at": datetime.utcnow()
+                     },
+                     "$setOnInsert": {
+                         "created_at": datetime.utcnow()
+                     }
+                 },
+                 upsert=True
+             )
+        except Exception as e:
+            logging.error(f"Failed to persist event {ticker} {etype}: {e}")

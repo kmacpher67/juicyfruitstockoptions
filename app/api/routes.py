@@ -812,39 +812,33 @@ def get_dividend_capture_analysis(
 @router.get("/calendar/dividends.ics")
 def get_dividend_calendar():
     """
-    Generate an ICS calendar file (or text fallback) with upcoming Ex-Dividend dates.
+    Generate an ICS calendar file (or text fallback) with upcoming Corporate Events (Ex-Div, Earnings).
     Persists daily files to 'xdivs/' directory to avoid re-fetching.
     """
     import yfinance as yf
     from fastapi.responses import Response, FileResponse
     import os
 
-    # 0. Check Persistence (Cache)
     today_str = datetime.utcnow().strftime("%Y-%m-%d")
     cache_dir = "xdivs"
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir, exist_ok=True)
         
-    # 1. Helper function to check cache
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
-    cache_dir = "xdivs"
-    filename = f"dividends_{today_str}.ics"
+    filename = f"corporate_events_{today_str}.ics"
     file_path = os.path.join(cache_dir, filename)
     
     if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="text/calendar", filename="dividends.ics")
+        return FileResponse(file_path, media_type="text/calendar", filename="corporate_events.ics")
 
     # 2. Generate if missing
     from app.services.dividend_scanner import DividendScanner
     scanner = DividendScanner()
     try:
-        generated_path = scanner.generate_dividend_calendar()
-        return FileResponse(generated_path, media_type="text/calendar", filename="dividends.ics")
+        generated_path = scanner.generate_corporate_events_calendar()
+        return FileResponse(generated_path, media_type="text/calendar", filename="corporate_events.ics")
     except Exception as e:
         # Fallback empty response or error
         return Response(content=f"Error generating calendar: {str(e)}", status_code=500)
-            
-        return Response(content="\n".join(lines), media_type="text/plain")
 
 @router.get("/api/macro")
 def get_macro_summary(

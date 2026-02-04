@@ -20,3 +20,5 @@ markovify
 pykalman
 mongomock
 argon2-cffi
+google-generativeai
+python-dotenv

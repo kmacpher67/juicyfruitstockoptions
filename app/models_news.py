@@ -23,3 +23,10 @@ class MacroIndicator(BaseModel):
     value: float
     date: datetime
     unit: str
+
+class CorporateEvent(BaseModel):
+    ticker: str
+    event_type: str  # Earnings, Ex-Dividend, Split
+    date: datetime
+    details: str = Field(default="", description="Details like Estimated Earnings, Rate, etc.")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
