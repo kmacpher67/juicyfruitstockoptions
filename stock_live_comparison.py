@@ -85,6 +85,94 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     @staticmethod
+    def extract_abstract_terms(description, max_terms=1):
+        """Return a short list of abstract merchant tokens from a description.
+
+        Heuristics:
+        - Prefer all-uppercase alpha tokens 2-12 chars long (e.g. 'BP', 'AMZN', 'WALMART').
+        - Filter common stopwords.
+        - Fallback to first alphanumeric token.
+        """
+        import re
+        if not description:
+            return []
+        s = str(description).upper()
+        # Common stopwords to ignore
+        stopwords = {"THE", "AND", "OF", "IN", "AT", "ON", "FOR", "BY", "STORE", "LLC", "INC"}
+        # Find tokens of 2-12 uppercase letters or digits (merchant codes often short or medium length)
+        tokens = re.findall(r"\b[A-Z0-9&]{2,12}\b", s)
+        # Keep order, remove stopwords and numeric-only tokens
+        seen = set()
+        out = []
+        for t in tokens:
+            if t in stopwords:
+                continue
+            if t in seen:
+                continue
+            # skip tokens that are all digits
+            if t.isdigit():
+                continue
+            # Skip single-letter tokens
+            if len(t) < 2:
+                continue
+            seen.add(t)
+            out.append(t)
+            if len(out) >= max_terms:
+                break
+        if out:
+            return out
+        # Fallback: take first alphanumeric word (up to 12 chars)
+        m = re.search(r"[A-Z0-9&]{2,12}", s)
+        if m:
+            return [m.group(0)]
+        words = re.findall(r"\w+", s)
+        return [words[0][:12].upper()] if words else []
+
+    @staticmethod
+    def update_category_rules(json_path, description, category, max_terms=1):
+        """Safely add minimal abstract term(s) from description to a category rules JSON.
+
+        - `json_path` can be a Path or string.
+        - Adds only short abstract tokens (from `extract_abstract_terms`) to avoid storing full verbose descriptions.
+        - Does not overwrite existing mappings with a different category; logs and skips instead.
+        - Ensures no duplicates.
+        Returns the updated mapping dict.
+        """
+        import json
+        json_path = Path(json_path)
+        try:
+            if json_path.exists():
+                data = json.loads(json_path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    data = {}
+            else:
+                data = {}
+        except Exception:
+            data = {}
+
+        terms = StockLiveComparison.extract_abstract_terms(description, max_terms=max_terms)
+        changed = False
+        for t in terms:
+            if not t:
+                continue
+            if t in data:
+                if data[t] != category:
+                    logging.info(f"Existing mapping for {t} -> {data[t]} (requested {category}); skipping")
+                # else mapping already correct
+            else:
+                data[t] = category
+                changed = True
+
+        if changed:
+            try:
+                json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                logging.info(f"Updated category rules written to {json_path}")
+            except Exception as e:
+                logging.error(f"Failed to write category rules to {json_path}: {e}")
+        return data
+
+    # ------------------------------------------------------------------
+    @staticmethod
     def get_latest_spreadsheet(directory: Path, base_name="AI_Stock_Live_Comparison_"):
         files = list(directory.glob(f"{base_name}*.xlsx"))
         if not files:

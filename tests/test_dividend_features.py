@@ -158,8 +158,8 @@ def test_dividend_scanner(mock_ticker_cls, mock_mongo, mock_opp_service):
     assert opps[0]["symbol"] == "VZ"
     assert opps[0]["yield_annual"] == 5.0
     
-    # 2. Too Far Away (30 days)
-    ex_date_far = now + timedelta(days=30)
+    # 2. Too Far Away (40 days)
+    ex_date_far = now + timedelta(days=40)
     mock_ticker.info["exDividendDate"] = ex_date_far.timestamp()
     
     opps_far = scanner.scan_dividend_capture_opportunities(["VZ"])

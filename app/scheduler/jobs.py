@@ -177,7 +177,7 @@ def start_scheduler():
              from app.services.dividend_scanner import DividendScanner
              logging.info("Scheduler: Starting Dividend Calendar Generation.")
              scanner = DividendScanner()
-             scanner.generate_dividend_calendar()
+             scanner.generate_corporate_events_calendar()
              logging.info("Scheduler: Dividend Calendar Generation Completed.")
         except Exception as e:
             logging.error(f"Scheduler: Failed to generate dividend calendar: {e}")

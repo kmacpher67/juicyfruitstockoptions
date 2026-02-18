@@ -198,10 +198,10 @@ class DividendScanner:
                     # logging.debug(f"No ex-div date for {symbol}")
                     continue
                 
-                ex_date = datetime.fromtimestamp(ex_ts)
+                ex_date = datetime.utcfromtimestamp(ex_ts)
                 days_to_ex = (ex_date - now).days
                 
-                if 2 <= days_to_ex <= 14: # Window: 2 days to 2 weeks
+                if 0 <= days_to_ex <= 30: # Window: 0 days (today) to 30 days
                      div_rate = info.get("dividendRate")
                      current_price = info.get("currentPrice") or info.get("previousClose")
                      

@@ -156,6 +156,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [/] **UI fixes**: My Portfolio the XDTE boxes only use 1/2 the width of the available space. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
         - [/] **UI fixes**: The XDTE still shows 2D as the i assume the number of days to expiration even though it's 4D. Debug why this is happening. ref docs/learning/dte-calculation-standards.md. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
         - [x] **Scheduler Integration**: Scans scheduled every 30 mins (Market Hours) and 1 hr Pre/Post-Market.
+        - [x] **UI Scheduler Integration BUG FIX**: Fixed x-div signal not firing. Expanded lookahead window to 0-30 days (was 2-14) and fixed Scheduler method call typo. 
+        - [ ] **Recommendation Database**: Is there a local mongo persistent database of all signals triggered, when they were triggered what was their score so that any and ALL relevant data is available for analysis? Make sure that All Rolls, xdivs, and any top 10 scored recommendation is saved for analysis, so that later scores can be calculated based on the success and outcomes of these recommendations, no matter if I chose to trade on them or not. 
+        - [ ] **1D NAV UI**: shows The 1 day NAV is showing 0, there something broken with the logic. 
         - [x] **UI Performance**: UI components (e.g., Dividend Capture) must read from DB persistence, NOT trigger blocking live scans.  
     - [ ] **Heuristic Checklist for Your Dashboard**; Pattern, Detection Logic, Risk Type referenced in docs/learning/bad-trade-heuristics.md
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
@@ -386,3 +389,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-02-01 | **REFACTORED** | Initial full cleanup and organization into Epics by AI Agent. |
 | 2026-02-01 | **REFINED** | Split "Portfolio Management" into Analytics (Done) and History Visualization (Todo). |
 | 2026-02-01 | **ADDED** | Added "Smart Roll / Diagonal Assistant" feature and marked "Opportunity Signals" as done. |
+| 2026-02-17 | **FIXED** | Fixed Dividend Scanner bug (method typo + expanded lookahead 0-30 days + UTC fix). |
