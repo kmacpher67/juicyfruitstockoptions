@@ -90,29 +90,34 @@ def test_roll_service_persistence(mock_opp_service):
 
 def test_signal_service_persistence(mock_opp_service):
     service = SignalService()
-    
-    # Configure global mock_yf for download
+
+    # Create a controlled mock for yfinance.download
     mock_df = MagicMock()
     mock_df.empty = False
-    mock_df.__len__.return_value = 100
-    mock_df.columns = ["Close"] # Simple
-    
-    mock_yf.download.return_value = mock_df
-    
-    # Mock internal methods
-    with patch.object(service, 'get_kalman_signal', return_value={"signal": "Bullish", "kalman_mean": 100, "current_price": 105}), \
-         patch.object(service, 'get_markov_probabilities', return_value={
-             "transitions": {"UP_BIG": 0.4, "UP_SMALL": 0.3, "DOWN_BIG": 0.1} 
-         }):
-         
-         service.scan_and_persist_signals(["NVDA"])
-         
-         mock_yf.download.assert_called()
-         
-         mock_opp_service.create_opportunity.assert_called_once()
-         args, _ = mock_opp_service.create_opportunity.call_args
-         opp = args[0]
-         assert opp.symbol == "NVDA"
-         assert opp.trigger_source == "SignalService"
-         assert "prob_up" in opp.context
-         assert opp.context["prob_up"] == 0.7
+    mock_df.__len__ = MagicMock(return_value=100)
+    mock_df.columns = ["Close"]  # Simple — not a MultiIndex
+
+    mock_yf_local = MagicMock()
+    mock_yf_local.download.return_value = mock_df
+
+    # Patch yfinance in sys.modules so the local `import yfinance as yf`
+    # inside scan_and_persist_signals picks up our mock.
+    with patch.dict("sys.modules", {"yfinance": mock_yf_local}):
+        # Mock internal methods
+        with patch.object(service, 'get_kalman_signal', return_value={"signal": "Bullish", "kalman_mean": 100, "current_price": 105}), \
+             patch.object(service, 'get_markov_probabilities', return_value={
+                 "transitions": {"UP_BIG": 0.4, "UP_SMALL": 0.3, "DOWN_BIG": 0.1}
+             }):
+
+             service.scan_and_persist_signals(["NVDA"])
+
+             mock_yf_local.download.assert_called()
+
+             mock_opp_service.create_opportunity.assert_called_once()
+             args, _ = mock_opp_service.create_opportunity.call_args
+             opp = args[0]
+             assert opp.symbol == "NVDA"
+             assert opp.trigger_source == "SignalService"
+             assert "prob_up" in opp.context
+             assert opp.context["prob_up"] == 0.7
+
