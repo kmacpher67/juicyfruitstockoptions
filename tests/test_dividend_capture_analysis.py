@@ -1,31 +1,19 @@
-import sys
-from unittest.mock import MagicMock
-
-# 1. Mock problematic modules BEFORE importing anything else
-mock_yf = MagicMock()
-sys.modules["yfinance"] = mock_yf
-sys.modules["nltk"] = MagicMock()
-sys.modules["nltk.sentiment.vader"] = MagicMock()
-sys.modules["app.services.sentiment_service"] = MagicMock()
-
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 
-# Now import the service under test
-# from app.services.dividend_scanner import DividendScanner
 
-@patch("app.services.dividend_scanner.OpportunityService")
-@patch("app.services.dividend_scanner.SignalService")
+@patch("app.services.dividend_scanner.NewsService")
 @patch("app.services.dividend_scanner.MongoClient")
-@patch("app.services.dividend_scanner.NewsService") # Mock NewsService too
-def test_dividend_capture_analysis_logic(mock_news_cls, mock_mongo, mock_signal_cls, mock_opp_service):
+@patch("app.services.dividend_scanner.SignalService")
+@patch("app.services.dividend_scanner.OpportunityService")
+@patch("app.services.dividend_scanner.yf")
+def test_dividend_capture_analysis_logic(mock_yf, mock_opp_service, mock_signal_cls, mock_mongo, mock_news_cls):
     # Setup
     from app.services.dividend_scanner import DividendScanner
     scanner = DividendScanner()
     
     # We need to mock yfinance.Ticker usage inside the method
-    # Since we mocked the module, we can configure instances from there
     mock_ticker = MagicMock()
     mock_yf.Ticker.return_value = mock_ticker
 

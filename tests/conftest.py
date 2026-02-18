@@ -1,5 +1,10 @@
 import os
 import sys
+from unittest.mock import MagicMock
+
+# MOCK yfinance GLOBALLY to prevent import hang
+if "yfinance" not in sys.modules:
+    sys.modules["yfinance"] = MagicMock()
 
 # Set MONGO_URI *before* any app modules import settings.
 # Outside Docker the default host 'mongo' is unreachable; use localhost.
@@ -8,7 +13,6 @@ os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
-from unittest.mock import MagicMock
 
 
 @pytest.fixture(autouse=True)

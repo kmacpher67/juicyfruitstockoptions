@@ -182,6 +182,7 @@ class RollService:
         Analyze portfolio for roll opportunities.
         """
         suggestions = []
+        # use naive UTC timestamp for comparisons
         now = datetime.utcnow()
         
         for item in portfolio_items:
@@ -308,14 +309,15 @@ class RollService:
                  div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate") or 0.0
                  
                  if ex_ts:
-                      # Check if future?
-                      ex_date = datetime.fromtimestamp(ex_ts)
-                      now = datetime.utcnow()
-                      if ex_date > now - timedelta(days=1): 
-                           # Simple Estimation
-                           amount = div_rate / 4.0 if div_rate else 0.0
-                           dividend_info = {
-                               "ex_date": ex_date.strftime("%Y-%m-%d"),
+                     # Check if future?
+                     # convert timestamp to UTC datetime
+                     ex_date = datetime.fromtimestamp(ex_ts, timezone.utc)
+                     now = datetime.utcnow()  # naive UTC
+                     if ex_date > now - timedelta(days=1): 
+                         # Simple Estimation
+                         amount = div_rate / 4.0 if div_rate else 0.0
+                         dividend_info = {
+                             "ex_date": ex_date.strftime("%Y-%m-%d"),
                                "amount": amount
                            }
              except Exception:
@@ -414,7 +416,7 @@ class RollService:
                     # 2. Add Time to Expiry (years)
                     # d is String YYYY-MM-DD
                     exp_dt = datetime.strptime(d, "%Y-%m-%d")
-                    # Use current time vs expiry time (approx 16:00)
+                    # Use current UTC time vs expiry time (approx 16:00)
                     now = datetime.utcnow()
                     diff = exp_dt - now
                     # Ensure positive

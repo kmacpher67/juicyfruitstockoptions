@@ -77,8 +77,11 @@ def test_score_roll_dividend_safety_buffer():
     # Expect Bonus or at least no penalty.
     assert score > 50
 
-@patch("yfinance.Ticker")
-def test_find_rolls_with_dividend(mock_ticker_cls):
+@patch("app.services.opportunity_service.MongoClient")
+@patch("app.services.roll_service.SignalService")
+@patch("app.services.roll_service.OpportunityService")
+@patch("app.services.roll_service.yf.Ticker")
+def test_find_rolls_with_dividend(mock_ticker_cls, mock_opp_service, mock_signal_service, mock_mongo_client):
     # Setup
     mock_ticker = MagicMock()
     mock_ticker_cls.return_value = mock_ticker
@@ -108,6 +111,11 @@ def test_find_rolls_with_dividend(mock_ticker_cls):
     }])
     mock_chain.calls = df
     mock_ticker.option_chain.return_value = mock_chain
+
+    # Configure SignalService to return a dict (not a MagicMock)
+    mock_signal_instance = mock_signal_service.return_value
+    mock_signal_instance.get_roll_vs_hold_advice.return_value = {}
+
     
     service = RollService()
     # Current Pos: Short 90 Call.
@@ -127,10 +135,14 @@ def test_find_rolls_with_dividend(mock_ticker_cls):
     # Penalty -50.
     # Score should be near 0 or < 30.
 
+@patch("app.services.opportunity_service.MongoClient")
+@patch("app.services.roll_service.SignalService")
+@patch("app.services.roll_service.OpportunityService")
+@patch("app.services.dividend_scanner.SignalService")
 @patch("app.services.dividend_scanner.OpportunityService")
 @patch("app.services.dividend_scanner.MongoClient")
-@patch("yfinance.Ticker")
-def test_dividend_scanner(mock_ticker_cls, mock_mongo, mock_opp_service):
+@patch("app.services.dividend_scanner.yf.Ticker")
+def test_dividend_scanner(mock_ticker_cls, mock_mongo, mock_opp_service, mock_signal_service, mock_roll_opp_service, mock_roll_signal_service, mock_opp_mongo_client):
     # Setup Mock DB
     mock_db = MagicMock()
     mock_mongo.return_value.get_default_database.return_value = mock_db

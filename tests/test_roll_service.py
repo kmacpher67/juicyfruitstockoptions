@@ -5,12 +5,15 @@ from app.services.roll_service import RollService
 
 @pytest.fixture
 def mock_yf_ticker():
-    with patch("yfinance.Ticker") as mock_ticker_cls:
+    with patch("app.services.roll_service.yf.Ticker") as mock_ticker_cls:
         mock_instance = MagicMock()
         mock_ticker_cls.return_value = mock_instance
         yield mock_instance
 
-def test_find_rolls_calls(mock_yf_ticker):
+@patch("app.services.opportunity_service.MongoClient")
+@patch("app.services.roll_service.SignalService")
+@patch("app.services.roll_service.OpportunityService")
+def test_find_rolls_calls(mock_opp_service, mock_signal_service, mock_mongo, mock_yf_ticker):
     # Setup Data
     mock_yf_ticker.fast_info = {'last_price': 100.0, 'previous_close': 99.0}
     # Dates: Today is 2025-01-01. Old Exp 2025-01-17. New Exp 2025-02-21
@@ -40,6 +43,13 @@ def test_find_rolls_calls(mock_yf_ticker):
         return MagicMock()
         
     mock_yf_ticker.option_chain.side_effect = get_chain
+    
+    # Configure Signal Service to avoid TypeErrors
+    mock_signal_service.get_roll_vs_hold_advice.return_value = {
+        "prob_up": 0.5,
+        "prob_down": 0.5,
+        "recommendation": "HOLD"
+    }
     
     # Act
     service = RollService()

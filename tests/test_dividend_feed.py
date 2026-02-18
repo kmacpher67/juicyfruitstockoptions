@@ -3,11 +3,14 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 from app.services.dividend_scanner import DividendScanner
 
+@patch("app.services.opportunity_service.MongoClient")
+@patch("app.services.roll_service.SignalService")
+@patch("app.services.roll_service.OpportunityService")
 @patch("app.services.dividend_scanner.OpportunityService")
 @patch("app.services.dividend_scanner.SignalService")
 @patch("app.services.dividend_scanner.MongoClient")
-@patch("yfinance.Ticker")
-def test_dividend_feed_data_structure(mock_ticker_cls, mock_mongo, mock_signal_cls, mock_opp_service):
+@patch("app.services.dividend_scanner.yf.Ticker")
+def test_dividend_feed_data_structure(mock_ticker_cls, mock_mongo, mock_signal_cls, mock_opp_service, mock_roll_opp_service, mock_roll_signal_service, mock_mongo_opp):
     # Setup
     scanner = DividendScanner()
     
