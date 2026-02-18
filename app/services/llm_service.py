@@ -1,25 +1,40 @@
 
 import logging
-import google.generativeai as genai
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 class GeminiService:
     def __init__(self):
-        """Initialize the Gemini Service with API key and model config."""
+        """Initialize the Gemini Service lazily."""
+        self.model = None
+        self._is_initialized = False
+
+    def _ensure_initialized(self):
+        """Configure GenAI and create model if not already done."""
+        if self._is_initialized:
+            return
+
         if not settings.GOOGLE_API_KEY:
             logger.warning("GOOGLE_API_KEY is not set. Gemini Service will not function correctly.")
-            self.model = None
+            self._is_initialized = True # Prevent retry loop ideally, or let it fail gracefully
             return
 
         try:
+            import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
             self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
             logger.info(f"Gemini Service initialized with model: {settings.GEMINI_MODEL}")
+            self._is_initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize Gemini Service: {e}", exc_info=True)
             self.model = None
+            # We don't set _is_initialized to True here to allow retrying? 
+            # Or we set it to True to avoid log spam? 
+            # For now, let's keep it False to retry or True to fail fast. 
+            # Safer to fail fast for this session.
+            self._is_initialized = True
 
     def generate_reasoning(self, context: str) -> str:
         """
@@ -31,6 +46,7 @@ class GeminiService:
         Returns:
             str: The generated text response from Gemini.
         """
+        self._ensure_initialized()
         if not self.model:
             return "Error: Gemini Service is not available (check API Key)."
 
@@ -60,6 +76,7 @@ class GeminiService:
         Returns:
             str: Structured analysis from the Agent.
         """
+        self._ensure_initialized()
         if not self.model:
              return "Error: Gemini Service is not available."
 

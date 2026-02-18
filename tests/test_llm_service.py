@@ -1,7 +1,6 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-from app.services.llm_service import GeminiService
 
 # Mock settings
 @pytest.fixture
@@ -14,24 +13,40 @@ def mock_settings():
 # Mock genai
 @pytest.fixture
 def mock_genai():
-    with patch("app.services.llm_service.genai") as mock_genai:
-        mock_model_instance = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model_instance
-        yield mock_genai, mock_model_instance
+    mock_genai_module = MagicMock()
+    mock_model_instance = MagicMock()
+    mock_genai_module.GenerativeModel.return_value = mock_model_instance
+    
+    with patch.dict("sys.modules", {"google.generativeai": mock_genai_module}):
+        yield mock_genai_module, mock_model_instance
 
 def test_gemini_service_initialization_success(mock_settings, mock_genai):
     """Test successful initialization with API key."""
+    from app.services.llm_service import GeminiService
     service = GeminiService()
     
+    # Verify lazy init: model should be None initially
+    assert service.model is None
+    assert service._is_initialized is False
+    
+    # Trigger initialization (simulated)
+    service._ensure_initialized()
+    
     assert service.model is not None
-    mock_genai[0].configure.assert_called_with(api_key="fake_key")
-    mock_genai[0].GenerativeModel.assert_called_with("gemini-pro")
+    mock_genai_module, _ = mock_genai
+    mock_genai_module.configure.assert_called_with(api_key="fake_key")
+    mock_genai_module.GenerativeModel.assert_called_with("gemini-pro")
 
 def test_gemini_service_initialization_no_key():
     """Test initialization fails gracefully without API key."""
     with patch("app.services.llm_service.settings") as mock_settings:
         mock_settings.GOOGLE_API_KEY = ""
+        from app.services.llm_service import GeminiService
         service = GeminiService()
+        assert service.model is None
+        
+        # Trigger init
+        service._ensure_initialized()
         assert service.model is None
 
 def test_generate_reasoning_success(mock_settings, mock_genai):
@@ -41,10 +56,15 @@ def test_generate_reasoning_success(mock_settings, mock_genai):
     mock_response.text = "Analysis Complete"
     mock_model.generate_content.return_value = mock_response
     
+    from app.services.llm_service import GeminiService
+    # Unpack fixture
+    mock_genai_module, mock_model = mock_genai
+    
     service = GeminiService()
     result = service.generate_reasoning("Test Context")
     
     assert result == "Analysis Complete"
+    mock_genai_module.configure.assert_called_with(api_key="fake_key")
     mock_model.generate_content.assert_called_once_with("Test Context")
 
 def test_generate_reasoning_error(mock_settings, mock_genai):
@@ -52,18 +72,26 @@ def test_generate_reasoning_error(mock_settings, mock_genai):
     _, mock_model = mock_genai
     mock_model.generate_content.side_effect = Exception("API Error")
     
+    from app.services.llm_service import GeminiService
+    # Unpack fixture
+    mock_genai_module, _ = mock_genai
+    
     service = GeminiService()
     result = service.generate_reasoning("Test Context")
     
     assert "Error generation reasoning" in result
+    mock_genai_module.configure.assert_called_with(api_key="fake_key")
 
 def test_get_trade_analysis_construction(mock_settings, mock_genai):
     """Test that get_trade_analysis constructs the prompt correctly."""
-    _, mock_model = mock_genai
+    # Unpack fixture
+    mock_genai_module, mock_model = mock_genai
+    
     mock_response = MagicMock()
     mock_response.text = "Trade Plan"
     mock_model.generate_content.return_value = mock_response
     
+    from app.services.llm_service import GeminiService
     service = GeminiService()
     context = {
         "current_price": 100,
@@ -73,6 +101,9 @@ def test_get_trade_analysis_construction(mock_settings, mock_genai):
     }
     
     service.get_trade_analysis("AAPL", context)
+    
+    # Verify init happened
+    mock_genai_module.configure.assert_called_with(api_key="fake_key")
     
     # Verify the prompt contains key elements
     call_args = mock_model.generate_content.call_args[0][0]
