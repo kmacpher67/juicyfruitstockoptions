@@ -570,6 +570,7 @@ def get_portfolio_alerts(
 class ScannerConfig(BaseModel):
     preset: str = None # "momentum", "juicy", or None for custom (future)
     criteria: dict = None
+    persist: bool = False
 
 @router.post("/analysis/scan")
 def run_stock_scanner(
@@ -583,12 +584,12 @@ def run_stock_scanner(
     from app.services.scanner_service import scan_momentum_calls, scan_juicy_candidates, run_scanner
     
     if config.preset == "momentum":
-        return scan_momentum_calls()
+        return scan_momentum_calls(persist=config.persist)
     elif config.preset == "juicy":
-        return scan_juicy_candidates()
+        return scan_juicy_candidates(persist=config.persist)
     elif config.criteria:
         # Advanced: Pass raw criteria (Sanitize/Limit in service recommended)
-        return run_scanner(config.criteria)
+        return run_scanner(config.criteria, persist=config.persist)
     else:
          raise HTTPException(status_code=400, detail="Must provide preset or criteria")
 
@@ -625,7 +626,8 @@ def analyze_rolls(
 # --- Ticker & Opportunity Analysis ---
 @router.get("/analysis/rolls")
 def analyze_smart_rolls(
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    persist: bool = False
 ):
     """
     Scan the USER's portfolio for Short Calls expiring soon (default 10 days)
@@ -651,7 +653,8 @@ def analyze_smart_rolls(
     service = RollService()
     
     # Analyze
-    suggestions = service.analyze_portfolio_rolls(holdings, max_days_to_expiration=10)
+    # Analyze
+    suggestions = service.analyze_portfolio_rolls(holdings, max_days_to_expiration=10, persist=persist)
     
     return suggestions
 

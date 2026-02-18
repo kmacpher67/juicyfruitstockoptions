@@ -1,32 +1,56 @@
+import sys
+from unittest.mock import MagicMock
+
+# 1. Mock problematic modules BEFORE importing anything else
+mock_yf = MagicMock()
+sys.modules["yfinance"] = mock_yf
+sys.modules["nltk"] = MagicMock()
+sys.modules["nltk.sentiment.vader"] = MagicMock()
+sys.modules["app.services.sentiment_service"] = MagicMock()
+
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from datetime import datetime, timedelta
-from app.services.dividend_scanner import DividendScanner
+
+# Now import the service under test
+# from app.services.dividend_scanner import DividendScanner
 
 @patch("app.services.dividend_scanner.OpportunityService")
 @patch("app.services.dividend_scanner.SignalService")
 @patch("app.services.dividend_scanner.MongoClient")
-@patch("yfinance.Ticker")
-def test_dividend_capture_analysis_logic(mock_ticker_cls, mock_mongo, mock_signal_cls, mock_opp_service):
+@patch("app.services.dividend_scanner.NewsService") # Mock NewsService too
+def test_dividend_capture_analysis_logic(mock_news_cls, mock_mongo, mock_signal_cls, mock_opp_service):
     # Setup
+    from app.services.dividend_scanner import DividendScanner
     scanner = DividendScanner()
+    
+    # We need to mock yfinance.Ticker usage inside the method
+    # Since we mocked the module, we can configure instances from there
     mock_ticker = MagicMock()
-    mock_ticker_cls.return_value = mock_ticker
+    mock_yf.Ticker.return_value = mock_ticker
 
     # 1. Mock Info (Ex-Date matches earlier scan)
     ex_date = datetime.utcnow() + timedelta(days=5)
     mock_ticker.info = {
         "currentPrice": 100.0,
+        "previousClose": 99.0,
         "exDividendDate": ex_date.timestamp(),
         "dividendRate": 4.0
     }
-    
-    # 2. Mock Option Chain
-    mock_chain = MagicMock()
-    mock_ticker.option_chain.return_value = mock_chain
-    # Expiry 2 days after Ex-Date
+    # Mock options attribute to simulate valid expiry
     expiry = (ex_date + timedelta(days=2)).strftime("%Y-%m-%d")
-    mock_ticker.options = [expiry] # Available expiries
+    mock_ticker.options = [expiry] 
+    
+    # 2. Mock Option Chain (RollService.get_option_chain_data)
+    # Wait, DividendScanner calls self.roll_service.get_option_chain_data
+    # We need to mock that method.
+    
+    # Mock RollService on the instance
+    mock_roll_service = MagicMock()
+    scanner.roll_service = mock_roll_service
+    
+    mock_chain = MagicMock()
+    mock_roll_service.get_option_chain_data.return_value = mock_chain
     
     # Mock Calls DataFrame
     import pandas as pd
@@ -51,23 +75,28 @@ def test_dividend_capture_analysis_logic(mock_ticker_cls, mock_mongo, mock_signa
     # VERIFY
     assert len(strategies) == 3
     assert len(rolls) == 1
+    # Check rolls struct
+    # Since we mocked opp_service return, it should match
     assert rolls[0]["current_strike"] == 100
     
     # 1. Protective (ITM -> 95 Strike)
-    prot = strategies[0]
-    assert prot["type"] == "Protective"
+    # strike 95 < 100
+    prot = next((s for s in strategies if s["type"] == "Protective"), None)
+    assert prot
     assert prot["strike"] == 95.0
-    # Net Cost = Price (100) - Premium (~6.0) = 94.0
-    # Max Profit (Called) = (Strike(95) - Cost(94)) + Div(1.0) = 1 + 1 = 2.0
-    # Max Return = 2.0 / 100 = 2%? No, return on risk?
-    assert prot["net_cost"] < 95.0
+    
+    # Check calculation
+    # Net Cost = Price (100) - Premium (6.00) = 94.00
+    # Max Profit = (Strike(95) - NetCost(94)) + Div(1.0) = 1 + 1 = 2.0
+    assert prot["net_cost"] == 94.0
+    assert prot["max_profit"] == 2.0
     
     # 2. Balanced (ATM -> 100 Strike)
-    bal = strategies[1]
-    assert bal["type"] == "Balanced"
+    bal = next((s for s in strategies if s["type"] == "Balanced"), None)
+    assert bal
     assert bal["strike"] == 100.0
-    
+
     # 3. Aggressive (OTM -> 105 Strike)
-    agg = strategies[2]
-    assert agg["type"] == "Aggressive"
+    agg = next((s for s in strategies if s["type"] == "Aggressive"), None)
+    assert agg
     assert agg["strike"] == 105.0

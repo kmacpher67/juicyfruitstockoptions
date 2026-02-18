@@ -217,6 +217,80 @@ def start_scheduler():
     )
     logging.info("Scheduled Expiration Scanner (Daily 09:30).")
 
+    # --- Recommendation Database Scans ---
+    def run_recommendation_scans():
+        """Run daily scans and persist validation."""
+        import logging
+        from app.services.scanner_service import scan_momentum_calls, scan_juicy_candidates
+        from app.services.roll_service import RollService
+        from app.services.signal_service import SignalService
+        from pymongo import MongoClient
+        
+        logging.info("Scheduler: Starting Recommendation Scans (Persistence Enabled)")
+        
+        # 1. Scanners (Market Wide)
+        try:
+             scan_momentum_calls(persist=True)
+             scan_juicy_candidates(persist=True)
+             logging.info("Scheduler: Scanners completed.")
+        except Exception as e:
+             logging.error(f"Scheduler: Scanner failed: {e}")
+
+        # 2. Portfolio Rolls & Signals (Holdings)
+        try:
+             client = MongoClient(settings.MONGO_URI)
+             db = client.get_default_database("stock_analysis")
+             
+             # Get Tickers
+             latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+             if latest:
+                 query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+                 holdings = list(db.ibkr_holdings.find(query))
+                 # Filter valid tickers
+                 tickers = []
+                 for h in holdings:
+                     sym = h.get("underlying_symbol") or h.get("symbol")
+                     if sym: tickers.append(sym)
+                 tickers = list(set(tickers))
+                 
+                 # Roll Service
+                 roll_service = RollService()
+                 roll_service.analyze_portfolio_rolls(holdings, persist=True)
+                 logging.info("Scheduler: Portfolio Rolls analysis completed.")
+                 
+                 # Signal Service
+                 signal_service = SignalService()
+                 signal_service.scan_and_persist_signals(tickers)
+                 logging.info("Scheduler: Signal Scan completed.")
+                 
+        except Exception as e:
+             logging.error(f"Scheduler: Portfolio/Signal scan failed: {e}")
+             
+        logging.info("Scheduler: Recommendation Scans Finished.")
+
+    # Schedule: 10:15 AM (Morning)
+    scheduler.add_job(
+        run_recommendation_scans,
+        trigger="cron", 
+        day_of_week='mon-fri',
+        hour=10, 
+        minute=15,
+        id="recommendation_scans_morning",
+        replace_existing=True
+    )
+    
+    # Schedule: 4:30 PM (Post-Market)
+    scheduler.add_job(
+        run_recommendation_scans,
+        trigger="cron", 
+        day_of_week='mon-fri',
+        hour=16, 
+        minute=30,
+        id="recommendation_scans_afternoon",
+        replace_existing=True
+    )
+    logging.info("Scheduled Recommendation Scans (10:15, 16:30).")
+
     scheduler.start()
 
 def stop_scheduler():

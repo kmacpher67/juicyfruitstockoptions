@@ -1,7 +1,7 @@
 # Implementation Plan - Recommendation Database
 
 ## Goal Description
-Implement a local persistent MongoDB database to store all generated recommendations, signals, rolls, and dividend opportunities. This will enable historical analysis and future scoring of recommendations to determine their effectiveness (Truth Engine).
+Implement a local persistent MongoDB database to store all generated recommendations, signals, rolls, and dividend and all other opportunities. This will enable historical analysis and future scoring of recommendations to determine their effectiveness (Truth Engine).
 This leverages the existing `JuicyOpportunity` model to store all "Signals", "Smart Rolls", and "Scanned Candidates".
 
 ## User Review Required

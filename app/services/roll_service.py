@@ -4,10 +4,13 @@ import logging
 import pandas as pd
 from app.utils.greeks_calculator import GreeksCalculator
 from app.services.signal_service import SignalService
+from app.services.opportunity_service import OpportunityService
+from app.models.opportunity import JuicyOpportunity, OpportunityStatus
 
 class RollService:
     def __init__(self, signal_service=None):
         self.signal_service = signal_service or SignalService()
+        self.opp_service = OpportunityService()
 
     def get_realtime_price(self, symbol):
         try:
@@ -173,7 +176,8 @@ class RollService:
         return max(0.0, min(100.0, score)), reasons
 
 
-    def analyze_portfolio_rolls(self, portfolio_items, max_days_to_expiration=10):
+
+    def analyze_portfolio_rolls(self, portfolio_items, max_days_to_expiration=10, persist: bool = False):
         """
         Analyze portfolio for roll opportunities.
         """
@@ -239,6 +243,43 @@ class RollService:
                 logging.error(f"Error analyzing roll for {item.get('symbol', 'Unknown')}: {e}")
                 continue
                 
+        if persist and suggestions:
+            self._persist_suggestions(suggestions)
+
+        return suggestions
+
+    def _persist_suggestions(self, suggestions):
+        """Persist top roll suggestions to MongoDB."""
+        for item in suggestions:
+            symbol = item.get("symbol")
+            rolls = item.get("rolls", [])
+            if not rolls: continue
+            
+            # Persist Top 3 Rolls per position to avoid noise
+            # Only persist if Score > 60 (Quality Check)
+            top_rolls = [r for r in rolls if r.get("score", 0) > 60][:3]
+            
+            for roll in top_rolls:
+                 try:
+                      # Create Opportunity
+                      opp = JuicyOpportunity(
+                          symbol=symbol,
+                          trigger_source="SmartRoll",
+                          status=OpportunityStatus.DETECTED,
+                          context={
+                              "current_price": item.get("current_price"),
+                              "position_description": item.get("position_description"),
+                              "days_to_expiry": item.get("days_to_expiry"),
+                              "score": roll.get("score"),
+                              "signal_analysis": item.get("signal_analysis")
+                          },
+                          proposal=roll
+                      )
+                      self.opp_service.create_opportunity(opp)
+                      logging.info(f"Persisted Smart Roll for {symbol} (Score: {roll.get('score')})")
+                 except Exception as e:
+                      logging.error(f"Failed to persist roll for {symbol}: {e}")
+            
         return suggestions
 
     def find_rolls(self, symbol, current_strike, current_exp_date, position_type="call", current_pos_context=None):

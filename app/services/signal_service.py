@@ -3,6 +3,8 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
+from app.services.opportunity_service import OpportunityService
+from app.models.opportunity import JuicyOpportunity, OpportunityStatus
 
 # Optional imports for new dependencies
 try:
@@ -23,6 +25,7 @@ class SignalService:
             logger.warning("pykalman not installed. Kalman features will be limited.")
         if not markovify:
             logger.warning("markovify not installed. Markov features will be limited.")
+        self.opp_service = OpportunityService()
 
     def get_kalman_signal(self, ticker_data: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -285,3 +288,74 @@ class SignalService:
         except Exception as e:
             logger.error(f"Error in Price Prediction: {e}")
             return {"predicted_price": current_price, "error": str(e)}
+
+    def scan_and_persist_signals(self, tickers: List[str]):
+        """
+        Scan a list of tickers and persist high-confidence signals.
+        """
+        import yfinance as yf
+        logger.info(f"SignalService: Scanning {len(tickers)} tickers for signals...")
+        
+        count = 0
+        for ticker in tickers:
+            try:
+                # Get Data
+                data = yf.download(ticker, period="1y", interval="1d", progress=False)
+                if data.empty or len(data) < 60: continue
+                # Handle MultiIndex
+                if isinstance(data.columns, pd.MultiIndex):
+                     data.columns = data.columns.get_level_values(0)
+                
+                # 1. Kalman Signal
+                k_sig = self.get_kalman_signal(data)
+                
+                # 2. Markov Signal
+                m_sig = self.get_markov_probabilities(data)
+                
+                trigger = False
+                context = {}
+                proposal = {}
+                
+                # Check Kalman
+                if "signal" in k_sig:
+                    context["kalman_signal"] = k_sig["signal"]
+                    context["kalman_mean"] = k_sig.get("kalman_mean")
+                    context["current_price"] = k_sig.get("current_price")
+                
+                # Check Markov
+                if "transitions" in m_sig:
+                    prob_up = m_sig["transitions"].get("UP_BIG", 0) + m_sig["transitions"].get("UP_SMALL", 0)
+                    prob_down = m_sig["transitions"].get("DOWN_BIG", 0) + m_sig["transitions"].get("DOWN_SMALL", 0)
+                    
+                    context["prob_up"] = prob_up
+                    context["prob_down"] = prob_down
+                    
+                    # ALERT LOGIC:
+                    # 1. Strong Reversal: Prob Up > 60%
+                    if prob_up > 0.60:
+                        trigger = True
+                        proposal["action"] = "BUY/CALL"
+                        proposal["reason"] = f"High Markov Probability UP ({prob_up:.0%})"
+                        
+                    # 2. Strong Bearish: Prob Down > 60%
+                    elif prob_down > 0.60:
+                        trigger = True
+                        proposal["action"] = "SELL/PUT"
+                        proposal["reason"] = f"High Markov Probability DOWN ({prob_down:.0%})"
+                
+                if trigger:
+                     opp = JuicyOpportunity(
+                         symbol=ticker,
+                         trigger_source="SignalService",
+                         status=OpportunityStatus.DETECTED,
+                         context=context,
+                         proposal=proposal
+                     )
+                     self.opp_service.create_opportunity(opp)
+                     logger.info(f"SignalService: Persisted signal for {ticker}")
+                     count += 1
+                     
+            except Exception as e:
+                logger.error(f"SignalService: Error scanning {ticker}: {e}")
+                
+        logger.info(f"SignalService: Scan complete. Persisted {count} signals.")
