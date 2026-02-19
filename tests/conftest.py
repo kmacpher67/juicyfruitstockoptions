@@ -6,6 +6,8 @@ from unittest.mock import MagicMock
 if "yfinance" not in sys.modules:
     sys.modules["yfinance"] = MagicMock()
 
+
+
 # Set MONGO_URI *before* any app modules import settings.
 # Outside Docker the default host 'mongo' is unreachable; use localhost.
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")

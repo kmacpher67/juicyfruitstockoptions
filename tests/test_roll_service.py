@@ -1,31 +1,45 @@
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 from app.services.roll_service import RollService
 
-@pytest.fixture
-def mock_yf_ticker():
-    with patch("app.services.roll_service.yf.Ticker") as mock_ticker_cls:
-        mock_instance = MagicMock()
-        mock_ticker_cls.return_value = mock_instance
-        yield mock_instance
+# Removed unused fixture mock_yf_ticker
 
+@patch("app.services.roll_service.GreeksCalculator")
 @patch("app.services.opportunity_service.MongoClient")
 @patch("app.services.roll_service.SignalService")
 @patch("app.services.roll_service.OpportunityService")
-def test_find_rolls_calls(mock_opp_service, mock_signal_service, mock_mongo, mock_yf_ticker):
+@patch("yfinance.Ticker")
+def test_find_rolls_calls(mock_yf_ticker_cls, mock_opp_service, mock_signal_service, mock_mongo, mock_greeks_calc):
     # Setup Data
-    mock_yf_ticker.fast_info = {'last_price': 100.0, 'previous_close': 99.0}
-    # Dates: Today is 2025-01-01. Old Exp 2025-01-17. New Exp 2025-02-21
-    mock_yf_ticker.options = ("2025-01-17", "2025-02-21")
+    mock_yf_ticker = MagicMock()
+    mock_yf_ticker_cls.return_value = mock_yf_ticker
+
+    # Configure Greeks Calculator
+    def mock_calc_greeks(df, price=None):
+        df['delta'] = 0.5
+        df['gamma'] = 0.05
+        df['theta'] = -0.05
+        return df
+    mock_greeks_calc.calculate_dataframe.side_effect = mock_calc_greeks
     
+    # Configure fast_info as a dict-like object (MagicMock matches dict access usually, but let's be safe)
+    # yfinance.Ticker.fast_info is accessed via keys.
+    mock_yf_ticker.fast_info = {'last_price': 100.0, 'previous_close': 99.0}
+    
+    # Mock info to avoid implicit MagicMock causing TypeError in date parsing
+    mock_yf_ticker.info = {"exDividendDate": None}
+
+    mock_yf_ticker.options = ("2025-01-17", "2025-02-21")
+
     # Old Chain for 2025-01-17
     old_df = pd.DataFrame([
         {'strike': 100.0, 'ask': 5.0, 'bid': 4.8, 'lastPrice': 4.9}
     ])
-    mock_old_chain = MagicMock()
-    mock_old_chain.calls = old_df
-    
+    # Use SimpleNamespace to avoid MagicMock attribute conflicts with 'calls'
+    mock_old_chain = SimpleNamespace(calls=old_df, puts=pd.DataFrame())
+
     # New Chain for 2025-02-21
     new_df = pd.DataFrame([
         # Strike 100 (Calendar Roll)
@@ -33,19 +47,21 @@ def test_find_rolls_calls(mock_opp_service, mock_signal_service, mock_mongo, moc
         # Strike 105 (Up and Out)
         {'strike': 105.0, 'ask': 4.0, 'bid': 3.8, 'lastPrice': 3.9, 'impliedVolatility': 0.2, 'time_to_expiry_years': 0.1}
     ])
-    mock_new_chain = MagicMock()
-    mock_new_chain.calls = new_df
-    
+    mock_new_chain = SimpleNamespace(calls=new_df, puts=pd.DataFrame())
+
     # Mock option_chain calls
     def get_chain(date):
         if date == "2025-01-17": return mock_old_chain
         if date == "2025-02-21": return mock_new_chain
-        return MagicMock()
-        
+        return SimpleNamespace(calls=pd.DataFrame(), puts=pd.DataFrame())
+
     mock_yf_ticker.option_chain.side_effect = get_chain
     
+
     # Configure Signal Service to avoid TypeErrors
-    mock_signal_service.get_roll_vs_hold_advice.return_value = {
+    # IMPORTANT: mock_signal_service is the CLASS mock. Its return_value is the INSTANCE.
+    mock_signal_instance = mock_signal_service.return_value
+    mock_signal_instance.get_roll_vs_hold_advice.return_value = {
         "prob_up": 0.5,
         "prob_down": 0.5,
         "recommendation": "HOLD"
@@ -74,11 +90,7 @@ def test_find_rolls_calls(mock_opp_service, mock_signal_service, mock_mongo, moc
     # -1.2 < -0.10, so it might be filtered out? 
     # Logic in service: if net_credit > -0.10.
     # So this one should NOT be in the list?
-    # Wait, -1.2 is NOT > -0.10. It is smaller.
-    # Ah, the logic `if net_credit > -0.10` filters out large debits.
-    # So 105 strike should be missing.
     
     roll_105 = next((r for r in rolls if r["strike"] == 105.0), None)
     # Assert it is missing because -1.2 is a big cost
     assert roll_105 is None
-

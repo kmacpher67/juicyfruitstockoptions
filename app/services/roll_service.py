@@ -1,5 +1,5 @@
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import pandas as pd
 from app.utils.greeks_calculator import GreeksCalculator
@@ -436,7 +436,7 @@ class RollService:
                     net_credit = premium - cost_to_close
                     
                     # Looser Filter: Allow debits if it's a "Rescue" (Roll Up)
-                    if net_credit > -0.50: 
+                    if net_credit > -0.10: 
                          roll_type = "Up & Out" if new_strike > current_strike else "Roll Out"
                          days_diff = (datetime.strptime(d, "%Y-%m-%d") - curr_exp_dt).days
                          
