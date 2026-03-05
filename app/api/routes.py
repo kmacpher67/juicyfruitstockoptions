@@ -759,27 +759,46 @@ def scan_dividend_capture(
             # Assuming results are sorted by created_at desc (or natural insertion order desc)
             # We use a dict to keep the first occurrence (latest)
             unique_results = {}
+            today_str = datetime.utcnow().strftime("%Y-%m-%d")
             for r in results:
                 proposal = r.get("proposal", {})
                 sym = proposal.get("symbol")
+                ex_date = proposal.get("ex_date")
+                
+                # Filter out past ex-dividend dates
+                if ex_date and ex_date < today_str:
+                    continue
+                    
                 if sym and sym not in unique_results:
                      unique_results[sym] = proposal
             
             return list(unique_results.values())
 
-        # 1. Get Tickers from Portfolio
+        # 1. Get Tickers from Portfolio and Tracked Stocks
         # db is already connected via dependency
         
-        # Get distinct symbols from latest holdings
+        symbols_set = set()
+        
+        # Get symbols from latest portfolio holdings
         latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-        symbols = []
         if latest:
             query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
             holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
-            symbols = list(set([h["symbol"] for h in holdings]))
-            logging.info(f"Scanning {len(symbols)} tickers from portfolio snapshot.")
+            symbols_set.update([h["symbol"] for h in holdings if h.get("symbol")])
+            logging.info(f"Adding portfolio symbols. Current count: {len(symbols_set)}")
         else:
             logging.warning("No portfolio holdings found.")
+            
+        # Get all tracked tickers from stock_data
+        try:
+            tracked_tickers = db.stock_data.distinct("Ticker")
+            if tracked_tickers:
+                symbols_set.update(tracked_tickers)
+                logging.info(f"Adding tracked symbols. Total distinct count: {len(symbols_set)}")
+        except Exception as e:
+            logging.warning(f"Could not fetch tracked tickers: {e}")
+            
+        symbols = list(symbols_set)
         
         if not symbols:
             return []
