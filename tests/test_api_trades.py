@@ -28,9 +28,9 @@ def test_get_trades_endpoint():
         mock_db.ibkr_trades.find.return_value = mock_find
         
         # Mock dividends
-        mock_div_find = MagicMock()
-        mock_div_find.sort.return_value.skip.return_value.limit.return_value = []
-        mock_db.ibkr_dividends.find.return_value = mock_div_find
+        mock_div_limit = MagicMock()
+        mock_div_limit.__iter__.return_value = []
+        mock_db.ibkr_dividends.find.return_value.limit.return_value = mock_div_limit
         
         response = client.get("/api/trades/")
         assert response.status_code == 200
@@ -53,7 +53,9 @@ def test_get_analysis_endpoint():
         mock_db.ibkr_trades.find.return_value.sort.return_value = mock_cursor
         
         # Mock dividends
-        mock_db.ibkr_dividends.find.return_value.sort.return_value = []
+        mock_div_find = MagicMock()
+        mock_div_find.__iter__.return_value = []
+        mock_db.ibkr_dividends.find.return_value = mock_div_find
         
         response = client.get("/api/trades/analysis?symbol=AAPL")
         assert response.status_code == 200
