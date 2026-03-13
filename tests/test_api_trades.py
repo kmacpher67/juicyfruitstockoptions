@@ -34,7 +34,8 @@ def test_get_trades_endpoint():
         print(f"DEBUG RESPONSE KEYS: {data[0].keys()}")
         # Check for either symbol or Symbol depending on serialization model
         symbol = data[0].get("symbol") or data[0].get("Symbol")
-        assert symbol == "AAPL"
+        # Assert GOOG because 20240102 > 20240101 and the API now sorts descending by date_time
+        assert symbol == "GOOG"
 
 def test_get_analysis_endpoint():
     mock_cursor = [

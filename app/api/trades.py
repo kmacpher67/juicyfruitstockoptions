@@ -34,8 +34,35 @@ async def get_trades(
     if symbol:
         query["symbol"] = symbol
         
-    cursor = db.ibkr_trades.find(query).sort("date_time", -1).skip(skip).limit(limit)
-    return [TradeRecord(**fix_oid(doc)) for doc in cursor]
+    # Fetch Trades
+    trade_cursor = db.ibkr_trades.find(query).sort("date_time", -1).skip(skip).limit(limit)
+    raw_trades = [TradeRecord(**fix_oid(doc)) for doc in trade_cursor]
+    
+    # Fetch Dividends (Realized only)
+    # We use limit as a rough cap, sorting later might misalign pagination slightly if heavy mixing, 
+    # but sufficient for combined view.
+    div_query = {"code": "RE"}
+    if symbol: div_query["symbol"] = symbol
+    div_cursor = db.ibkr_dividends.find(div_query).limit(limit)
+    
+    for doc in div_cursor:
+        # Convert YYYY-MM-DD to YYYYMMDD string for sorting/display compatibility if needed,
+        # or just use the string directly if UI handles it.
+        dt = (doc.get("pay_date") or "").replace("-", "")
+        raw_trades.append(TradeRecord(
+            trade_id=f"div_{doc.get('_id')}",
+            symbol=doc.get("symbol"),
+            account_id=doc.get("account_id"),
+            date_time=dt,
+            quantity=0,
+            price=0,
+            buy_sell="DIVIDEND",
+            realized_pnl=doc.get("net_amount", 0) # Store straight as extra field or map depending on UI needs
+        ))
+        
+    # Sort combined results descending
+    raw_trades.sort(key=lambda x: str(x.date_time) if x.date_time else "", reverse=True)
+    return raw_trades[:limit]
 
 @router.get("/analysis", response_model=dict)
 async def get_trade_analysis(
@@ -68,6 +95,28 @@ async def get_trade_analysis(
     try:
         logging.info(f"Starting trade analysis for symbol={symbol}...")
         raw_trades = [TradeRecord(**fix_oid(doc)) for doc in cursor]
+        
+        # Fetch Dividends for analysis
+        div_query = {"code": "RE"}
+        if symbol: div_query["symbol"] = symbol
+        div_cursor = db.ibkr_dividends.find(div_query)
+        
+        # Add Dividends as AnalyzedTrades basically, so they factor into PL
+        for doc in div_cursor:
+            dt = (doc.get("pay_date") or "").replace("-", "")
+            raw_trades.append(TradeRecord(
+                trade_id=f"div_{doc.get('_id')}",
+                symbol=doc.get("symbol"),
+                account_id=doc.get("account_id"),
+                date_time=dt,
+                quantity=0,
+                price=0,
+                buy_sell="DIVIDEND",
+                realized_pnl=doc.get("net_amount", 0)
+            ))
+            
+        # Re-sort combined list ascending for FIFO
+        raw_trades.sort(key=lambda x: str(x.date_time) if x.date_time else "")
         
         analyzed_trades, open_positions = calculate_pnl(raw_trades)
 

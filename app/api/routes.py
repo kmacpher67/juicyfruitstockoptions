@@ -351,6 +351,7 @@ def get_ibkr_status(
         query_id_nav_mtd=config.get("query_id_nav_mtd"),
         query_id_nav_ytd=config.get("query_id_nav_ytd"),
         query_id_nav_1y=config.get("query_id_nav_1y"),
+        query_id_dividends=config.get("query_id_dividends"),
         last_sync=last_sync
     )
 
@@ -380,6 +381,7 @@ def update_ibkr_config(
     if config.query_id_nav_mtd: update_data["query_id_nav_mtd"] = config.query_id_nav_mtd
     if config.query_id_nav_ytd: update_data["query_id_nav_ytd"] = config.query_id_nav_ytd
     if config.query_id_nav_1y: update_data["query_id_nav_1y"] = config.query_id_nav_1y
+    if config.query_id_dividends: update_data["query_id_dividends"] = config.query_id_dividends
         
     db.system_config.update_one(
         {"_id": "ibkr_config"},
@@ -521,6 +523,32 @@ def get_portfolio_holdings(
         query = {"report_date": latest.get("report_date")}
         
     data = list(db.ibkr_holdings.find(query, {"_id": 0}))
+    
+    # Enrich with Dividend History
+    symbols = list(set([h["symbol"] for h in data if "symbol" in h]))
+    if symbols:
+        pipeline = [
+            {"$match": {"symbol": {"$in": symbols}, "code": "RE"}},
+            {"$group": {"_id": "$symbol", "total_divs": {"$sum": "$net_amount"}}}
+        ]
+        div_sums = {doc["_id"]: doc["total_divs"] for doc in db.ibkr_dividends.aggregate(pipeline)}
+        
+        for row in data:
+            sym = row.get("symbol")
+            if not sym: continue
+            
+            divs = div_sums.get(sym, 0.0)
+            row["divs_earned"] = divs
+            
+            unrealized = row.get("unrealized_pnl", 0)
+            row["total_return"] = unrealized + divs
+            
+            cb = row.get("cost_basis", 0)
+            if cb > 0:
+                row["true_yield"] = divs / cb
+            else:
+                row["true_yield"] = 0.0
+                
     return data
 
 @router.get("/portfolio/alerts")

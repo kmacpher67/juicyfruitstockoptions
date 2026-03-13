@@ -63,6 +63,12 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
                 logger.error(f"Error preparing trade logic for {symbol}: {e}")
                 continue
             
+            # Passthrough for Dividends
+            if data.get("buy_sell") == "DIVIDEND":
+                analyzed.realized_pl = data.get("realized_pnl", 0.0)
+                analyzed_results.append(analyzed)
+                continue
+            
             realized_pl = 0.0
             
             if qty > 0: # BUY

@@ -96,14 +96,15 @@ const TradeHistory = () => {
         },
         {
             headerName: "Action",
-            width: 90,
+            width: 100,
             valueGetter: p => {
+                if (p.data.buy_sell === "DIVIDEND") return "DIVIDEND";
                 const qty = p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity;
                 if (!qty) return "-";
                 return qty > 0 ? "BUY" : "SELL";
             },
             cellClassRules: {
-                'text-green-400 font-bold': p => p.value === 'BUY',
+                'text-green-400 font-bold': p => p.value === 'BUY' || p.value === 'DIVIDEND',
                 'text-red-400 font-bold': p => p.value === 'SELL'
             }
         },

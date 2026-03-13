@@ -105,6 +105,7 @@ class IBKRConfig(BaseModel):
     query_id_nav_mtd: Optional[str] = None
     query_id_nav_ytd: Optional[str] = None
     query_id_nav_1y: Optional[str] = None
+    query_id_dividends: Optional[str] = None
 
 
 class NavReportType(str, Enum):
@@ -126,4 +127,5 @@ class IBKRStatus(BaseModel):
     query_id_nav_mtd: Optional[str] = None
     query_id_nav_ytd: Optional[str] = None
     query_id_nav_1y: Optional[str] = None
+    query_id_dividends: Optional[str] = None
     last_sync: Optional[dict] = None

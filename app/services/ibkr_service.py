@@ -408,6 +408,89 @@ def parse_xml_trades(xml_content):
         
     logging.info(f"Processed {trades_count} trades.")
 
+def parse_csv_dividends(csv_str):
+    """Parse IBKR Flex CSV for Cash Transactions (Dividends)."""
+    import csv
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    
+    lines = csv_str.splitlines()
+    start_idx = 0
+    for i, line in enumerate(lines):
+        if "Symbol" in line and ("ExDate" in line or "PayDate" in line):
+            start_idx = i
+            break
+            
+    if not lines or start_idx >= len(lines):
+        logging.warning("No dividend headers found in CSV")
+        return
+
+    reader = csv.DictReader(lines[start_idx:])
+    count = 0
+    
+    for row in reader:
+        symbol = row.get("Symbol")
+        action_id = row.get("ActionID") or row.get("SerialNumber")
+        
+        # Require symbol and some identifier to deduplicate
+        if not symbol: continue
+        
+        # Often the Code is 'Po' or 'Re'. Normalize it.
+        code = (row.get("Code") or "").strip().upper()
+        
+        try:
+            ex_date_str = row.get("ExDate")
+            pay_date_str = row.get("PayDate")
+            
+            # Format dates to standard YYYY-MM-DD if they are YYYYMMDD
+            def fmt_date(d):
+                if not d: return None
+                if len(d) == 8 and d.isdigit():
+                    return f"{d[:4]}-{d[4:6]}-{d[6:]}"
+                return d
+                
+            ex_date = fmt_date(ex_date_str)
+            pay_date = fmt_date(pay_date_str)
+            
+            doc = {
+                "account_id": row.get("ClientAccountID") or row.get("AccountId"),
+                "symbol": symbol,
+                "ex_date": ex_date,
+                "pay_date": pay_date,
+                "quantity": float(row.get("Quantity") or 0),
+                "gross_amount": float(row.get("GrossAmount") or 0),
+                "net_amount": float(row.get("NetAmount") or 0),
+                "code": code,
+                "action_id": action_id,
+                "description": row.get("Description", ""),
+                "currency": row.get("CurrencyPrimary") or row.get("Currency", "USD")
+            }
+            
+            # We want to uniquely identify this line. Use ActionID if available.
+            # Otherwise use a synthetic compound key.
+            query = {}
+            if action_id:
+                query = {"action_id": action_id, "code": code}
+            else:
+                query = {"symbol": symbol, "pay_date": pay_date, "gross_amount": doc["gross_amount"], "code": code}
+
+            db.ibkr_dividends.update_one(query, {"$set": doc}, upsert=True)
+            count += 1
+            
+        except ValueError as e:
+            logging.debug(f"Row skipped due to value error: {e}")
+            continue
+            
+    logging.info(f"Processed {count} dividend records (CSV).")
+
+def parse_and_store_dividends(content):
+    """Dispatcher for Dividends."""
+    if content.strip().startswith(b"<"):
+        # We only have CSV flex reports for dividends currently defined
+        logging.warning("XML parsing for Dividends is not yet implemented. Skipping.")
+    else:
+        parse_csv_dividends(content.decode('utf-8', errors='ignore'))
+
 def save_sync_status(status: str, message: str):
     """Persist the result of the sync job."""
     try:
@@ -507,6 +590,20 @@ def run_ibkr_sync(check_interval_hours: float = 0.0, nav_days: int = 0):
                     time.sleep(20) # Rate Limit Protection
                  except Exception as e:
                     msg = f"Trades Error: {e}"
+                    logging.exception(msg)
+                    errors.append(msg)
+                    
+            # D. Dividends
+            q_dividends = config.get("query_id_dividends")
+            if q_dividends:
+                 try:
+                    logging.info("Fetching Daily Dividends...")
+                    data_dividends = fetch_flex_report(q_dividends, token, label="dividends")
+                    parse_and_store_dividends(data_dividends)
+                    import time
+                    time.sleep(20) # Rate Limit Protection
+                 except Exception as e:
+                    msg = f"Dividends Error: {e}"
                     logging.exception(msg)
                     errors.append(msg)
                     

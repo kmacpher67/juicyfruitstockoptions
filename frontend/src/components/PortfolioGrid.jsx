@@ -58,6 +58,30 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         },
         {
+            field: "divs_earned",
+            headerName: "Divs",
+            sortable: true,
+            width: 90,
+            cellClass: params => params.value > 0 ? 'text-green-400 font-bold' : '',
+            valueFormatter: p => p.value ? `$${p.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'
+        },
+        {
+            field: "total_return",
+            headerName: "Total Return",
+            sortable: true,
+            width: 120,
+            cellClass: params => params.value >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold',
+            valueFormatter: p => `$${(p.value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        },
+        {
+            field: "true_yield",
+            headerName: "True Yield",
+            sortable: true,
+            width: 100,
+            cellClass: params => params.value > 0 ? 'text-green-400 font-bold' : '',
+            valueFormatter: p => p.value ? `${(p.value * 100).toFixed(2)}%` : '-'
+        },
+        {
             field: "percent_of_nav",
             headerName: "% NAV",
             sortable: true,
