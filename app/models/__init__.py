@@ -34,6 +34,7 @@ class TradeRecord(BaseModel):
     """
     trade_id: str = Field(..., alias="TradeID") # Required, used as PK
     symbol: str = Field(..., alias="Symbol")
+    account_id: Optional[str] = Field(None, alias="AccountId")
     date_time: Optional[str] = Field(None, alias="DateTime")
     quantity: Optional[float] = Field(0.0, alias="Quantity")
     
@@ -60,9 +61,13 @@ class TradeMetrics(BaseModel):
     Summary statistics for a set of trades.
     """
     total_pl: float = 0.0
+    unrealized_profit: float = 0.0
+    unrealized_loss: float = 0.0
     win_rate: float = 0.0
     profit_factor: float = 0.0
     total_trades: int = 0
+    open_trades: int = 0
+    closed_trades: int = 0
     winning_trades: int = 0
     losing_trades: int = 0
 

@@ -7,10 +7,14 @@ import logging
 # Create logger for this module
 logger = logging.getLogger(__name__)
 
-def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
+from typing import Tuple
+
+def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[str, dict]]:
     """
     Calculates Realized P&L for a list of trades using FIFO matching.
-    Returns a list of AnalyzedTrade objects.
+    Returns a tuple of:
+      - List of AnalyzedTrade objects.
+      - Dict of open positions: { symbol: {"qty": float, "avg_cost": float} }
     """
     # Group by symbol to process independently
     logger.info("Starting P&L Calculation...")
@@ -20,6 +24,7 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
         
     logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
     analyzed_results = []
+    open_positions = {}
     
     count = 0
     for symbol, symbol_trades in trades_by_symbol.items():
@@ -57,9 +62,6 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
             except Exception as e:
                 logger.error(f"Error preparing trade logic for {symbol}: {e}")
                 continue
-            
-            # TODO: Robust Buy/Sell detection. 
-            # In IBKR: Positive Qty = Buy, Negative Qty = Sell
             
             realized_pl = 0.0
             
@@ -115,36 +117,70 @@ def calculate_pnl(trades: List[TradeRecord]) -> List[AnalyzedTrade]:
             analyzed.realized_pl = realized_pl - abs(comm) # Subtract commission from PL
             analyzed_results.append(analyzed)
             
-    logger.info(f"P&L Analysis complete. Created {len(analyzed_results)} analyzed records.")
-    return analyzed_results
+        # Compute remainder for open positions
+        total_open_qty = 0.0
+        total_cost = 0.0
+        
+        if long_queue:
+            for q, p in long_queue:
+                total_open_qty += q
+                total_cost += (q * p)
+        elif short_queue:
+            for q, p in short_queue:
+                total_open_qty += q  # q is already negative
+                total_cost += (abs(q) * p)
+                
+        if total_open_qty != 0:
+            avg_cost = total_cost / abs(total_open_qty)
+            open_positions[symbol] = {
+                "qty": total_open_qty,
+                "avg_cost": avg_cost
+            }
+            
+    logger.info(f"P&L Analysis complete. Created {len(analyzed_results)} analyzed records, {len(open_positions)} open positions.")
+    return analyzed_results, open_positions
 
-def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
+import yfinance as yf
+
+import time
+
+_PRICE_CACHE = {}
+_CACHE_TTL = 300 # 5 minutes
+
+def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dict] = None) -> TradeMetrics:
     """
     Aggregates AnalyzedTrades into high-level metrics.
+    Optionally fetches current prices for open_positions to calculate Unrealized P&L.
     """
+    if open_positions is None:
+        open_positions = {}
+        
     total_pl = 0.0
     winning = 0
     losing = 0
     total = 0
+    open_trades = 0
+    closed_trades = 0
     gross_win = 0.0
     gross_loss = 0.0
+    
     logger.info("Starting Metrics Calculation...")
-    total_pl = 0.0
     
     for t in trades:
-        # Only count "Closing" trades towards metrics? 
-        # Or just sum all PL (Opening trades have 0 PL usually)
+        total += 1
         if t.realized_pl != 0:
+            closed_trades += 1
             total_pl += t.realized_pl
-            total += 1
             if t.realized_pl > 0:
                 winning += 1
                 gross_win += t.realized_pl
             else:
                 losing += 1
                 gross_loss += abs(t.realized_pl)
+        else:
+            open_trades += 1
                 
-    win_rate = (winning / total * 100) if total > 0 else 0.0
+    win_rate = (winning / closed_trades * 100) if closed_trades > 0 else 0.0
     
     if gross_loss > 0:
         profit_factor = gross_win / gross_loss
@@ -152,11 +188,69 @@ def calculate_metrics(trades: List[AnalyzedTrade]) -> TradeMetrics:
         # Avoid Infinity for JSON serialization
         profit_factor = gross_win if gross_win > 0 else 0.0
     
+    unrealized_profit = 0.0
+    unrealized_loss = 0.0
+    
+    if open_positions:
+        now = time.time()
+        # Batch fetch prices using yfinance for symbols not in cache
+        symbols = list(open_positions.keys())
+        yf_symbols = []
+        for sym in symbols:
+            query_sym = sym.split()[0] if " " in sym else sym
+            if query_sym not in _PRICE_CACHE or (now - _PRICE_CACHE[query_sym]["ts"] > _CACHE_TTL):
+                yf_symbols.append(query_sym)
+        
+        yf_query_string = " ".join(set(yf_symbols))
+        
+        if yf_query_string:
+            try:
+                tickers = yf.Tickers(yf_query_string)
+                for query_sym in set(yf_symbols):
+                    current_price = None
+                    try:
+                        ticker = tickers.tickers.get(query_sym)
+                        if ticker:
+                            # Use fast info instead of info
+                            current_price = ticker.fast_info.get("lastPrice") or ticker.fast_info.get("previousClose")
+                    except Exception as e:
+                        logger.warning(f"Could not fetch current price for {query_sym}: {e}")
+                    
+                    if current_price is not None:
+                        _PRICE_CACHE[query_sym] = {"price": current_price, "ts": now}
+            except Exception as e:
+                 logger.error(f"Failed to fetch prices for open positions: {e}")
+
+        # Calculate unrealized P&L using cached prices
+        for sym, pos in open_positions.items():
+            query_sym = sym.split()[0] if " " in sym else sym
+            if query_sym in _PRICE_CACHE:
+                current_price = _PRICE_CACHE[query_sym]["price"]
+                qty = pos["qty"]
+                avg_cost = pos["avg_cost"]
+                
+                multiplier = 100 if " " in sym or (len(sym) > 5 and any(c.isdigit() for c in sym)) else 1
+                
+                upl = 0.0
+                if qty > 0: # Long
+                    upl = (current_price - avg_cost) * qty * multiplier
+                else: # Short
+                    upl = (avg_cost - current_price) * abs(qty) * multiplier
+                    
+                if upl > 0:
+                    unrealized_profit += upl
+                else:
+                    unrealized_loss += abs(upl)
+
     m = TradeMetrics(
         total_pl=round(total_pl, 2),
+        unrealized_profit=round(unrealized_profit, 2),
+        unrealized_loss=round(unrealized_loss, 2),
         win_rate=round(win_rate, 2),
         profit_factor=round(profit_factor, 2),
         total_trades=total,
+        open_trades=open_trades,
+        closed_trades=closed_trades,
         winning_trades=winning,
         losing_trades=losing
     )

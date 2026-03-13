@@ -28,6 +28,18 @@ The mathematical expectation of the system per trade.
 
 *   **Formula**: `Total Realized P&L / Total Count of Closed Trades`
 
+### Total Trades (Open vs Closed)
+Understanding trade counts is essential for analyzing the scope of the portfolio.
+
+*   **Total Trades**: The sum of all active (`Open`) and completed (`Closed`) trades.
+*   **Closed Trades**: Trades that have realized P&L, such as selling a stock you own or buying back a short option. Win Rate and Profit Factor are calculated strictly on Closed Trades.
+*   **Open Trades**: Initiating trades that have not yet realized P&L. They exist in the portfolio's FIFO queue and represent current risk/exposure.
+
+### Realized vs Unrealized P&L
+*   **Realized P&L**: Profit or loss that has been "locked in" by completely or partially closing an existing position (e.g., selling long shares, covering short shares).
+*   **Unrealized P&L**: Theoretical profit or loss if all currently *Open Trades* were to be closed at the current market price. This dynamically updates based on live market data and represents the "paper" profit/loss.
+
+
 ## Complex Scenarios
 
 ### Diagonal Rolls

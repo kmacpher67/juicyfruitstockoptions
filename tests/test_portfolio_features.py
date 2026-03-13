@@ -77,7 +77,13 @@ def test_trade_analysis_date_filter():
         {"TradeID": "1", "Symbol": "AAPL", "Quantity": 10, "TradePrice": 100.0, "code_date": "20240115", "DateTime": "20240115"},
     ]
     
-    with patch("app.api.trades.MongoClient") as mock_client:
+    with patch("app.api.trades.MongoClient") as mock_client, \
+         patch("app.services.trade_analysis.yf") as mock_yf:
+         
+        mock_ticker = MagicMock()
+        mock_ticker.fast_info.get.return_value = 150.0
+        mock_yf.Tickers.return_value.tickers.get.return_value = mock_ticker
+        
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_find = MagicMock()
         mock_find.sort.return_value = mock_cursor

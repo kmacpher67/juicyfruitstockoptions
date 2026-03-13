@@ -71,7 +71,6 @@ const TradeHistory = () => {
         {
             field: "date_time",
             headerName: "Date/Time",
-            sort: "desc",
             sortable: true,
             filter: true,
             valueGetter: p => p.data.date_time || p.data.DateTime
@@ -81,7 +80,19 @@ const TradeHistory = () => {
             headerName: "Symbol",
             filter: true,
             sortable: true,
+            sort: "asc",
+            sortIndex: 1,
             valueGetter: p => p.data.symbol || p.data.Symbol
+        },
+        {
+            field: "account",
+            headerName: "Account",
+            filter: true,
+            sortable: true,
+            sort: "asc",
+            sortIndex: 0,
+            width: 120,
+            valueGetter: p => p.data.account_id || p.data.AccountId || p.data.account || "Unknown"
         },
         {
             headerName: "Action",
@@ -195,12 +206,18 @@ const TradeHistory = () => {
 
             {/* Metrics Section */}
             {metrics && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <MetricCard
-                        title="Total P&L"
+                        title="Realized P&L"
                         value={`$${metrics.total_pl.toFixed(2)}`}
                         icon={DollarSign}
                         colorClass={metrics.total_pl >= 0 ? "text-green-400" : "text-red-400"}
+                    />
+                    <MetricCard
+                        title="Unrealized P&L"
+                        value={`$${(metrics.unrealized_profit - metrics.unrealized_loss).toFixed(2)}`}
+                        icon={Activity}
+                        colorClass={(metrics.unrealized_profit - metrics.unrealized_loss) >= 0 ? "text-green-400" : "text-red-400"}
                     />
                     <MetricCard
                         title="Win Rate"
@@ -215,8 +232,8 @@ const TradeHistory = () => {
                         colorClass="text-yellow-400"
                     />
                     <MetricCard
-                        title="Total Trades"
-                        value={metrics.total_trades}
+                        title={`Total Trades (${metrics.total_trades})`}
+                        value={`Open: ${metrics.open_trades} | Closed: ${metrics.closed_trades}`}
                         icon={TrendingDown}
                         colorClass="text-purple-400"
                     />

@@ -9,7 +9,7 @@ def test_calculate_pnl_simple_long():
         TradeRecord(TradeID="2", Symbol="AAPL", Quantity=-10, TradePrice=110.0, IBCommission=-1.0, DateTime="20240102")
     ]
     
-    results = calculate_pnl(trades)
+    results, open_positions = calculate_pnl(trades)
     
     assert len(results) == 2
     # Buy trade has 0 realized PL
@@ -34,7 +34,7 @@ def test_calculate_pnl_fifo():
     # 5 from Batch 2 @ 110 (Profit: 10/share * 5 = 50)
     # Total PL = 250
     
-    results = calculate_pnl(trades)
+    results, open_positions = calculate_pnl(trades)
     assert results[2].realized_pl == 250.0
 
 def test_calculate_pnl_short_roundtrip():
@@ -46,7 +46,7 @@ def test_calculate_pnl_short_roundtrip():
     # Cover matches Short:
     # (Short Price 200 - Cover Price 180) * 10 = 200 Profit
     
-    results = calculate_pnl(trades)
+    results, open_positions = calculate_pnl(trades)
     assert results[1].realized_pl == 200.0
 
 def test_calculate_metrics():
@@ -55,17 +55,15 @@ def test_calculate_metrics():
         TradeRecord(TradeID="1", Symbol="A", Quantity=10, TradePrice=100, DateTime="1"),
         TradeRecord(TradeID="2", Symbol="A", Quantity=-10, TradePrice=110, DateTime="2") # +100
     ]
-    analyzed = calculate_pnl(trades) # PL: -0, +100 (ignoring comms for simple test if defaults 0)
+    analyzed, open_positions = calculate_pnl(trades) # PL: -0, +100 (ignoring comms for simple test if defaults 0)
     
-    metrics = calculate_metrics(analyzed)
+    metrics = calculate_metrics(analyzed, open_positions)
     
     assert metrics.total_pl == 100.0
     assert metrics.winning_trades == 1
-    assert metrics.total_trades == 1 # Only counting non-zero PL? Or all?
-    # Logic check:
-    # Service implementation: if t.realized_pl != 0: total += 1
-    # First trade has 0 PL (if comms 0). Second has 100.
-    # So total should be 1.
+    assert metrics.total_trades == 2 # 1 buy (open), 1 sell (closed)
+    assert metrics.closed_trades == 1
+    assert metrics.open_trades == 1
     
     assert metrics.win_rate == 100.0
     # Updated logic returns gross_win (100.0) instead of inf when no losses

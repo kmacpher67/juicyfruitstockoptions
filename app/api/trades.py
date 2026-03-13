@@ -69,7 +69,7 @@ async def get_trade_analysis(
         logging.info(f"Starting trade analysis for symbol={symbol}...")
         raw_trades = [TradeRecord(**fix_oid(doc)) for doc in cursor]
         
-        analyzed_trades = calculate_pnl(raw_trades)
+        analyzed_trades, open_positions = calculate_pnl(raw_trades)
 
         # Apply date filters post-calculation so FIFO P&L is correct
         if start_date or end_date:
@@ -91,7 +91,7 @@ async def get_trade_analysis(
                 filtered_trades.append(t)
             analyzed_trades = filtered_trades
 
-        metrics = calculate_metrics(analyzed_trades)
+        metrics = calculate_metrics(analyzed_trades, open_positions)
         
         logging.info(f"Analysis complete. Trades={len(analyzed_trades)}, Metrics={metrics}")
         return {
@@ -103,3 +103,4 @@ async def get_trade_analysis(
         error_msg = f"Analysis Failed: {str(e)}"
         logger.error(f"Critical error in trade analysis: {error_msg}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
+
