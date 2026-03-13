@@ -10,7 +10,7 @@ from app.services.roll_service import RollService
 @patch("app.services.opportunity_service.MongoClient")
 @patch("app.services.roll_service.SignalService")
 @patch("app.services.roll_service.OpportunityService")
-@patch("yfinance.Ticker")
+@patch("app.services.roll_service.yf.Ticker")
 def test_find_rolls_calls(mock_yf_ticker_cls, mock_opp_service, mock_signal_service, mock_mongo, mock_greeks_calc):
     # Setup Data
     mock_yf_ticker = MagicMock()

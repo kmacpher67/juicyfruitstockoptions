@@ -324,8 +324,10 @@ class RollService:
                  pass
                  
              available_dates = ticker.options
-        except:
-             return {"error": "Failed to fetch ticker data"}
+        except Exception as e:
+             import traceback
+             traceback.print_exc()
+             return {"error": f"Failed to fetch ticker data: {e}"}
              
         # Calculate DTE (Calendar Days)
         exp_dt = datetime.strptime(current_exp_date, "%Y-%m-%d")
