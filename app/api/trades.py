@@ -59,20 +59,7 @@ async def get_trade_analysis(
     # IBKR dates are usually YYYYMMDD or YYYY-MM-DD? Standardize on YYYYMMDD for query if needed.
     # Looking at test_api_trades.py, DateTime is "20240101" (YYYYMMDD).
     
-    if start_date or end_date:
-        date_filter = {}
-        if start_date:
-            # Convert YYYY-MM-DD to YYYYMMDD
-            s_val = start_date.replace("-", "")
-            date_filter["$gte"] = s_val
-        if end_date:
-            e_val = end_date.replace("-", "")
-            date_filter["$lte"] = e_val
-        if date_filter:
-            query["date_time"] = date_filter # Assuming 'date_time' is the field name in Mongo
-
-    # Fetch ALL trades for analysis (metrics need full history ideally, or at least full history for the symbol)
-    # TODO: Date range filtering
+    # Fetch ALL trades for analysis (metrics need full history ideally to match open/close via FIFO)
     cursor = db.ibkr_trades.find(query).sort("date_time", 1) # Metrics need FIFO, so sort Ascending
     
     import logging
@@ -83,6 +70,27 @@ async def get_trade_analysis(
         raw_trades = [TradeRecord(**fix_oid(doc)) for doc in cursor]
         
         analyzed_trades = calculate_pnl(raw_trades)
+
+        # Apply date filters post-calculation so FIFO P&L is correct
+        if start_date or end_date:
+            s_val = start_date.replace("-", "") if start_date else None
+            e_val = end_date.replace("-", "") if end_date else None
+            
+            filtered_trades = []
+            for t in analyzed_trades:
+                # Use date_time (or empty string) truncated to first 8 chars (YYYYMMDD)
+                t_date = str(t.date_time)[:8] if t.date_time else ""
+                
+                # We include trades that are on or after start_date
+                if s_val and t_date < s_val:
+                    continue
+                # We include trades that are on or before end_date
+                if e_val and t_date > e_val:
+                    continue
+                    
+                filtered_trades.append(t)
+            analyzed_trades = filtered_trades
+
         metrics = calculate_metrics(analyzed_trades)
         
         logging.info(f"Analysis complete. Trades={len(analyzed_trades)}, Metrics={metrics}")

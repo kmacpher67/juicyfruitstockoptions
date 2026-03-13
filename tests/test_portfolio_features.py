@@ -90,7 +90,9 @@ def test_trade_analysis_date_filter():
         # Verify call args
         args, _ = mock_db.ibkr_trades.find.call_args
         query = args[0]
-        # We expect date_time filter
-        assert "date_time" in query
-        assert query["date_time"]["$gte"] == "20240101"
-        assert query["date_time"]["$lte"] == "20240131"
+        # We NO LONGER expect date_time filter in DB query, it is applied post-PNL calculation
+        assert "date_time" not in query
+        
+        data = response.json()
+        assert "trades" in data
+        assert "metrics" in data

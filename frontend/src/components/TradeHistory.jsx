@@ -25,7 +25,7 @@ const TradeHistory = () => {
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [timeRange, setTimeRange] = useState('ALL'); // ALL, MTD, 1M, 3M, 6M, YTD, 1Y
+    const [timeRange, setTimeRange] = useState('ALL');
 
     const calculateDateRange = (range) => {
         const now = new Date();
@@ -37,6 +37,12 @@ const TradeHistory = () => {
             startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         } else if (range === 'YTD') {
             startDate = new Date(now.getFullYear(), 0, 1);
+        } else if (range === '1D') {
+            startDate = new Date();
+            startDate.setDate(now.getDate() - 1);
+        } else if (range === '1W') {
+            startDate = new Date();
+            startDate.setDate(now.getDate() - 7);
         } else if (range === '1M') {
             startDate = new Date();
             startDate.setMonth(now.getMonth() - 1);
@@ -49,6 +55,9 @@ const TradeHistory = () => {
         } else if (range === '1Y') {
             startDate = new Date();
             startDate.setFullYear(now.getFullYear() - 1);
+        } else if (range === '5Y') {
+            startDate = new Date();
+            startDate.setFullYear(now.getFullYear() - 5);
         }
 
         // Format YYYY-MM-DD
@@ -172,7 +181,7 @@ const TradeHistory = () => {
             <div className="flex justify-end items-center gap-2">
                 <div className="flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700">
                     <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-                    {['ALL', 'MTD', '1M', '3M', '6M', 'YTD', '1Y'].map(range => (
+                    {['ALL', 'MTD', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map(range => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}

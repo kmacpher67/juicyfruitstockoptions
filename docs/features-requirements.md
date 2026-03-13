@@ -129,7 +129,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Bug issue**: History view is not loading trades, 500 Internal Server Error http://localhost:3000/api/trades/analysis
     - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
     - [x] **Trade Metrics Education**: See [Trade Metrics Guide](learning/trade-metrics.md). Explains Win Rate, Profit Factor, Diagonal Rolls, and Dividends.
-    - [ ] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
+    - [x] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
