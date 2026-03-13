@@ -27,6 +27,11 @@ def test_get_trades_endpoint():
         mock_find.sort.return_value.skip.return_value.limit.return_value = mock_cursor
         mock_db.ibkr_trades.find.return_value = mock_find
         
+        # Mock dividends
+        mock_div_find = MagicMock()
+        mock_div_find.sort.return_value.skip.return_value.limit.return_value = []
+        mock_db.ibkr_dividends.find.return_value = mock_div_find
+        
         response = client.get("/api/trades/")
         assert response.status_code == 200
         data = response.json()
@@ -46,6 +51,9 @@ def test_get_analysis_endpoint():
     with patch("app.api.trades.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.ibkr_trades.find.return_value.sort.return_value = mock_cursor
+        
+        # Mock dividends
+        mock_db.ibkr_dividends.find.return_value.sort.return_value = []
         
         response = client.get("/api/trades/analysis?symbol=AAPL")
         assert response.status_code == 200
