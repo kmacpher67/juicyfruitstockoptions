@@ -94,7 +94,7 @@ async def get_trade_analysis(
     
     try:
         logging.info(f"Starting trade analysis for symbol={symbol}...")
-        raw_trades = [TradeRecord(**fix_oid(doc)) for doc in cursor]
+        raw_trades = [fix_oid(doc) for doc in cursor]
         
         # Fetch Dividends for analysis
         div_query = {"code": "RE"}
@@ -104,19 +104,19 @@ async def get_trade_analysis(
         # Add Dividends as AnalyzedTrades basically, so they factor into PL
         for doc in div_cursor:
             dt = (doc.get("pay_date") or "").replace("-", "")
-            raw_trades.append(TradeRecord(
-                trade_id=f"div_{doc.get('_id')}",
-                symbol=doc.get("symbol"),
-                account_id=doc.get("account_id"),
-                date_time=dt,
-                quantity=0,
-                price=0,
-                buy_sell="DIVIDEND",
-                realized_pnl=doc.get("net_amount", 0)
-            ))
+            raw_trades.append({
+                "trade_id": f"div_{doc.get('_id')}",
+                "symbol": doc.get("symbol"),
+                "account_id": doc.get("account_id"),
+                "date_time": dt,
+                "quantity": 0,
+                "price": 0,
+                "buy_sell": "DIVIDEND",
+                "realized_pnl": doc.get("net_amount", 0)
+            })
             
         # Re-sort combined list ascending for FIFO
-        raw_trades.sort(key=lambda x: str(x.date_time) if x.date_time else "")
+        raw_trades.sort(key=lambda x: str(x.get("date_time", "")) if x.get("date_time") else "")
         
         analyzed_trades, open_positions = calculate_pnl(raw_trades)
 
@@ -128,7 +128,9 @@ async def get_trade_analysis(
             filtered_trades = []
             for t in analyzed_trades:
                 # Use date_time (or empty string) truncated to first 8 chars (YYYYMMDD)
-                t_date = str(t.date_time)[:8] if t.date_time else ""
+                # t is AnalyzedTrade here, so use getattr
+                t_dt = getattr(t, "date_time", getattr(t, "DateTime", ""))
+                t_date = str(t_dt)[:8] if t_dt else ""
                 
                 # We include trades that are on or after start_date
                 if s_val and t_date < s_val:

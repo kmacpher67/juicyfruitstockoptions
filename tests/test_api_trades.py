@@ -1,7 +1,12 @@
 from fastapi.testclient import TestClient
+from unittest.mock import MagicMock, patch
+
+# Patch out background tasks that cause DB hangs before importing app
+patch("app.scheduler.jobs.start_scheduler").start()
+patch("app.scheduler.jobs.stop_scheduler").start()
+
 from app.main import app
 from app.api import trades
-from unittest.mock import MagicMock, patch
 
 client = TestClient(app)
 

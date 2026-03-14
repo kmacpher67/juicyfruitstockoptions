@@ -43,6 +43,13 @@ class TradeRecord(BaseModel):
     gamma: Optional[float] = None
     theta: Optional[float] = None
     
+    # New Extended Fields
+    asset_class: Optional[str] = Field(None, alias="AssetClass")
+    put_call: Optional[str] = Field(None, alias="Put/Call")
+    net_cash: Optional[float] = Field(None, alias="NetCash")
+    close_price: Optional[float] = Field(None, alias="ClosePrice")
+    exchange: Optional[str] = None
+    
     # Allow extra fields for ODS pattern (Store Everything)
     # Allow population by internal name (snake_case) or alias (CamelCase)
     model_config = {"extra": "allow", "populate_by_name": True}

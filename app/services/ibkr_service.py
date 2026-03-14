@@ -338,8 +338,10 @@ def parse_csv_trades(csv_str):
         if not trade_id: continue
         
         try:
-             doc = {
+             doc = dict(row)
+             doc.update({
                 "trade_id": trade_id,
+                "account_id": row.get("ClientAccountID") or row.get("AccountId"),
                 "symbol": row.get("Symbol"),
                 "underlying_symbol": row.get("UnderlyingSymbol") or row.get("Symbol"),
                 "date_time": row.get("DateTime"),
@@ -349,17 +351,23 @@ def parse_csv_trades(csv_str):
                 "realized_pnl": float(row.get("FifoPnlRealized") or row.get("RealizedPnL") or 0),
                 "buy_sell": row.get("Buy/Sell"), # CSV key might differ
                 "order_type": row.get("OrderType"),
+                "asset_class": row.get("AssetClass"),
+                "put_call": row.get("Put/Call"),
+                "net_cash": float(row.get("NetCash") or 0),
+                "close_price": float(row.get("ClosePrice") or 0),
                 "exchange": row.get("Exchange")
-            }
+             })
              db.ibkr_trades.update_one({"trade_id": trade_id}, {"$set": doc}, upsert=True)
              count += 1
         except ValueError:
             continue
             
     logging.info(f"Processed {count} trades (CSV).")
+    logging.debug(f"Sync complete for CSV trades. Records: {count}")
 
 def parse_and_store_trades(content):
     """Dispatcher."""
+    logging.info(f"Starting to parse and store trades. Content size: {len(content)} bytes.")
     if content.strip().startswith(b"<"):
         parse_xml_trades(content)
     else:
@@ -385,8 +393,10 @@ def parse_xml_trades(xml_content):
         if not trade_id:
             continue
             
-        doc = {
+        doc = dict(data)
+        doc.update({
             "trade_id": trade_id,
+            "account_id": data.get("accountId"),
             "symbol": data.get("symbol"),
             "date_time": data.get("dateTime"), # Parse strictly if needed
             "quantity": float(data.get("quantity", 0)),
@@ -394,8 +404,12 @@ def parse_xml_trades(xml_content):
             "commission": float(data.get("ibCommission", 0)),
             "buy_sell": data.get("buySell"),
             "order_type": data.get("orderType"),
+            "asset_class": data.get("assetCategory"),
+            "put_call": data.get("putCall"),
+            "net_cash": float(data.get("netCash", 0)),
+            "close_price": float(data.get("closePrice", 0)),
             "exchange": data.get("exchange")
-        }
+        })
         
         # Upsert: If trade_id exists, update it (or ignore). 
         # Using upsert ensures we don't duplicate.
@@ -406,7 +420,8 @@ def parse_xml_trades(xml_content):
         )
         trades_count += 1
         
-    logging.info(f"Processed {trades_count} trades.")
+    logging.info(f"Processed {trades_count} trades (XML).")
+    logging.debug(f"Sync complete for XML trades. Records: {trades_count}")
 
 def parse_csv_dividends(csv_str):
     """Parse IBKR Flex CSV for Cash Transactions (Dividends)."""

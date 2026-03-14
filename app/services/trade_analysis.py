@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 from typing import Tuple
 
-def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[str, dict]]:
+def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, dict]]:
     """
-    Calculates Realized P&L for a list of trades using FIFO matching.
+    Calculates Realized P&L for a list of trade dictionaries using FIFO matching.
     Returns a tuple of:
       - List of AnalyzedTrade objects.
       - Dict of open positions: { symbol: {"qty": float, "avg_cost": float} }
@@ -20,7 +20,9 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
     logger.info("Starting P&L Calculation...")
     trades_by_symbol = defaultdict(list)
     for t in trades:
-        trades_by_symbol[t.symbol].append(t)
+        # Some legacy trades might still be TradeRecords or have different keys
+        sym = t.get("symbol") if hasattr(t, "get") else t.symbol
+        trades_by_symbol[sym].append(t)
         
     logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
     analyzed_results = []
@@ -32,8 +34,11 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
         if count % 100 == 0:
             logger.debug(f"Processed {count}/{len(trades_by_symbol)} symbols...")
             
+        def get_dt(t):
+            return t.get("date_time", "") if hasattr(t, "get") else getattr(t, "date_time", "")
+            
         # Sort by date
-        sorted_trades = sorted(symbol_trades, key=lambda x: x.date_time or "")
+        sorted_trades = sorted(symbol_trades, key=get_dt)
         
         # FIFO Queue for open positions: List of (quantity, price_per_share)
         long_queue = [] 
@@ -41,8 +46,13 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
         
         for t in sorted_trades:
             try:
-                analyzed = AnalyzedTrade(**t.model_dump())
-                qty = t.quantity
+                # Handle both dict and object for backward compatibility
+                is_dict = isinstance(t, dict)
+                data = dict(t) if is_dict else t.model_dump()
+                
+                # Normalize keys for the loop
+                qty_raw = data.get("quantity", data.get("Quantity", 0.0))
+                
                 # Safe float conversion helper
                 def safe_float(val, default=0.0):
                     if val is None: return default
@@ -51,13 +61,18 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
                     except (ValueError, TypeError):
                         return default
 
-                data = t.model_dump()
-                # Prioritize 'trade_price' (snake) then 'TradePrice' (legacy)
-                price_raw = data.get("trade_price") if data.get("trade_price") is not None else data.get("TradePrice")
+                qty = safe_float(qty_raw)
+                
+                # Prioritize 'price' (snake) then 'TradePrice' (legacy)
+                price_raw = data.get("price") if data.get("price") is not None else data.get("TradePrice")
+                if price_raw is None:
+                    price_raw = data.get("trade_price")
                 price = safe_float(price_raw)
                 
                 # Simple Commission handling
-                comm_raw = data.get("ib_commission") if data.get("ib_commission") is not None else data.get("IBCommission")
+                comm_raw = data.get("commission") if data.get("commission") is not None else data.get("IBCommission")
+                if comm_raw is None:
+                    comm_raw = data.get("ib_commission")
                 comm = safe_float(comm_raw)
             except Exception as e:
                 logger.error(f"Error preparing trade logic for {symbol}: {e}")
@@ -65,8 +80,8 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
             
             # Passthrough for Dividends
             if data.get("buy_sell") == "DIVIDEND":
-                analyzed.realized_pl = data.get("realized_pnl", 0.0)
-                analyzed_results.append(analyzed)
+                data["realized_pl"] = data.get("realized_pnl", 0.0)
+                analyzed_results.append(AnalyzedTrade(**data))
                 continue
             
             realized_pl = 0.0
@@ -120,8 +135,8 @@ def calculate_pnl(trades: List[TradeRecord]) -> Tuple[List[AnalyzedTrade], Dict[
                 if remaining_sell > 0:
                     short_queue.append((-remaining_sell, price))
             
-            analyzed.realized_pl = realized_pl - abs(comm) # Subtract commission from PL
-            analyzed_results.append(analyzed)
+            data["realized_pl"] = realized_pl - abs(comm) # Subtract commission from PL
+            analyzed_results.append(AnalyzedTrade(**data))
             
         # Compute remainder for open positions
         total_open_qty = 0.0
@@ -183,8 +198,9 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
             else:
                 losing += 1
                 gross_loss += abs(t.realized_pl)
-        else:
-            open_trades += 1
+                
+    # Open trades count should reflect active underlying positions, not just empty legs
+    open_trades = len(open_positions.keys()) if open_positions else 0
                 
     win_rate = (winning / closed_trades * 100) if closed_trades > 0 else 0.0
     
