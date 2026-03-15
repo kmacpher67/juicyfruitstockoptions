@@ -35,8 +35,14 @@ async def get_trades(
         query["symbol"] = symbol
         
     # Fetch Trades
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Querying ibkr_trades with query={query}, skip={skip}, limit={limit}")
+
     trade_cursor = db.ibkr_trades.find(query).sort("date_time", -1).skip(skip).limit(limit)
     raw_trades = [TradeRecord(**fix_oid(doc)) for doc in trade_cursor]
+    
+    logger.debug(f"Found {len(raw_trades)} trades in ibkr_trades")
     
     # Fetch Dividends (Realized only)
     # We use limit as a rough cap, sorting later might misalign pagination slightly if heavy mixing, 
@@ -87,6 +93,10 @@ async def get_trade_analysis(
     # Looking at test_api_trades.py, DateTime is "20240101" (YYYYMMDD).
     
     # Fetch ALL trades for analysis (metrics need full history ideally to match open/close via FIFO)
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Querying ibkr_trades for analysis with query={query}")
+
     cursor = db.ibkr_trades.find(query).sort("date_time", 1) # Metrics need FIFO, so sort Ascending
     
     import logging
@@ -95,6 +105,7 @@ async def get_trade_analysis(
     try:
         logging.info(f"Starting trade analysis for symbol={symbol}...")
         raw_trades = [fix_oid(doc) for doc in cursor]
+        logger.debug(f"Retrieved {len(raw_trades)} raw trades for analysis")
         
         # Fetch Dividends for analysis
         div_query = {"code": "RE"}

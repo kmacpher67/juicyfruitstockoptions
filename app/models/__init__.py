@@ -1,6 +1,6 @@
 from typing import List, Optional, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 
 class StockRecord(BaseModel):
     """
@@ -34,7 +34,7 @@ class TradeRecord(BaseModel):
     """
     trade_id: str = Field(..., alias="TradeID") # Required, used as PK
     symbol: str = Field(..., alias="Symbol")
-    account_id: Optional[str] = Field(None, alias="AccountId")
+    account_id: Optional[str] = Field(None, alias="AccountId", validation_alias=AliasChoices("AccountId", "ClientAccountID"))
     date_time: Optional[str] = Field(None, alias="DateTime")
     quantity: Optional[float] = Field(0.0, alias="Quantity")
     

@@ -47,6 +47,10 @@ def normalize_row(row):
         pass # Keep as string if parsing fails, but Model might complain if defined as float.
         # TradeRecord optional float fields should handle it or fail validation.
         
+    # Ensure AccountId is set for the model if ClientAccountID exists
+    if "ClientAccountID" in clean_row:
+        clean_row["AccountId"] = clean_row["ClientAccountID"]
+        
     return clean_row
 
 def ingest_file(filepath, db):
