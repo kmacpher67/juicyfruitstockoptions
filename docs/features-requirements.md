@@ -96,8 +96,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Implement React Error Boundary logging. 
 - [x] **Structured Logging:** Use the standard `logging` library.
 - [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
-- [ ] **Levels:** `TRACE` for verbose logging of internal state, `WARNING` for non-critical issues, `ERROR` for critical issues. `CRITICAL` for system failure. 
-- [ ] **Traceability:** Verify all errors provide context (e.g., "Failed to process file X due to Y").
+- [x] **Levels:** `TRACE` for verbose logging (default in Dev), `DEBUG` (default in Prod), `INFO` for milestones, `WARNING` for non-critical issues, `ERROR` for critical issues, `CRITICAL` for system failure. 
+- [x] **Traceability:** Verify all errors provide context (e.g., "Failed to process file X due to Y").
 
 ---
 

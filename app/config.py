@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     APP_NAME: str = "JuicyFruit Stock Portal"
+    ENVIRONMENT: str = "development"
     # Scheduler
     RUN_TIME: str = "16:00"
     

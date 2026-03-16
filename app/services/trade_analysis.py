@@ -22,6 +22,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
     for t in trades:
         # Some legacy trades might still be TradeRecords or have different keys
         sym = t.get("symbol") if hasattr(t, "get") else t.symbol
+        logger.trace(f"Processing trade for symbol: {sym}")
         trades_by_symbol[sym].append(t)
         
     logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
@@ -108,6 +109,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                     
                 # Add remainder to Long Queue
                 if remaining_buy > 0:
+                    logger.trace(f"Adding {remaining_buy} to long queue for {symbol} at {price}")
                     long_queue.append((remaining_buy, price))
 
             elif qty < 0: # SELL

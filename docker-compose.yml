@@ -22,6 +22,7 @@ services:
       - RUN_TIME=16:00
       - ADMIN_USER=admin
       - ADMIN_PASS=admin123
+      - ENVIRONMENT=development
     depends_on:
       - mongo
     restart: always
