@@ -27,11 +27,6 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Do new services follow the Single Responsibility Principle?
 - [ ] Are models utilizing strong typing and validation?
 
-## 5. Impact on AI Learning
-- [ ] Does this change affect how the AI learns from the codebase?
-- [ ] Are we providing enough context for future AI sessions?
-- [ ] Is the code self-documenting for AI consumption?
-
 ## 6. Compliance with Mission Rules/Workflow
 - [ ] Does this align with the core mission of the project? (Check `.agent/workflows/misson.md`)
 - [ ] Are we following the defined workflow steps?
@@ -80,8 +75,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 
 ## 13. Learning and New Stuff
 - [ ] Any questions or items not reviewed evaluated aka learned in the `docs/` folder for existing files or subsections should be updated or added per Check `.agent/workflows/learning-opportunity.md` workflow.
-- [ ] Cross reference the other related documents. 
-- [ ] follow all the rules in global germini.md and all the rules in workspace 
+- [ ] Cross reference the other related documents. (Hand off work to human for other required research as necessary.)
 - [ ] any of the sub features not completed explain why they were not address and offer next steps to complete all of this. Add any qestions regarding how/or what to the features-requrements doc regarding the incompleted or partially completed items.
 
 ## 14. Test and Check backend, front end, and infrastructure 

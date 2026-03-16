@@ -17,6 +17,7 @@ services:
       - ./xdivs:/app/xdivs # Persist ICS files
     environment:
       - MONGO_URI=mongodb://admin:admin123@mongo:27017/?authSource=admin
+      # - MONGO_URI=mongodb://localhost:27017/?authSource=admin
       - APP_NAME=JuicyFruit Stock Portal
       - RUN_TIME=16:00
       - ADMIN_USER=admin
@@ -26,7 +27,8 @@ services:
     restart: always
 
   mongo:
-    image: mongo:latest
+    # image: mongo:latest
+    image: mongo:7.0 # Change this from mongo:latest
     container_name: stock_portal_mongo
     ports:
       - "27017:27017" # Exposed for local tools if needed

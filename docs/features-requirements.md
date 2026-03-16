@@ -17,9 +17,17 @@
 # Implementation 
 - When performing an implementation plan based on items in this epic document, i would use the following rules:
 -- All the rules documented in the workspace rules & workflow .md docs should be followed
--- The .gemini global rules rules file should be followed. 
--- An implementation plan should be broken down into smaller items (added to the Epic Todo list as sub items) that can be completed in a reasonable amount of time (e.g., 1-2 hours)
+-- This file is a living document of master PRD document for directing coding, all existing features-requirements should be memorialized in this "docs/features-requirements.md" file. Later on this document could be used to generate a whole new green field project from scratch or track where we are in the development of the project went off the rails. 
+-- An implementation plan should be broken down into smaller items (added to the feature-requirements.md file as sub items or organized where relevant) that can be completed in a reasonable amount of time 
 -- The incremental implementation plan should follow hierarchical decomposition for naming based the short name of the epic (e.g., epic-001-algorithmic-trading-001-task-001)
+
+## UI/UX Design Standards (Juicy Fruit)
+- **Tool to help me**: This is tool to help me trade, track, and identify opportunities in the stock market. I have 3 accounts that I trade in and multiple positions (sometimes duplicate positions) in each account. 
+- **Density over Fluff**: Prioritize data tables and comparative metrics over large buttons/empty space.
+- **Yield-First**: Every opportunity MUST display an "Annualized Yield %" and "Total Potential Return".
+- **Portfolio Positions**: Opportunities and analysis should be able to be filtered or display by account and position VZ (U280132:100 STK, -1 CALL OPT) condensed version with a float over and/or popup (or Detail Drawer) to see other information cost basis, fundementals, and time term status, overall realized and unrealized gains/losses inclusive of any dividends.
+- **Comparison View**: Ability to sort, search, and filter tables by any column.
+- **No Floating Modals for Core Data**: Use an expandable "Detail Drawer" on the right side of the screen to maintain context of the portfolio list.
 
 ## 0. Bugs, Fixes, & Maintenance
 - [ ] 
