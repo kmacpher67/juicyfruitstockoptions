@@ -32,3 +32,36 @@ def test_log_file_created():
     
     setup_logging()
     assert os.path.exists(log_file)
+
+from app.utils.logging_config import log_endpoint
+
+def test_endpoint_logging():
+    """Verify that calling a decorated function produces TRACE logs with duration."""
+    log_file = "logs/stock_portal_debug.log"
+    if os.path.exists(log_file):
+        os.remove(log_file)
+    
+    with patch("app.config.settings.ENVIRONMENT", "development"):
+        setup_logging()
+        
+        @log_endpoint
+        async def mock_async_endpoint():
+            return {"status": "ok"}
+            
+        @log_endpoint
+        def mock_sync_endpoint():
+            return {"status": "ok"}
+            
+        import asyncio
+        asyncio.run(mock_async_endpoint())
+        mock_sync_endpoint()
+        
+        # Read log file
+        with open(log_file, "r") as f:
+            log_content = f.read()
+            
+        assert "Entering endpoint: mock_async_endpoint" in log_content
+        assert "Exiting endpoint: mock_async_endpoint" in log_content
+        assert "Entering endpoint: mock_sync_endpoint" in log_content
+        assert "Exiting endpoint: mock_sync_endpoint" in log_content
+        assert "Duration:" in log_content

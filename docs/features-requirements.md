@@ -149,7 +149,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history**: Bug when changing the time frame the window data response takes a while, furthermore the http transaction shows the response as "pending". Further the account is not displaying the correct account # for the trades. 
     - [x] **trade history counts**: The metrics (Total Trades, Open Trades, etc.) are miscalculated due to counting every `realized_pl == 0` leg as an open trade. 
     - [x] **trade history enhancements**: Add AssetClass (STK vs OPT), Put/Call, NetCash, ClosePrice, and Exchange fields to the Trades Query data synchronization. (See [Implementation Plan](plans/implementation_plan-20260314-trades_analysis_enhancements.md))
- 
+    - [ ] **trade history UI**: Trades widget Total (789) Open: 522 Closed: 762 show total and open closed details for each account make the font smaller to fit inside the widget.  
+
+
+
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [/] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 

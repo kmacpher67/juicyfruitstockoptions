@@ -102,18 +102,27 @@ async def get_trade_analysis(
     import logging
     logger = logging.getLogger(__name__)
     
+    import time
+    start_total = time.time()
     try:
         logging.info(f"Starting trade analysis for symbol={symbol}...")
-        raw_trades = [fix_oid(doc) for doc in cursor]
-        logger.debug(f"Retrieved {len(raw_trades)} raw trades for analysis")
         
-        # Fetch Dividends for analysis
+        # Step 1: Fetch Trades
+        t0 = time.time()
+        raw_trades = [fix_oid(doc) for doc in cursor]
+        t_fetch_trades = time.time() - t0
+        logger.info(f"Retrieved {len(raw_trades)} raw trades in {t_fetch_trades:.4f}s")
+        
+        # Step 2: Fetch Dividends
+        t0 = time.time()
         div_query = {"code": "RE"}
         if symbol: div_query["symbol"] = symbol
         div_cursor = db.ibkr_dividends.find(div_query)
         
         # Add Dividends as AnalyzedTrades basically, so they factor into PL
+        div_count = 0
         for doc in div_cursor:
+            div_count += 1
             dt = (doc.get("pay_date") or "").replace("-", "")
             raw_trades.append({
                 "trade_id": f"div_{doc.get('_id')}",
@@ -126,10 +135,21 @@ async def get_trade_analysis(
                 "realized_pnl": doc.get("net_amount", 0)
             })
             
+        t_fetch_divs = time.time() - t0
+        logger.info(f"Retrieved {div_count} dividends in {t_fetch_divs:.4f}s")
+            
+        # Step 3: Sort combined list
+        t0 = time.time()
         # Re-sort combined list ascending for FIFO
         raw_trades.sort(key=lambda x: str(x.get("date_time", "")) if x.get("date_time") else "")
+        t_sort = time.time() - t0
+        logger.info(f"Sorted {len(raw_trades)} total items in {t_sort:.4f}s")
         
+        # Step 4: Calculate PNL
+        t0 = time.time()
         analyzed_trades, open_positions = calculate_pnl(raw_trades)
+        t_pnl = time.time() - t0
+        logger.info(f"Calculated PNL in {t_pnl:.4f}s")
 
         # Apply date filters post-calculation so FIFO P&L is correct
         if start_date or end_date:
@@ -152,10 +172,28 @@ async def get_trade_analysis(
                     
                 filtered_trades.append(t)
             analyzed_trades = filtered_trades
-
-        metrics = calculate_metrics(analyzed_trades, open_positions)
         
-        logging.info(f"Analysis complete. Trades={len(analyzed_trades)}, Metrics={metrics}")
+        # Step 5: Fetch current prices from holdings for unrealized PL
+        t0 = time.time()
+        # Get latest snapshot per symbol
+        holdings_cursor = db.ibkr_holdings.find({}, {"symbol": 1, "market_price": 1})
+        current_prices = {}
+        for h in holdings_cursor:
+            sym = h.get("symbol")
+            price = h.get("market_price")
+            if sym and price is not None:
+                current_prices[sym] = float(price)
+        t_price_fetch = time.time() - t0
+        logger.info(f"Fetched {len(current_prices)} prices from holdings in {t_price_fetch:.4f}s")
+
+        # Step 6: Calculate Metrics
+        t0 = time.time()
+        metrics = calculate_metrics(analyzed_trades, open_positions, current_prices=current_prices)
+        t_metrics = time.time() - t0
+        logger.info(f"Calculated metrics in {t_metrics:.4f}s")
+        
+        total_time = time.time() - start_total
+        logging.info(f"Analysis complete in {total_time:.4f}s. Trades={len(analyzed_trades)}, Metrics={metrics}")
         return {
             "trades": analyzed_trades,
             "metrics": metrics

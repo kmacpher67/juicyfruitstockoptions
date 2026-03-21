@@ -22,7 +22,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
     for t in trades:
         # Some legacy trades might still be TradeRecords or have different keys
         sym = t.get("symbol") if hasattr(t, "get") else t.symbol
-        logger.trace(f"Processing trade for symbol: {sym}")
+        logger.debug(f"Processing trade for symbol: {sym}")
         trades_by_symbol[sym].append(t)
         
     logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
@@ -109,7 +109,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                     
                 # Add remainder to Long Queue
                 if remaining_buy > 0:
-                    logger.trace(f"Adding {remaining_buy} to long queue for {symbol} at {price}")
+                    logger.debug(f"Adding {remaining_buy} to long queue for {symbol} at {price}")
                     long_queue.append((remaining_buy, price))
 
             elif qty < 0: # SELL
@@ -170,10 +170,11 @@ import time
 _PRICE_CACHE = {}
 _CACHE_TTL = 300 # 5 minutes
 
-def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dict] = None) -> TradeMetrics:
+def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dict] = None, current_prices: Dict[str, float] = None) -> TradeMetrics:
     """
     Aggregates AnalyzedTrades into high-level metrics.
     Optionally fetches current prices for open_positions to calculate Unrealized P&L.
+    If current_prices is provided, it uses those and skips yfinance.
     """
     if open_positions is None:
         open_positions = {}
@@ -217,33 +218,42 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
     
     if open_positions:
         now = time.time()
-        # Batch fetch prices using yfinance for symbols not in cache
-        symbols = list(open_positions.keys())
-        yf_symbols = []
-        for sym in symbols:
-            query_sym = sym.split()[0] if " " in sym else sym
-            if query_sym not in _PRICE_CACHE or (now - _PRICE_CACHE[query_sym]["ts"] > _CACHE_TTL):
-                yf_symbols.append(query_sym)
-        
-        yf_query_string = " ".join(set(yf_symbols))
-        
-        if yf_query_string:
-            try:
-                tickers = yf.Tickers(yf_query_string)
-                for query_sym in set(yf_symbols):
-                    current_price = None
-                    try:
-                        ticker = tickers.tickers.get(query_sym)
-                        if ticker:
-                            # Use fast info instead of info
-                            current_price = ticker.fast_info.get("lastPrice") or ticker.fast_info.get("previousClose")
-                    except Exception as e:
-                        logger.warning(f"Could not fetch current price for {query_sym}: {e}")
-                    
-                    if current_price is not None:
-                        _PRICE_CACHE[query_sym] = {"price": current_price, "ts": now}
-            except Exception as e:
-                 logger.error(f"Failed to fetch prices for open positions: {e}")
+        # 1. Use Provided Prices
+        if current_prices:
+            for sym, price in current_prices.items():
+                if price is not None:
+                    _PRICE_CACHE[sym] = {"price": price, "ts": now}
+            logger.info(f"Using {len(current_prices)} provided prices, skipping yfinance.")
+            
+        # 2. Otherwise Batch fetch prices using yfinance for symbols not in cache
+        else:
+            symbols = list(open_positions.keys())
+            yf_symbols = []
+            for sym in symbols:
+                query_sym = sym.split()[0] if " " in sym else sym
+                if query_sym not in _PRICE_CACHE or (now - _PRICE_CACHE[query_sym]["ts"] > _CACHE_TTL):
+                    yf_symbols.append(query_sym)
+            
+            yf_query_string = " ".join(set(yf_symbols))
+            
+            if yf_query_string:
+                try:
+                    logger.info(f"Fetching prices for {len(set(yf_symbols))} tickers via yfinance...")
+                    tickers = yf.Tickers(yf_query_string)
+                    for query_sym in set(yf_symbols):
+                        current_price = None
+                        try:
+                            ticker = tickers.tickers.get(query_sym)
+                            if ticker:
+                                # Use fast info instead of info
+                                current_price = ticker.fast_info.get("lastPrice") or ticker.fast_info.get("previousClose")
+                        except Exception as e:
+                            logger.warning(f"Could not fetch current price for {query_sym}: {e}")
+                        
+                        if current_price is not None:
+                            _PRICE_CACHE[query_sym] = {"price": current_price, "ts": now}
+                except Exception as e:
+                     logger.error(f"Failed to fetch prices for open positions: {e}")
 
         # Calculate unrealized P&L using cached prices
         for sym, pos in open_positions.items():

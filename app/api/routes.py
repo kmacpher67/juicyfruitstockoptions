@@ -16,6 +16,7 @@ from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import fetch_and_store_nav_report
 from app.database import get_db
 from app.services.signal_service import SignalService
+from app.utils.logging_config import log_endpoint
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 @router.post("/token", response_model=Token)
+@log_endpoint
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
 ):
@@ -63,6 +65,7 @@ async def login_for_access_token(
         raise HTTPException(status_code=500, detail="Internal Login Error")
 
 @router.get("/users/me", response_model=User)
+@log_endpoint
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -71,6 +74,7 @@ async def read_users_me(
 # --- Secured Endpoints ---
 
 @router.get("/stocks", response_model=List[StockRecord])
+@log_endpoint
 async def get_stocks(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -92,6 +96,7 @@ async def get_stocks(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.post("/run/portfolio-fixer")
+@log_endpoint
 def run_portfolio_fixer_endpoint(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -110,6 +115,7 @@ def background_job_wrapper(job_id: str, func):
         update_job_status(job_id, JobStatus.FAILED, error=str(e))
 
 @router.get("/jobs/{job_id}", response_model=Job)
+@log_endpoint
 def get_job_status(
     job_id: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -120,6 +126,7 @@ def get_job_status(
     return job
 
 @router.post("/run/stock-live-comparison")
+@log_endpoint
 def run_stock_live_comparison_endpoint(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -143,6 +150,7 @@ class ScheduleConfig(BaseModel):
     minute: int
 
 @router.get("/schedule", response_model=ScheduleConfig)
+@log_endpoint
 def get_schedule(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -150,6 +158,7 @@ def get_schedule(
     return get_schedule_config()
 
 @router.post("/schedule")
+@log_endpoint
 def update_schedule(
     config: ScheduleConfig,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -169,6 +178,7 @@ class UserSettings(BaseModel):
     sortOrder: str = "asc"
 
 @router.get("/settings", response_model=UserSettings)
+@log_endpoint
 def get_user_settings(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -186,6 +196,7 @@ def get_user_settings(
         return UserSettings()
 
 @router.post("/settings")
+@log_endpoint
 def save_user_settings(
     user_settings: UserSettings,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -208,6 +219,7 @@ class AccountConfig(BaseModel):
     alias: str = ""
 
 @router.get("/settings/accounts", response_model=List[AccountConfig])
+@log_endpoint
 def get_account_settings(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -236,6 +248,7 @@ def get_account_settings(
     return results
 
 @router.post("/settings/accounts")
+@log_endpoint
 def update_account_settings(
     configs: List[AccountConfig],
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -257,6 +270,7 @@ def update_account_settings(
     return {"status": "success"}
 
 @router.get("/reports", response_model=List[str])
+@log_endpoint
 async def list_reports(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -271,6 +285,7 @@ async def list_reports(
     return files
 
 @router.get("/reports/{filename}/data")
+@log_endpoint
 async def get_report_data(
     filename: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -297,6 +312,7 @@ async def get_report_data(
         raise HTTPException(status_code=500, detail=f"Failed to read report: {str(e)}")
 
 @router.get("/reports/{filename}/download")
+@log_endpoint
 async def download_report(
     filename: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -314,6 +330,7 @@ async def download_report(
 # --- IBKR Integrations (Admin Only) ---
 
 @router.get("/integrations/ibkr", response_model=IBKRStatus)
+@log_endpoint
 def get_ibkr_status(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -356,6 +373,7 @@ def get_ibkr_status(
     )
 
 @router.post("/integrations/ibkr")
+@log_endpoint
 def update_ibkr_config(
     config: IBKRConfig,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -391,6 +409,7 @@ def update_ibkr_config(
     return {"status": "success"}
 
 @router.post("/integrations/ibkr/test")
+@log_endpoint
 def test_ibkr_connection(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -410,6 +429,7 @@ from fastapi import BackgroundTasks
 from app.services.ibkr_service import run_ibkr_sync
 
 @router.post("/integrations/ibkr/sync")
+@log_endpoint
 async def sync_ibkr_data(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -428,6 +448,7 @@ async def sync_ibkr_data(
     return {"status": "queued", "message": "IBKR Sync started in background."}
 
 @router.post("/integrations/ibkr/sync/nav-all")
+@log_endpoint
 async def sync_all_nav_reports(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -443,6 +464,7 @@ async def sync_all_nav_reports(
     return {"status": "queued", "message": "Full NAV Schedule triggered."}
 
 @router.get("/portfolio/stats")
+@log_endpoint
 def get_portfolio_stats(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -455,6 +477,7 @@ def get_portfolio_stats(
     return get_nav_history_stats()
 
 @router.get("/nav/report/{report_type}")
+@log_endpoint
 def get_nav_report_endpoint(
     report_type: NavReportType,
     background_tasks: BackgroundTasks,
@@ -498,6 +521,7 @@ def get_nav_report_endpoint(
     return {"status": "error", "message": "Unknown state"}
 
 @router.get("/portfolio/holdings")
+@log_endpoint
 def get_portfolio_holdings(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -552,6 +576,7 @@ def get_portfolio_holdings(
     return data
 
 @router.get("/portfolio/alerts")
+@log_endpoint
 def get_portfolio_alerts(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -601,6 +626,7 @@ class ScannerConfig(BaseModel):
     persist: bool = False
 
 @router.post("/analysis/scan")
+@log_endpoint
 def run_stock_scanner(
     config: ScannerConfig,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -629,6 +655,7 @@ class RollInput(BaseModel):
     position_type: str = "call" # call/put
 
 @router.post("/analysis/roll")
+@log_endpoint
 def analyze_rolls(
     input: RollInput,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -653,6 +680,7 @@ def analyze_rolls(
 
 # --- Ticker & Opportunity Analysis ---
 @router.get("/analysis/rolls")
+@log_endpoint
 def analyze_smart_rolls(
     current_user: Annotated[User, Depends(get_current_active_user)],
     persist: bool = False
@@ -688,6 +716,7 @@ def analyze_smart_rolls(
 
 
 @router.get("/analysis/rolls/{ticker}")
+@log_endpoint
 def analyze_ticker_smart_rolls(
     ticker: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -742,6 +771,7 @@ def analyze_ticker_smart_rolls(
 
 
 @router.get("/api/news/{symbol}")
+@log_endpoint
 def get_ticker_news(
     symbol: str,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -757,6 +787,7 @@ def get_ticker_news(
 # --- X-DIV & Calendar Endpoints ---
 
 @router.get("/api/opportunities")
+@log_endpoint
 def get_opportunities(
     current_user: Annotated[User, Depends(get_current_active_user)],
     source: str = None,
@@ -770,6 +801,7 @@ def get_opportunities(
     return service.get_opportunities(source=source, limit=limit)
 
 @router.get("/analysis/dividend-capture")
+@log_endpoint
 def scan_dividend_capture(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[any, Depends(get_db)],
@@ -842,6 +874,7 @@ def scan_dividend_capture(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/analysis/dividend-capture/{ticker}")
+@log_endpoint
 def get_dividend_capture_analysis(
     ticker: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -860,6 +893,7 @@ def get_dividend_capture_analysis(
 
 
 @router.get("/calendar/dividends.ics")
+@log_endpoint
 def get_dividend_calendar():
     """
     Generate an ICS calendar file (or text fallback) with upcoming Corporate Events (Ex-Div, Earnings).
@@ -891,6 +925,7 @@ def get_dividend_calendar():
         return Response(content=f"Error generating calendar: {str(e)}", status_code=500)
 
 @router.get("/api/macro")
+@log_endpoint
 def get_macro_summary(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -903,6 +938,7 @@ def get_macro_summary(
 
 
 @router.get("/analysis/signals/{ticker}")
+@log_endpoint
 def get_ticker_signals(
     ticker: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -954,6 +990,7 @@ def get_ticker_signals(
     }
 
 @router.get("/ticker/{symbol}")
+@log_endpoint
 def get_ticker_analysis(
     symbol: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -975,6 +1012,7 @@ def get_ticker_analysis(
     return {"symbol": symbol, "found": True, "data": stock}
 
 @router.get("/opportunity/{symbol}")
+@log_endpoint
 def get_opportunity_analysis(
     symbol: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -1030,6 +1068,7 @@ def get_opportunity_analysis(
     }
 
 @router.get("/portfolio/optimizer/{symbol}")
+@log_endpoint
 def get_portfolio_optimizer(
     symbol: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -1121,6 +1160,7 @@ def get_portfolio_optimizer(
 
 
 @router.get("/portfolio/export/csv")
+@log_endpoint
 def export_portfolio_csv(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -1131,6 +1171,7 @@ def export_portfolio_csv(
 
 
 @router.post("/portfolio/export/url")
+@log_endpoint
 def create_portfolio_export_url(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -1160,6 +1201,7 @@ def create_portfolio_export_url(
 
 
 @router.get("/portfolio/export/csv/download")
+@log_endpoint
 def download_portfolio_with_token(dl_token: str):
     """Download endpoint that accepts a short-lived dl_token in querystring (no auth dependency)."""
     from jose import jwt
@@ -1209,6 +1251,7 @@ class TickerInput(BaseModel):
     ticker: str
 
 @router.get("/stocks/tracked", response_model=List[str])
+@log_endpoint
 def get_tracked_tickers(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -1248,6 +1291,7 @@ def get_tracked_tickers(
     return StockLiveComparison.get_default_tickers()
 
 @router.post("/stocks/tracked")
+@log_endpoint
 def add_tracked_ticker(
     ticker_input: TickerInput,
     background_tasks: BackgroundTasks,
@@ -1279,6 +1323,7 @@ def add_tracked_ticker(
     return {"status": "success", "message": f"Added {ticker} to tracking list.", "job_id": job.id}
 
 @router.delete("/stocks/tracked/{ticker}")
+@log_endpoint
 def remove_tracked_ticker(
     ticker: str,
     current_user: Annotated[User, Depends(get_current_active_user)]
