@@ -16,24 +16,27 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
       - List of AnalyzedTrade objects.
       - Dict of open positions: { symbol: {"qty": float, "avg_cost": float} }
     """
-    # Group by symbol to process independently
+    # Group by (account_id, symbol) to process independently
     logger.info("Starting P&L Calculation...")
-    trades_by_symbol = defaultdict(list)
+    trades_by_key = defaultdict(list)
     for t in trades:
         # Some legacy trades might still be TradeRecords or have different keys
         sym = t.get("symbol") if hasattr(t, "get") else t.symbol
-        logger.debug(f"Processing trade for symbol: {sym}")
-        trades_by_symbol[sym].append(t)
+        acc = (t.get("account_id") if hasattr(t, "get") else getattr(t, "account_id", "Unknown")) or "Unknown"
+        key = (acc, sym)
+        logger.debug(f"Processing trade for key: {key}")
+        trades_by_key[key].append(t)
         
-    logger.info(f"Grouped {len(trades)} trades into {len(trades_by_symbol)} symbols.")
+    logger.info(f"Grouped {len(trades)} trades into {len(trades_by_key)} account-symbol pairs.")
     analyzed_results = []
     open_positions = {}
     
     count = 0
-    for symbol, symbol_trades in trades_by_symbol.items():
+    for key, symbol_trades in trades_by_key.items():
+        account_id, symbol = key
         count += 1
         if count % 100 == 0:
-            logger.debug(f"Processed {count}/{len(trades_by_symbol)} symbols...")
+            logger.debug(f"Processed {count}/{len(trades_by_key)} symbols...")
             
         def get_dt(t):
             return t.get("date_time", "") if hasattr(t, "get") else getattr(t, "date_time", "")
@@ -155,7 +158,8 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                 
         if total_open_qty != 0:
             avg_cost = total_cost / abs(total_open_qty)
-            open_positions[symbol] = {
+            # Use tuple key for grouping
+            open_positions[key] = {
                 "qty": total_open_qty,
                 "avg_cost": avg_cost
             }
@@ -163,7 +167,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
     logger.info(f"P&L Analysis complete. Created {len(analyzed_results)} analyzed records, {len(open_positions)} open positions.")
     return analyzed_results, open_positions
 
-import yfinance as yf
+
 
 import time
 
@@ -176,6 +180,7 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
     Optionally fetches current prices for open_positions to calculate Unrealized P&L.
     If current_prices is provided, it uses those and skips yfinance.
     """
+    import yfinance as yf
     if open_positions is None:
         open_positions = {}
         
@@ -227,7 +232,10 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
             
         # 2. Otherwise Batch fetch prices using yfinance for symbols not in cache
         else:
-            symbols = list(open_positions.keys())
+            symbols = set()
+            for (acc, sym) in open_positions.keys():
+                symbols.add(sym)
+                
             yf_symbols = []
             for sym in symbols:
                 query_sym = sym.split()[0] if " " in sym else sym
@@ -256,7 +264,14 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
                      logger.error(f"Failed to fetch prices for open positions: {e}")
 
         # Calculate unrealized P&L using cached prices
-        for sym, pos in open_positions.items():
+        # and track per-account open trades
+        account_open_counts = defaultdict(int)
+        for key, pos in open_positions.items():
+            account_id, sym = key
+            # Ensure account_id is a string for the stats dictionary
+            account_id = str(account_id) if account_id is not None else "Unknown"
+            account_open_counts[account_id] += 1
+            
             query_sym = sym.split()[0] if " " in sym else sym
             if query_sym in _PRICE_CACHE:
                 current_price = _PRICE_CACHE[query_sym]["price"]
@@ -276,6 +291,22 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
                 else:
                     unrealized_loss += abs(upl)
 
+    # Calculate per-account metrics
+    account_stats = defaultdict(lambda: {"total": 0, "open": 0, "closed": 0})
+    for t in trades:
+        acc = (getattr(t, "account_id", None) or getattr(t, "account", None) or "Unknown")
+        # Ensure it's a string just in case
+        acc = str(acc)
+        account_stats[acc]["total"] += 1
+        if t.realized_pl != 0:
+            account_stats[acc]["closed"] += 1
+            
+    if open_positions:
+        for (acc, sym) in open_positions.keys():
+            # Standardize key same as above
+            acc_str = str(acc) if acc is not None else "Unknown"
+            account_stats[acc_str]["open"] += 1
+
     m = TradeMetrics(
         total_pl=round(total_pl, 2),
         unrealized_profit=round(unrealized_profit, 2),
@@ -286,7 +317,8 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
         open_trades=open_trades,
         closed_trades=closed_trades,
         winning_trades=winning,
-        losing_trades=losing
+        losing_trades=losing,
+        account_metrics=dict(account_stats)
     )
     logger.info(f"Metrics calculated: {m}")
     return m

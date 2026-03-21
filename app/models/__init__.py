@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from enum import Enum
 from pydantic import BaseModel, Field, AliasChoices
 
@@ -77,6 +77,7 @@ class TradeMetrics(BaseModel):
     closed_trades: int = 0
     winning_trades: int = 0
     losing_trades: int = 0
+    account_metrics: Dict[str, Any] = {}
 
 class StockResponse(BaseModel):
     count: int

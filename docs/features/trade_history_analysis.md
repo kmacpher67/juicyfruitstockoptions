@@ -21,6 +21,7 @@ A summary dashboard provides:
 - **Grid View**: Searchable, sortable table of all trades.
 - **Filtering**: Filter by Symbol to see asset-specific history.
 - **Visuals**: Green/Red indicators for profitable/unprofitable trades.
+- **Account Context**: Metrics are grouped by `account_id` to provide per-portfolio insights. Missing account identifiers are automatically categorized as `"Unknown"`.
 
 ## Technical Implementation
 - **Source of Truth**: `ibkr_trades` collection (Ingested legacy CSVs + Live Flex Query).

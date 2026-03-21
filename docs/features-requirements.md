@@ -149,7 +149,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history**: Bug when changing the time frame the window data response takes a while, furthermore the http transaction shows the response as "pending". Further the account is not displaying the correct account # for the trades. 
     - [x] **trade history counts**: The metrics (Total Trades, Open Trades, etc.) are miscalculated due to counting every `realized_pl == 0` leg as an open trade. 
     - [x] **trade history enhancements**: Add AssetClass (STK vs OPT), Put/Call, NetCash, ClosePrice, and Exchange fields to the Trades Query data synchronization. (See [Implementation Plan](plans/implementation_plan-20260314-trades_analysis_enhancements.md))
-    - [ ] **trade history UI**: Trades widget Total (789) Open: 522 Closed: 762 show total and open closed details for each account make the font smaller to fit inside the widget.  
+    - [x] **trade history UI**: Trades widget Total (789) Open: 522 Closed: 762 show total and open closed details for each account make the font smaller to fit inside the widget. (See [Walkthrough](plans/walkthrough-20260321-trade_history_account_metrics.md))
 
 
 
@@ -413,3 +413,5 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-02-01 | **REFINED** | Split "Portfolio Management" into Analytics (Done) and History Visualization (Todo). |
 | 2026-02-01 | **ADDED** | Added "Smart Roll / Diagonal Assistant" feature and marked "Opportunity Signals" as done. |
 | 2026-02-17 | **FIXED** | Fixed Dividend Scanner bug (method typo + expanded lookahead 0-30 days + UTC fix). |
+| 2026-03-21 | **ADDED** | Implemented per-account trade metrics widget in Trade History UI. |
+| 2026-03-21 | **REFACTORED**| Updated P&L logic to support account-aware FIFO matching. |

@@ -234,7 +234,23 @@ const TradeHistory = () => {
                     />
                     <MetricCard
                         title={`Total Trades (${metrics.total_trades})`}
-                        value={`Open: ${metrics.open_trades} | Closed: ${metrics.closed_trades}`}
+                        value={
+                            <div className="flex flex-col">
+                                <div className="text-xl">
+                                    Open: {metrics.open_trades} | Closed: {metrics.closed_trades}
+                                </div>
+                                {metrics.account_metrics && Object.keys(metrics.account_metrics).length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] leading-tight font-normal text-gray-400">
+                                        {Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                            <div key={acc} className="flex justify-between gap-2">
+                                                <span className="font-mono">{acc}:</span>
+                                                <span>T:{stats.total} O:{stats.open} C:{stats.closed}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        }
                         icon={TrendingDown}
                         colorClass="text-purple-400"
                     />
