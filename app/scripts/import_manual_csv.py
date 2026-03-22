@@ -119,40 +119,57 @@ def import_trades_csv(filepath):
         if not trade_id: continue
         
         try:
-             # Manual CSV has "UnderlyingSecurityID" but maybe not Symbol?
-             # User file: "Symbol","Description","UnderlyingSecurityID"
-             # It seems to lack "UnderlyingSymbol" column explicitly?
-             # Wait, row 2: "AMZN","AMAZON...","","" ...
-             # We might need to infer Underlying from Symbol for stocks.
+             # Basic identification
              sym = row.get("Symbol")
-             underlying = row.get("UnderlyingSymbol") 
-             if not underlying and row.get("AssetClass") == "STK":
+             asset_class = row.get("AssetClass")
+             underlying = row.get("UnderlyingSymbol") or row.get("UnderlyingSecurityID")
+             
+             if not underlying and asset_class == "STK":
                  underlying = sym
              if not underlying:
                  underlying = sym # Fallback
              
              doc = {
                 "trade_id": trade_id,
+                "account_id": row.get("ClientAccountID") or row.get("AccountId"),
                 "symbol": sym,
+                "description": row.get("Description"),
                 "underlying_symbol": underlying,
+                "asset_class": asset_class,
                 "date_time": row.get("DateTime") or row.get("TradeDate"), 
+                "trade_date": row.get("TradeDate"),
+                "report_date": row.get("ReportDate"),
+                "settle_date": row.get("SettleDateTarget"),
+                "buy_sell": row.get("Buy/Sell"),
                 "quantity": float(row.get("Quantity") or 0),
                 "price": float(row.get("TradePrice") or 0),
-                "commission": float(row.get("IBCommission") or 0), # Check header... "IBExecID"? "Notes/Codes"?
-                # The user dump has "NetCash", "TradePrice". Commission is usually separate or implied.
-                # Actually user dump doesn't show "Commission" col in head -n 5 output.
-                # It has "NetCash". NetCash = (Price * Qty) - Comm.
-                # We can calculate commission = abs(NetCash - (Price * Qty))?
-                # For now let's skip commission if missing.
+                "net_cash": float(row.get("NetCash") or 0),
+                "trade_money": float(row.get("TradeMoney") or 0),
+                "close_price": float(row.get("ClosePrice") or 0),
+                "commission": float(row.get("IBCommission") or 0),
                 "realized_pnl": float(row.get("FifoPnlRealized") or 0),
-                "buy_sell": row.get("Buy/Sell"),
-                "order_type": row.get("OrderType") or "LMT", # Default/Unknown
-                "exchange": row.get("Exchange") or "SMART"
+                "mtm_pnl": float(row.get("MtmPnl") or 0),
+                "cost_basis": float(row.get("CostBasis") or 0),
+                "strike": float(row.get("Strike") or 0) if row.get("Strike") else None,
+                "expiry": row.get("Expiry"),
+                "put_call": row.get("Put/Call"),
+                "open_close": row.get("Open/CloseIndicator"),
+                "notes_codes": row.get("Notes/Codes"),
+                "order_time": row.get("OrderTime"),
+                "order_type": row.get("OrderType") or "LMT",
+                "exchange": row.get("Exchange") or "SMART",
+                "related_trade_id": row.get("RelatedTransactionID"),
+                "ib_exec_id": row.get("IBExecID"),
+                "order_reference": row.get("OrderReference")
             }
+             
+             # Clean up None values for numeric fields if needed, but float(None or 0) handles it
+             # Update MongoDB
              db.ibkr_trades.update_one({"trade_id": trade_id}, {"$set": doc}, upsert=True)
              count += 1
-        except ValueError:
-            continue
+        except Exception as e:
+             logging.error(f"Error processing trade {trade_id}: {e}")
+             continue
             
     logging.info(f"Processed {count} trades.")
 
