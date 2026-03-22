@@ -60,6 +60,26 @@ The project has been upgraded to a Dockerized Web Application.
 
 ## Legacy Script Usage
 
+### Legacy Trade Reprocessing
+If you need to re-import historical trades from IBKR CSV files (e.g., `Recent_Trades*.csv`), use the reprocessing script. 
+
+**Note**: This script connects to the **local** MongoDB instance (not the Docker network one). Ensure you have exported the necessary environment variables for the local database.
+
+#### Option 1: Using the Helper Script (Recommended)
+```bash
+./scripts/reprocess_legacy.sh
+```
+
+#### Option 2: Manual Execution
+```bash
+export MONGO_URI="mongodb://admin:admin123@localhost:27017/?authSource=admin"
+export ADMIN_USER="admin"
+export ADMIN_PASS="admin123"
+
+python3 app/scripts/reprocess_legacy_trades.py
+```
+
+See [Reprocess Legacy Trades Learning](docs/learning/reprocess-legacy-trades.md) for more details.
 
 
 ## Stock Live Comparison Script
