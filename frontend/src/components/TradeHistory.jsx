@@ -25,7 +25,7 @@ const TradeHistory = () => {
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [timeRange, setTimeRange] = useState('ALL');
+    const [timeRange, setTimeRange] = useState('YTD');
 
     const calculateDateRange = (range) => {
         const now = new Date();

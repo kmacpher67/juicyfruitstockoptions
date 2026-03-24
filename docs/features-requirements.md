@@ -150,8 +150,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history counts**: The metrics (Total Trades, Open Trades, etc.) are miscalculated due to counting every `realized_pl == 0` leg as an open trade. 
     - [x] **trade history enhancements**: Add AssetClass (STK vs OPT), Put/Call, NetCash, ClosePrice, and Exchange fields to the Trades Query data synchronization. (See [Implementation Plan](plans/implementation_plan-20260314-trades_analysis_enhancements.md))
     - [x] **trade history UI**: Trades widget Total (789) Open: 522 Closed: 762 show total and open closed details for each account make the font smaller to fit inside the widget. (See [Walkthrough](plans/walkthrough-20260321-trade_history_account_metrics.md))
-
-
+    - [x] **trade History UI**: Set default as YTD instead of ALL 
+    - [ ] **trade history UI**: Total Trades  collapse the fonts 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
