@@ -63,7 +63,7 @@ def test_calculate_metrics():
     assert metrics.winning_trades == 1
     assert metrics.total_trades == 2 # 1 buy (open), 1 sell (closed)
     assert metrics.closed_trades == 1
-    assert metrics.open_trades == 1
+    assert metrics.open_trades == 0
     
     assert metrics.win_rate == 100.0
     # Updated logic returns gross_win (100.0) instead of inf when no losses
