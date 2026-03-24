@@ -2,11 +2,11 @@ import pytest
 from app.services.ibkr_service import parse_csv_trades, parse_xml_trades
 from unittest.mock import patch, MagicMock
 
-CSV_TRADES = \"\"\"Symbol,Buy/Sell,TradeID,AccountID,Quantity,TradePrice,IBCommission,FifoPnlRealized,RealizedPnL,OrderType,AssetClass,Put/Call,NetCash,ClosePrice,Exchange
+CSV_TRADES = """Symbol,Buy/Sell,TradeID,AccountID,Quantity,TradePrice,IBCommission,FifoPnlRealized,RealizedPnL,OrderType,AssetClass,Put/Call,NetCash,ClosePrice,Exchange
 AAPL,BUY,1,U12345,10,150.0,-1.0,0,0,LMT,STK,,1500.0,155.0,NASDAQ
-\"\"\"
+"""
 
-XML_TRADES = \"\"\"<?xml version="1.0" encoding="UTF-8"?>
+XML_TRADES = """<?xml version="1.0" encoding="UTF-8"?>
 <FlexStatementResponse>
     <FlexStatements>
         <FlexStatement>
@@ -15,7 +15,7 @@ XML_TRADES = \"\"\"<?xml version="1.0" encoding="UTF-8"?>
             </Trades>
         </FlexStatement>
     </FlexStatements>
-</FlexStatementResponse>\"\"\"
+</FlexStatementResponse>"""
 
 @patch('app.services.ibkr_service.MongoClient')
 def test_parse_csv_trades(mock_mongo):

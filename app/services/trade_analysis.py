@@ -207,8 +207,8 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
                 losing += 1
                 gross_loss += abs(t.realized_pl)
                 
-    # Open trades count should reflect active underlying positions, not just empty legs
-    open_trades = len(open_positions.keys()) if open_positions else 0
+    # Open trades count should reflect the records that haven't realized P&L
+    open_trades = total - closed_trades
                 
     win_rate = (winning / closed_trades * 100) if closed_trades > 0 else 0.0
     
@@ -300,12 +300,8 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
         account_stats[acc]["total"] += 1
         if t.realized_pl != 0:
             account_stats[acc]["closed"] += 1
-            
-    if open_positions:
-        for (acc, sym) in open_positions.keys():
-            # Standardize key same as above
-            acc_str = str(acc) if acc is not None else "Unknown"
-            account_stats[acc_str]["open"] += 1
+        else:
+            account_stats[acc]["open"] += 1
 
     m = TradeMetrics(
         total_pl=round(total_pl, 2),
