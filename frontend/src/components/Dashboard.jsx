@@ -8,7 +8,6 @@ import StockGrid from './StockGrid';
 import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
-import AlertsDashboard from './AlertsDashboard';
 import TradeHistory from './TradeHistory';
 import TickerModal from './TickerModal';
 import RollAnalysisModal from './RollAnalysisModal';
@@ -504,16 +503,7 @@ const Dashboard = () => {
                         <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
                     </div>
 
-                    <div className="mb-4">
-                        {/* Dynamically load Alerts & Opportunities */}
-                        <AlertsDashboard
-                            onSelectTicker={(ticker) => {
-                                // Toggle filter: If clicking same ticker, clear filter. Else set it.
-                                setFilterTicker(prev => prev === ticker ? null : ticker);
-                            }}
-                            onAnalyzeRoll={(opportunity) => setSelectedRollOpportunity(opportunity)}
-                        />
-                    </div>
+
                     {/* Filter Indicator */}
                     {filterTicker && (
                         <div className="mb-2 flex items-center gap-2">
