@@ -13,7 +13,7 @@ const MetricCard = ({ title, value, icon: Icon, trend, colorClass = "text-white"
     <div className="bg-gray-800 p-4 rounded-lg shadow border border-gray-700 flex items-center justify-between">
         <div>
             <p className="text-gray-400 text-sm mb-1">{title}</p>
-            <p className={`text-2xl font-bold ${colorClass}`}>{value}</p>
+            <div className={`text-2xl font-bold ${colorClass}`}>{value}</div>
         </div>
         <div className={`p-3 rounded-full bg-gray-700 ${colorClass}`}>
             <Icon className="w-6 h-6" />
@@ -233,22 +233,15 @@ const TradeHistory = () => {
                         colorClass="text-yellow-400"
                     />
                     <MetricCard
-                        title={`Total Trades (${metrics.total_trades})`}
+                        title="Trade Count"
                         value={
-                            <div className="flex flex-col">
-                                <div className="text-xl">
-                                    Open: {metrics.open_trades} | Closed: {metrics.closed_trades}
+                            <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
+                                <div>All T:{metrics.total_trades} O:{metrics.open_trades} C:{metrics.closed_trades}</div>
+                                <div>
+                                    {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats], index) => (
+                                        <span key={acc}>{index > 0 ? ', ' : ''}{acc} T:{stats.total} O:{stats.open} C:{stats.closed}</span>
+                                    ))}
                                 </div>
-                                {metrics.account_metrics && Object.keys(metrics.account_metrics).length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] leading-tight font-normal text-gray-400">
-                                        {Object.entries(metrics.account_metrics).map(([acc, stats]) => (
-                                            <div key={acc} className="flex justify-between gap-2">
-                                                <span className="font-mono">{acc}:</span>
-                                                <span>T:{stats.total} O:{stats.open} C:{stats.closed}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         }
                         icon={TrendingDown}

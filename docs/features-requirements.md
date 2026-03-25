@@ -151,8 +151,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history enhancements**: Add AssetClass (STK vs OPT), Put/Call, NetCash, ClosePrice, and Exchange fields to the Trades Query data synchronization. (See [Implementation Plan](plans/implementation_plan-20260314-trades_analysis_enhancements.md))
     - [x] **trade history UI**: Trades widget Total (789) Open: 522 Closed: 762 show total and open closed details for each account make the font smaller to fit inside the widget. (See [Walkthrough](plans/walkthrough-20260321-trade_history_account_metrics.md))
     - [x] **trade History UI**: Set default as YTD instead of ALL 
-    - [ ] **trade history UI**: Total Trades  collapse the fonts 
-
+    - [x] **trade history UI**: Total Trades  collapse the fonts for Total Trades Change the title to Trade Count, list should be All   T:932 O:378 C:916 , Account1, T:204 O:72 C:202, Account2, T:458 O:186 C:450, Account3, T:270 O:120 C:264
+    - [ ] **trade history UI**: fix Trade Count add a line break between All and Account1, <BR>Account2, <BR> Account3 (between each break out line item.
+    - [ ] **trade history UI**: 
+    
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
     - [/] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 
@@ -415,3 +417,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-02-17 | **FIXED** | Fixed Dividend Scanner bug (method typo + expanded lookahead 0-30 days + UTC fix). |
 | 2026-03-21 | **ADDED** | Implemented per-account trade metrics widget in Trade History UI. |
 | 2026-03-21 | **REFACTORED**| Updated P&L logic to support account-aware FIFO matching. |
+| 2026-03-25 | **UPDATED** | Trade History UI: Collapsed Trade Count widget to save vertical space. |
