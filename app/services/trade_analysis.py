@@ -45,7 +45,8 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
             logger.debug(f"Processed {count}/{len(trades_by_key)} symbols...")
             
         def get_dt(t):
-            return t.get("date_time", "") if hasattr(t, "get") else getattr(t, "date_time", "")
+            dt = t.get("date_time", "") if hasattr(t, "get") else getattr(t, "date_time", "")
+            return dt if dt is not None else ""
             
         # Sort by date
         sorted_trades = sorted(symbol_trades, key=get_dt)
@@ -100,7 +101,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                 # If we are short, cover match
                 remaining_buy = qty
                 while remaining_buy > 0 and short_queue:
-                    short_qty, short_price = short_queue[0]
+                    short_qty, short_price, short_dt = short_queue[0]
                     
                     match_qty = min(remaining_buy, abs(short_qty))
                     
@@ -112,14 +113,14 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                     if matched_remainder == 0:
                         short_queue.pop(0)
                     else:
-                        short_queue[0] = (-matched_remainder, short_price)
+                        short_queue[0] = (-matched_remainder, short_price, short_dt)
                         
                     remaining_buy -= match_qty
                     
                 # Add remainder to Long Queue
                 if remaining_buy > 0:
                     logger.debug(f"Adding {remaining_buy} to long queue for {symbol} at {price}")
-                    long_queue.append((remaining_buy, price))
+                    long_queue.append((remaining_buy, price, get_dt(t)))
 
             elif qty < 0: # SELL
                 abs_sell_qty = abs(qty)
@@ -127,7 +128,7 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                 
                 # If we are long, close match
                 while remaining_sell > 0 and long_queue:
-                    long_qty, long_price = long_queue[0]
+                    long_qty, long_price, long_dt = long_queue[0]
                     match_qty = min(remaining_sell, long_qty)
                     
                     # PL = (Sell Price - Buy Price) * Match Qty
@@ -138,13 +139,13 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                     if matched_remainder == 0:
                         long_queue.pop(0)
                     else:
-                        long_queue[0] = (matched_remainder, long_price)
+                        long_queue[0] = (matched_remainder, long_price, long_dt)
                         
                     remaining_sell -= match_qty
                     
                 # Add remainder to Short Queue
                 if remaining_sell > 0:
-                    short_queue.append((-remaining_sell, price))
+                    short_queue.append((-remaining_sell, price, get_dt(t)))
             
             data["realized_pl"] = realized_pl - abs(comm) # Subtract commission from PL
             analyzed_results.append(AnalyzedTrade(**data))
@@ -152,22 +153,26 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
         # Compute remainder for open positions
         total_open_qty = 0.0
         total_cost = 0.0
+        lots = []
         
         if long_queue:
-            for q, p in long_queue:
+            for q, p, dt in long_queue:
                 total_open_qty += q
                 total_cost += (q * p)
+                lots.append({"qty": q, "price": p, "date_time": dt})
         elif short_queue:
-            for q, p in short_queue:
+            for q, p, dt in short_queue:
                 total_open_qty += q  # q is already negative
                 total_cost += (abs(q) * p)
+                lots.append({"qty": q, "price": p, "date_time": dt})
                 
         if total_open_qty != 0:
             avg_cost = total_cost / abs(total_open_qty)
             # Use tuple key for grouping
             open_positions[key] = {
                 "qty": total_open_qty,
-                "avg_cost": avg_cost
+                "avg_cost": avg_cost,
+                "lots": lots
             }
             
     logger.info(f"P&L Analysis complete. Created {len(analyzed_results)} analyzed records, {len(open_positions)} open positions.")

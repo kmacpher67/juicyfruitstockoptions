@@ -172,6 +172,28 @@ async def get_trade_analysis(
                     
                 filtered_trades.append(t)
             analyzed_trades = filtered_trades
+            
+            filtered_open_positions = {}
+            for key, pos in open_positions.items():
+                filtered_lots = []
+                for lot in pos.get("lots", []):
+                    lot_dt = str(lot.get("date_time", ""))[:8]
+                    if s_val and lot_dt < s_val:
+                        continue
+                    if e_val and lot_dt > e_val:
+                        continue
+                    filtered_lots.append(lot)
+                
+                if filtered_lots:
+                    tot_q = sum(l["qty"] for l in filtered_lots)
+                    tot_c = sum(abs(l["qty"]) * l["price"] for l in filtered_lots)
+                    if tot_q != 0:
+                        filtered_open_positions[key] = {
+                            "qty": tot_q,
+                            "avg_cost": tot_c / abs(tot_q),
+                            "lots": filtered_lots
+                        }
+            open_positions = filtered_open_positions
         
         # Step 5: Fetch current prices from holdings for unrealized PL
         t0 = time.time()

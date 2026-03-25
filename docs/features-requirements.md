@@ -153,8 +153,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade History UI**: Set default as YTD instead of ALL 
     - [x] **trade history UI**: Total Trades  collapse the fonts for Total Trades Change the title to Trade Count, list should be All   T:932 O:378 C:916 , Account1, T:204 O:72 C:202, Account2, T:458 O:186 C:450, Account3, T:270 O:120 C:264
     - [x] **trade history UI**: fix Trade Count add a line break between All and Account1, <BR>Account2, <BR> Account3 (between each break out line item.
-    - [ ] **trade history UI**: All the widgets should have a ALL amount, <br> Acct1 amount, <br> Acct2 amount break out 
-    - [ ] **trade history UI**: Fix Unrealized P&L does not update when switching the time frame. 
+    - [x] **trade history UI**: All the widgets should have a ALL amount, <br> Acct1 amount, <br> Acct2 amount break out 
+    - [x] **trade history UI**: Fix Unrealized P&L does not update when switching the time frame. 
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
