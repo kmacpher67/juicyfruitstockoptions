@@ -154,21 +154,22 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history UI**: Total Trades  collapse the fonts for Total Trades Change the title to Trade Count, list should be All   T:932 O:378 C:916 , Account1, T:204 O:72 C:202, Account2, T:458 O:186 C:450, Account3, T:270 O:120 C:264
     - [x] **trade history UI**: fix Trade Count add a line break between All and Account1, <BR>Account2, <BR> Account3 (between each break out line item.
     - [ ] **trade history UI**: All the widgets should have a ALL amount, <br> Acct1 amount, <br> Acct2 amount break out 
-    
+    - [ ] **trade history UI**: Fix Unrealized P&L does not update when switching the time frame. 
+
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:
-    - [/] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 
+    - [ ] **Juicy Opportunity Collection**: Implement full lifecycle tracking for detected opportunities. Allows complex long running processes to be only run once and the results persisted to be used for other features. 
         - [x] **Data Schema**: Define `JuicyOpportunity` model (Symbol, Timestamp, Context: {Price, IV, Greeks}, Proposal, Trigger Source).
-        - [x] **Persistence**: Store opportunities in MongoDB (`opportunities` collection) for historical analysis.
+        - [ ] **Persistence**: Store opportunities in MongoDB (`opportunities` collection) for historical analysis.
         - [ ] **Outcome Tracking (Truth Engine)**:
             - [ ] **Requirement**: Automated tracker that monitors the specific option/stock for the duration of the proposed trade.
             - [ ] **Metrics**: Max Profit (MFE), Max Loss (MAE), Days to Profit, Expiration Value.
             - [ ] **Reference**: See [Opportunity Persistence & Grading](learning/opportunity-persistence-and-grading.md).
         - [ ] **Grading Engine**: Scheduled job to close and grade opportunities (Win/Loss, ROI/Day) based on market data.
         - [ ] **Signal Correlation**: Dashboard to analyze Hit Rate by Signal Source (e.g., "Do Gap Ups work?"). 
-        - [x] **Options Due in X Days**: Signal for all options expiring in <7 Days (DTE). *Backend Implemented via `ExpirationScanner`.*
-        - [/] **X-DTE options UI**: Only show the DTE<7 list of options so they can be evaluated for rolling, holding, waiting, or closing. Leave space for showing greeks, probability, payouts, Returns, yields, LT vs ST P&L, create UX for showing opportunties available for rolling, holding, waiting, or closing. See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
-        - [/] **Auto-Roll Evaluation**: Automatically analyze rolling opportunities for these positions (e.g., Roll to next week or month if covered call is ITM). See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
+        - [ ] **Options Due in X Days**: Signal for all options expiring in <7 Days (DTE). *Backend Implemented via `ExpirationScanner`.*
+        - [ ] **X-DTE options UI**: Only show the DTE<7 list of options so they can be evaluated for rolling, holding, waiting, or closing. Leave space for showing greeks, probability, payouts, Returns, yields, LT vs ST P&L, create UX for showing opportunties available for rolling, holding, waiting, or closing. See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
+        - [ ] **Auto-Roll Evaluation**: Automatically analyze rolling opportunities for these positions (e.g., Roll to next week or month if covered call is ITM). See [Implementation Plan](plans/implementation_plan-20260203-xdte_autoroll.md).
         - [x] **Auto-Roll Fixes**: The roll doesn't show the yield and the return. It's unclear what the original ticker OPT details are it's MSFT put or call. Original strike price is unknown. Time of the original contract and return / yield is unknow. What about the whole sequence of that buy and sell? What part makes money? Under what scenario (price change Up/Down, time change, yield change) does it make money? 
         - [x] **Auto-Roll Fixes**: What does the SELECT button do? **Definition**: Clicking "Select" logs the chosen roll strategy (Buy to Close Current + Sell to Open New) and provides a "Success" toast notification. Future state will persist this to a Trade Plan or trigger an IBKR Order ticket.
         - [x] **Auto-Roll Fixes**: The "Dividend Capture Opportunities" button is huge and empty which is not a good user experience.

@@ -210,25 +210,54 @@ const TradeHistory = () => {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <MetricCard
                         title="Realized P&L"
-                        value={`$${metrics.total_pl.toFixed(2)}`}
+                        value={
+                            <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
+                                <div>All: ${(metrics.total_pl || 0).toFixed(2)}</div>
+                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                    <div key={acc}>{acc}: ${(stats.total_pl || 0).toFixed(2)}</div>
+                                ))}
+                            </div>
+                        }
                         icon={DollarSign}
                         colorClass={metrics.total_pl >= 0 ? "text-green-400" : "text-red-400"}
                     />
                     <MetricCard
                         title="Unrealized P&L"
-                        value={`$${(metrics.unrealized_profit - metrics.unrealized_loss).toFixed(2)}`}
+                        value={
+                            <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
+                                <div>All: ${((metrics.unrealized_profit || 0) - (metrics.unrealized_loss || 0)).toFixed(2)}</div>
+                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => {
+                                    const netUPL = (stats.unrealized_profit || 0) - (stats.unrealized_loss || 0);
+                                    return <div key={acc}>{acc}: ${netUPL.toFixed(2)}</div>;
+                                })}
+                            </div>
+                        }
                         icon={Activity}
                         colorClass={(metrics.unrealized_profit - metrics.unrealized_loss) >= 0 ? "text-green-400" : "text-red-400"}
                     />
                     <MetricCard
                         title="Win Rate"
-                        value={`${metrics.win_rate}%`}
+                        value={
+                            <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
+                                <div>All: {(metrics.win_rate || 0).toFixed(0)}%</div>
+                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                    <div key={acc}>{acc}: {(stats.win_rate || 0).toFixed(0)}%</div>
+                                ))}
+                            </div>
+                        }
                         icon={Activity}
                         colorClass="text-blue-400"
                     />
                     <MetricCard
                         title="Profit Factor"
-                        value={metrics.profit_factor}
+                        value={
+                            <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
+                                <div>All: {Number(metrics.profit_factor || 0).toFixed(2)}</div>
+                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                    <div key={acc}>{acc}: {Number(stats.profit_factor || 0).toFixed(2)}</div>
+                                ))}
+                            </div>
+                        }
                         icon={TrendingUp}
                         colorClass="text-yellow-400"
                     />
@@ -238,7 +267,7 @@ const TradeHistory = () => {
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
                                 <div>All T:{metrics.total_trades} O:{metrics.open_trades} C:{metrics.closed_trades}</div>
                                 {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
-                                    <div key={acc}>{acc} T:{stats.total} O:{stats.open} C:{stats.closed}</div>
+                                    <div key={acc}>{acc} T:{stats.total || 0} O:{stats.open || 0} C:{stats.closed || 0}</div>
                                 ))}
                             </div>
                         }

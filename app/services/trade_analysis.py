@@ -200,17 +200,39 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
     
     logger.info("Starting Metrics Calculation...")
     
+    # Initialize per-account metrics
+    account_stats = defaultdict(lambda: {
+        "total": 0, "open": 0, "closed": 0,
+        "total_pl": 0.0,
+        "unrealized_profit": 0.0,
+        "unrealized_loss": 0.0,
+        "gross_win": 0.0,
+        "gross_loss": 0.0,
+        "winning_trades": 0,
+        "losing_trades": 0
+    })
+    
     for t in trades:
         total += 1
+        acc = str(getattr(t, "account_id", None) or getattr(t, "account", None) or "Unknown")
+        account_stats[acc]["total"] += 1
+        
         if t.realized_pl != 0:
             closed_trades += 1
             total_pl += t.realized_pl
+            account_stats[acc]["closed"] += 1
+            account_stats[acc]["total_pl"] += t.realized_pl
+            
             if t.realized_pl > 0:
                 winning += 1
                 gross_win += t.realized_pl
+                account_stats[acc]["winning_trades"] += 1
+                account_stats[acc]["gross_win"] += t.realized_pl
             else:
                 losing += 1
                 gross_loss += abs(t.realized_pl)
+                account_stats[acc]["losing_trades"] += 1
+                account_stats[acc]["gross_loss"] += abs(t.realized_pl)
                 
     # Open trades count should reflect active underlying positions, not just empty legs
     open_trades = len(open_positions.keys()) if open_positions else 0
@@ -270,12 +292,11 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
 
         # Calculate unrealized P&L using cached prices
         # and track per-account open trades
-        account_open_counts = defaultdict(int)
         for key, pos in open_positions.items():
             account_id, sym = key
             # Ensure account_id is a string for the stats dictionary
             account_id = str(account_id) if account_id is not None else "Unknown"
-            account_open_counts[account_id] += 1
+            account_stats[account_id]["open"] += 1
             
             query_sym = sym.split()[0] if " " in sym else sym
             if query_sym in _PRICE_CACHE:
@@ -293,24 +314,25 @@ def calculate_metrics(trades: List[AnalyzedTrade], open_positions: Dict[str, dic
                     
                 if upl > 0:
                     unrealized_profit += upl
+                    account_stats[account_id]["unrealized_profit"] += upl
                 else:
                     unrealized_loss += abs(upl)
+                    account_stats[account_id]["unrealized_loss"] += abs(upl)
 
-    # Calculate per-account metrics
-    account_stats = defaultdict(lambda: {"total": 0, "open": 0, "closed": 0})
-    for t in trades:
-        acc = (getattr(t, "account_id", None) or getattr(t, "account", None) or "Unknown")
-        # Ensure it's a string just in case
-        acc = str(acc)
-        account_stats[acc]["total"] += 1
-        if t.realized_pl != 0:
-            account_stats[acc]["closed"] += 1
-            
-    if open_positions:
-        for (acc, sym) in open_positions.keys():
-            # Standardize key same as above
-            acc_str = str(acc) if acc is not None else "Unknown"
-            account_stats[acc_str]["open"] += 1
+    # Calculate final per-account metrics
+    for acc, stats in account_stats.items():
+        stats["win_rate"] = round((stats["winning_trades"] / stats["closed"] * 100) if stats["closed"] > 0 else 0.0, 2)
+        
+        pf = 0.0
+        if stats["gross_loss"] > 0:
+            pf = stats["gross_win"] / stats["gross_loss"]
+        else:
+            pf = stats["gross_win"] if stats["gross_win"] > 0 else 0.0
+        stats["profit_factor"] = round(pf, 2)
+        
+        stats["total_pl"] = round(stats["total_pl"], 2)
+        stats["unrealized_profit"] = round(stats["unrealized_profit"], 2)
+        stats["unrealized_loss"] = round(stats["unrealized_loss"], 2)
 
     m = TradeMetrics(
         total_pl=round(total_pl, 2),
