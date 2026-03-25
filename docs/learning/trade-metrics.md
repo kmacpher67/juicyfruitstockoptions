@@ -36,9 +36,17 @@ Understanding trade counts is essential for analyzing the scope of the portfolio
 *   **Open Trades**: Initiating trades that have not yet realized P&L. They exist in the portfolio's FIFO queue and represent current risk/exposure.
 
 ### Realized vs Unrealized P&L
-*   **Realized P&L**: Profit or loss that has been "locked in" by completely or partially closing an existing position (e.g., selling long shares, covering short shares).
+*   **Realized P&L**: Profit or loss that has been "locked in" by completely or partially closing an existing position (e.g., selling long shares, covering short shares). This value is locked on the date the trade is closed.
 *   **Unrealized P&L**: Theoretical profit or loss if all currently *Open Trades* were to be closed at the current market price. This dynamically updates based on live market data and represents the "paper" profit/loss.
 
+## Time Selector Filtering
+
+The Trade History view allows you to filter metrics by a specific time frame (e.g., YTD, 30 Days, Custom Range). The way the system calculates P&L when a time filter is applied is specifically designed to ensure accuracy:
+
+1.  **Full History FIFO Calculation**: The system first loads *all* trades across the account's history and calculates P&L using a First-In-First-Out (FIFO) queue. This is necessary because an opening trade from last year might be closed this year, and we must match them correctly.
+2.  **Filtering Realized P&L**: After the full FIFO calculation is complete, the resulting `AnalyzedTrades` are filtered by the selected date range. Only trades that *occurred* within the selected time window will contribute to the Realized P&L, Win Rate, and Profit Factor metrics.
+3.  **Filtering Unrealized P&L**: The system filters the current *open position lots* based on the selected date range. Only position lots that were *opened* within the selected time window will be included in the Unrealized P&L calculation. This means evaluating "YTD" Unrealized P&L will show you the paper profit/loss strictly for positions initiated this calendar year, ignoring underlying stock you bought three years ago.
+4.  **Market Data**: Unrealized P&L is calculated instantly utilizing cached market prices from the most recent portfolio snapshot (`ibkr_holdings`), drastically improving load times over real-time external API calls.
 
 ## Complex Scenarios
 
