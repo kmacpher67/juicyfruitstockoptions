@@ -237,11 +237,9 @@ const TradeHistory = () => {
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
                                 <div>All T:{metrics.total_trades} O:{metrics.open_trades} C:{metrics.closed_trades}</div>
-                                <div>
-                                    {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats], index) => (
-                                        <span key={acc}>{index > 0 ? ', ' : ''}{acc} T:{stats.total} O:{stats.open} C:{stats.closed}</span>
-                                    ))}
-                                </div>
+                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                    <div key={acc}>{acc} T:{stats.total} O:{stats.open} C:{stats.closed}</div>
+                                ))}
                             </div>
                         }
                         icon={TrendingDown}
