@@ -158,9 +158,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Portfolio 
 - [x] **Portfolio View**: Remove all the opportunities from the portfolio view (the entire grid)
-- [ ] **Portfolio View**: Add a new filter system portfolio list that allows filtering by STK/OPT groups that are not fully covered. 
-    - [ ] ** 
-    - [ ] **Options Due in X Days**: Signal for all options expiring in <7 Days (DTE). *Backend Implemented via `ExpirationScanner`.*
+- [ ] **Portfolio View**: Add a new filter system portfolio list that allows filtering by STK/OPT groups that are not fully covered and other useful items. UI should allow user to focus useful items and take action on them.  view=PORTFOLIO page.
+    - [ ] **Options Due in X Days**: Signal for all options expiring in <#N (default 6) Days (DTE). Verify and update the scanner to ensure it is working as expected and passes tests Update plan if changes are needed. *Backend Implemented via `ExpirationScanner`.* 
+    - [ ] **OTM filter**: ITM In The Money & OTM Out of the Money filter for portfolio options including the underlying_symbol STK, given % of strike price and show all contracts that "near" the money to focused on. 
+    - [ ] **Last Price**: Sort and filter by last price. 
+    - [ ] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
 
 
 ### Analysis & Signals

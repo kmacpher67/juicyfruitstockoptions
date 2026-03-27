@@ -5,6 +5,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
+    const [focus, setFocus] = useState('all'); // 'all', 'uncovered', 'expiring', 'near-money'
+
     const colDefs = useMemo(() => [
         {
             field: "account_id",
@@ -18,7 +20,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             headerName: "Ticker",
             sortable: true,
             filter: true,
-            width: 200,
+            width: 180,
             pinned: 'left',
             sort: 'asc',
             sortIndex: 1,
@@ -45,6 +47,38 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                 );
             }
         },
+        {
+            field: "coverage_status",
+            headerName: "Coverage",
+            width: 100,
+            sortable: true,
+            cellClass: params => {
+                if (params.value === 'Uncovered' || params.value === 'Naked') return 'text-red-400 font-bold';
+                if (params.value === 'Partial') return 'text-yellow-400 font-bold';
+                if (params.value === 'Covered') return 'text-green-400 font-bold';
+                return '';
+            }
+        },
+        {
+            field: "dte",
+            headerName: "DTE",
+            width: 70,
+            sortable: true,
+            type: 'numericColumn',
+            cellClass: params => (params.data.is_expiring_soon) ? 'bg-red-900/30 text-red-400 font-bold' : '',
+            valueFormatter: p => p.value !== undefined ? p.value : '-'
+        },
+        {
+            field: "dist_to_strike_pct",
+            headerName: "OTM %",
+            width: 80,
+            sortable: true,
+            valueFormatter: p => p.value !== undefined ? `${(p.value * 100).toFixed(1)}%` : '-',
+            cellClass: params => {
+                if (params.value !== undefined && params.value < 0.05) return 'text-orange-400 font-bold';
+                return '';
+            }
+        },
         { field: "quantity", headerName: "Qty", sortable: true, width: 70, type: 'numericColumn' },
         { field: "market_price", headerName: "Price", sortable: true, width: 90, valueFormatter: p => `$${p.value?.toFixed(2)}` },
         { field: "market_value", headerName: "Value", sortable: true, width: 100, valueFormatter: p => `$${p.value?.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
@@ -61,7 +95,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             field: "divs_earned",
             headerName: "Divs",
             sortable: true,
-            width: 90,
+            width: 80,
             cellClass: params => params.value > 0 ? 'text-green-400 font-bold' : '',
             valueFormatter: p => p.value ? `$${p.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'
         },
@@ -69,7 +103,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             field: "total_return",
             headerName: "Total Return",
             sortable: true,
-            width: 120,
+            width: 110,
             cellClass: params => params.value >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold',
             valueFormatter: p => `$${(p.value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         },
@@ -77,7 +111,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             field: "true_yield",
             headerName: "True Yield",
             sortable: true,
-            width: 100,
+            width: 90,
             cellClass: params => params.value > 0 ? 'text-green-400 font-bold' : '',
             valueFormatter: p => p.value ? `${(p.value * 100).toFixed(2)}%` : '-'
         },
@@ -158,8 +192,20 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             });
         }
 
+        if (focus === 'uncovered') {
+            processed = processed.filter(r => 
+                r.coverage_status === 'Uncovered' || 
+                r.coverage_status === 'Partial' || 
+                r.coverage_status === 'Naked'
+            );
+        } else if (focus === 'expiring') {
+            processed = processed.filter(r => r.is_expiring_soon);
+        } else if (focus === 'near-money') {
+            processed = processed.filter(r => r.dist_to_strike_pct !== undefined && r.dist_to_strike_pct < 0.05);
+        }
+
         return processed;
-    }, [data, filterTicker]);
+    }, [data, filterTicker, focus]);
 
     const defaultColDef = {
         // flex: 1, // Removed flex: 1 to respect manual widths and prevent squishing
@@ -167,15 +213,37 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         resizable: true,
     };
 
+    const Button = ({ label, value, current }) => (
+        <button
+            onClick={() => setFocus(value)}
+            className={`px-3 py-1 text-xs font-bold rounded transiton-colors ${
+                current === value 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+        >
+            {label}
+        </button>
+    );
+
     return (
-        <div className="ag-theme-alpine-dark h-full w-full">
-            <AgGridReact
-                rowData={rowData}
-                columnDefs={colDefs}
-                defaultColDef={defaultColDef}
-                animateRows={true}
-                context={{ onTickerClick }}
-            />
+        <div className="flex flex-col h-full w-full gap-2">
+            <div className="flex items-center gap-2 pl-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Focus:</span>
+                <Button label="All" value="all" current={focus} />
+                <Button label="Uncovered" value="uncovered" current={focus} />
+                <Button label="Expiring (<6D)" value="expiring" current={focus} />
+                <Button label="Near Money (<5%)" value="near-money" current={focus} />
+            </div>
+            <div className="ag-theme-alpine-dark flex-grow w-full">
+                <AgGridReact
+                    rowData={rowData}
+                    columnDefs={colDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows={true}
+                    context={{ onTickerClick }}
+                />
+            </div>
         </div>
     );
 };

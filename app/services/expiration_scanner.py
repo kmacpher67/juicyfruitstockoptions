@@ -11,7 +11,7 @@ class ExpirationScanner:
     def __init__(self):
         self.opp_service = OpportunityService()
 
-    def scan_portfolio_expirations(self, days_threshold: int = 7):
+    def scan_portfolio_expirations(self, days_threshold: int = 6):
         """
         Scan portfolio for short options expiring within threshold days.
         """

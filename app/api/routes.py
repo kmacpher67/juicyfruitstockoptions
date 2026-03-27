@@ -572,7 +572,68 @@ def get_portfolio_holdings(
                 row["true_yield"] = divs / cb
             else:
                 row["true_yield"] = 0.0
+
+    # 3. Enhanced Metrics (Coverage, DTE, ITM/OTM)
+    from app.services.options_analysis import OptionsAnalyzer
+    analyzer = OptionsAnalyzer(data)
+    grouped = analyzer.grouped
+    now = datetime.now()
+
+    for row in data:
+        # A. Coverage Status
+        und = row.get("underlying_symbol") or row.get("underlying") or row.get("symbol")
+        stats = grouped.get(und)
+        if stats:
+            shares = stats["shares"]
+            covered = stats["short_calls"]
+            if shares > 0:
+                if covered >= shares:
+                    row["coverage_status"] = "Covered"
+                elif covered > 0:
+                    row["coverage_status"] = "Partial"
+                else:
+                    row["coverage_status"] = "Uncovered"
+            elif covered > 0:
+                row["coverage_status"] = "Naked"
+            else:
+                row["coverage_status"] = "N/A"
+
+        # B. Option Metrics
+        sec_type = row.get("asset_class") or row.get("secType")
+        if sec_type in ["OPT", "FOP"]:
+            # Parse Expiry & DTE
+            exp_str = row.get("expiry")
+            if exp_str:
+                try:
+                    if len(exp_str) == 8 and "-" not in exp_str:
+                         exp_dt = datetime.strptime(exp_str, "%Y%m%d")
+                    else:
+                         exp_dt = datetime.strptime(exp_str, "%Y-%m-%d")
+                    
+                    dte = (exp_dt.date() - now.date()).days
+                    row["dte"] = dte
+                    row["is_expiring_soon"] = dte <= 6
+                except:
+                    pass
+            
+            # Strike Distance & ITM
+            strike = float(row.get("strike", 0))
+            price = float(row.get("market_price", 0) or row.get("mark_price", 0) or 0)
+            if strike > 0 and price > 0:
+                row["dist_to_strike_pct"] = abs(price - strike) / strike
                 
+                # ITM Check using OSI symbol (AAPL  250117C00150000)
+                # re is already imported in routes.py (line 34 in options_analysis, but I need it here)
+                # But I can just check for 'C' or 'P' after the date.
+                sym = row.get("symbol", "")
+                import re
+                if re.search(r'\d{6}C\d+', sym):
+                    row["is_itm"] = price >= strike
+                elif re.search(r'\d{6}P\d+', sym):
+                    row["is_itm"] = price <= strike
+                else:
+                    row["is_itm"] = False
+
     return data
 
 @router.get("/portfolio/alerts")
