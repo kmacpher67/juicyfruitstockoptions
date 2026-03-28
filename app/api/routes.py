@@ -1,4 +1,6 @@
+from collections import defaultdict
 from datetime import timedelta, datetime
+import re
 from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -578,25 +580,61 @@ async def get_portfolio_holdings(
     analyzer = OptionsAnalyzer(data)
     grouped = analyzer.grouped
     now = datetime.now()
+    coverage_by_account = defaultdict(lambda: {"shares": 0.0, "short_calls": 0.0})
+
+    for row in data:
+        account_id = row.get("account_id") or "UNKNOWN"
+        und = row.get("underlying_symbol") or row.get("underlying") or row.get("symbol")
+        if not und:
+            continue
+
+        sec_type = row.get("asset_class") or row.get("secType") or row.get("sec_type")
+        qty = float(row.get("quantity", 0) or 0)
+        key = (account_id, und)
+
+        if sec_type == "STK":
+            coverage_by_account[key]["shares"] += qty
+        elif sec_type in ["OPT", "FOP"] and qty < 0:
+            sym = row.get("symbol", "")
+            if re.search(r"\d{6}C\d+", sym):
+                multiplier = float(row.get("multiplier", 100) or 100)
+                coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
+
+    def resolve_coverage_status(shares, short_calls):
+        """Return coverage status and mismatch flag as defined in requirements.
+
+        - Covered: shares == abs(short_calls)
+        - Uncovered: shares > abs(short_calls)
+        - Naked: shares < abs(short_calls)
+        """
+        shares = float(shares or 0)
+        short_calls = float(short_calls or 0)
+        covered_calls = abs(short_calls)
+
+        if shares == covered_calls:
+            return "Covered", False
+        if shares > covered_calls:
+            return "Uncovered", True
+        if shares < covered_calls:
+            return "Naked", True
+        return "", False
 
     for row in data:
         # A. Coverage Status
         und = row.get("underlying_symbol") or row.get("underlying") or row.get("symbol")
+        account_id = row.get("account_id") or "UNKNOWN"
+        account_stats = coverage_by_account.get((account_id, und), {"shares": 0.0, "short_calls": 0.0})
+        # Keep the old grouped-based special case (not related to account-specific row rows)
         stats = grouped.get(und)
-        if stats:
-            shares = stats["shares"]
-            covered = stats["short_calls"]
-            if shares > 0:
-                if covered >= shares:
-                    row["coverage_status"] = "Covered"
-                elif covered > 0:
-                    row["coverage_status"] = "Partial"
-                else:
-                    row["coverage_status"] = "Uncovered"
-            elif covered > 0:
-                row["coverage_status"] = "Naked"
-            else:
-                row["coverage_status"] = "N/A"
+        if stats or und:
+            shares = account_stats["shares"]
+            covered = account_stats["short_calls"]
+            row["coverage_group_key"] = f"{account_id}:{und}"
+            row["covered_shares"] = covered
+            row["share_quantity_total"] = shares
+            status, mismatch = resolve_coverage_status(shares, covered)
+            row["coverage_status"] = status
+            row["coverage_mismatch"] = mismatch
 
         # B. Option Metrics
         sec_type = row.get("asset_class") or row.get("secType")
@@ -626,7 +664,6 @@ async def get_portfolio_holdings(
                 # re is already imported in routes.py (line 34 in options_analysis, but I need it here)
                 # But I can just check for 'C' or 'P' after the date.
                 sym = row.get("symbol", "")
-                import re
                 if re.search(r'\d{6}C\d+', sym):
                     row["is_itm"] = price >= strike
                 elif re.search(r'\d{6}P\d+', sym):

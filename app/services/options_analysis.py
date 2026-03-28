@@ -16,7 +16,7 @@ class OptionsAnalyzer:
         for h in self.holdings:
             # Fallback for underlying if not present
             und = h.get("underlying_symbol") or h.get("underlying") or h.get("symbol")
-            sec_type = h.get("asset_class") or h.get("sec_type")
+            sec_type = h.get("asset_class") or h.get("secType") or h.get("sec_type")
             qty = float(h.get("quantity", 0))
             
             # Aggregate Shares

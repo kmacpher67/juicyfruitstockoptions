@@ -163,8 +163,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **OTM filter**: ITM In The Money & OTM Out of the Money filter for portfolio options including the underlying_symbol STK, given % of strike price and show all contracts that "near" the money to focused on. 
     - [ ] **Last Price**: Sort and filter by last price. 
     - [ ] **Account Filter**: Portfolio list Sort and filter by account #. 
-    - [ ] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). 
-    - [ ] **Options Due in X Days**: Add user changeable control/field for specifying the days to expiration. Expiring <##
+    - [ ] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). the link to "Uncovered filter" (existing) doesn't work. It should ONLY filter STKs that accountID.STK(qty)==accountID.OPT(qty)*100 by  NOTE:  
+            Covered     : account.STK == abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
+            Uncovered   : account.STK > abs(account.OPT_SHORT*100) only absolute value of qty of shorts
+            Naked       : account.STK < abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
+    - [ ]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
+    - [ ] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [ ] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
 
 

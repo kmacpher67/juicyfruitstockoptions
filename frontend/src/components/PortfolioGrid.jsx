@@ -6,6 +6,8 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
     const [focus, setFocus] = useState('all'); // 'all', 'uncovered', 'expiring', 'near-money'
+    const [accountFilter, setAccountFilter] = useState('all');
+    const [dteLimit, setDteLimit] = useState(6);
 
     const colDefs = useMemo(() => [
         {
@@ -54,7 +56,6 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             sortable: true,
             cellClass: params => {
                 if (params.value === 'Uncovered' || params.value === 'Naked') return 'text-red-400 font-bold';
-                if (params.value === 'Partial') return 'text-yellow-400 font-bold';
                 if (params.value === 'Covered') return 'text-green-400 font-bold';
                 return '';
             }
@@ -174,6 +175,15 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         }
     ], []);
 
+    // Unique account list for dropdown
+    const accountList = useMemo(() => {
+        const set = new Set();
+        data.forEach(r => {
+            if (r.account_id) set.add(r.account_id);
+        });
+        return Array.from(set);
+    }, [data]);
+
     // Filter Logic
     const rowData = useMemo(() => {
         let processed = [...data];
@@ -183,29 +193,30 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
             processed = processed.filter(row => {
                 const sym = (row.symbol || "").toUpperCase();
                 const und = (row.underlying_symbol || "").toUpperCase();
-                // IBKR Options with spaces: "AAPL  250117C..."
-                // Split by double space or just startswith
                 const matchesSym = sym.includes(f);
                 const matchesUnd = und === f;
-
                 return matchesSym || matchesUnd;
             });
         }
 
+        if (accountFilter !== 'all') {
+            processed = processed.filter(r => r.account_id === accountFilter);
+        }
+
         if (focus === 'uncovered') {
-            processed = processed.filter(r => 
-                r.coverage_status === 'Uncovered' || 
-                r.coverage_status === 'Partial' || 
-                r.coverage_status === 'Naked'
-            );
+            processed = processed.filter(r => r.coverage_status === 'Uncovered');
+        } else if (focus === 'naked') {
+            processed = processed.filter(r => r.coverage_status === 'Naked');
+        } else if (focus === 'covered') {
+            processed = processed.filter(r => r.coverage_status === 'Covered');
         } else if (focus === 'expiring') {
-            processed = processed.filter(r => r.is_expiring_soon);
+            processed = processed.filter(r => r.dte !== undefined && r.dte <= dteLimit);
         } else if (focus === 'near-money') {
             processed = processed.filter(r => r.dist_to_strike_pct !== undefined && r.dist_to_strike_pct < 0.05);
         }
 
         return processed;
-    }, [data, filterTicker, focus]);
+    }, [data, filterTicker, focus, accountFilter, dteLimit]);
 
     const defaultColDef = {
         // flex: 1, // Removed flex: 1 to respect manual widths and prevent squishing
@@ -226,14 +237,69 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         </button>
     );
 
+    // CSV Export for current view
+    const handleExportCSV = () => {
+        const headers = colDefs.map(c => c.headerName);
+        const fields = colDefs.map(c => c.field);
+        const rows = rowData.map(row => fields.map(f => row[f]));
+        let csv = headers.join(',') + '\n';
+        rows.forEach(r => {
+            csv += r.map(x => (x !== undefined ? `"${String(x).replace(/"/g, '""')}"` : '')).join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'portfolio_filtered.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="flex flex-col h-full w-full gap-2">
-            <div className="flex items-center gap-2 pl-2">
+            <div className="flex flex-wrap items-center gap-4 pl-2 pb-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Focus:</span>
                 <Button label="All" value="all" current={focus} />
                 <Button label="Uncovered" value="uncovered" current={focus} />
-                <Button label="Expiring (<6D)" value="expiring" current={focus} />
+                <Button label="Naked" value="naked" current={focus} />
+                <Button label="Covered" value="covered" current={focus} />
+                <Button label={`Expiring (<${dteLimit}D)`} value="expiring" current={focus} />
                 <Button label="Near Money (<5%)" value="near-money" current={focus} />
+
+                <span className="ml-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Account:</span>
+                <select
+                    className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
+                    value={accountFilter}
+                    onChange={e => setAccountFilter(e.target.value)}
+                >
+                    <option value="all">All</option>
+                    {accountList.map(acc => (
+                        <option key={acc} value={acc}>{acc}</option>
+                    ))}
+                </select>
+
+                {focus === 'expiring' && (
+                    <span className="flex items-center gap-1 ml-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">DTE:</span>
+                        <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={dteLimit}
+                            onChange={e => setDteLimit(Number(e.target.value))}
+                            className="w-12 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
+                        />
+                    </span>
+                )}
+
+                <button
+                    onClick={handleExportCSV}
+                    className="ml-4 px-3 py-1 text-xs font-bold rounded bg-green-700 hover:bg-green-600 text-white shadow"
+                >
+                    Export CSV
+                </button>
             </div>
             <div className="ag-theme-alpine-dark flex-grow w-full">
                 <AgGridReact
