@@ -30,7 +30,7 @@ def client_with_auth():
     app.dependency_overrides[get_current_active_user] = lambda: User(username="testuser", role="admin")
     client = TestClient(app)
     yield client
-    app.dependency_overrides = {}
+    app.dependency_overrides.clear()
 
 def test_get_tracked_defaults_migration(client_with_auth, mock_mongo, monkeypatch):
     """

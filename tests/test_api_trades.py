@@ -8,15 +8,22 @@ patch("app.scheduler.jobs.stop_scheduler").start()
 from app.main import app
 from app.api import trades
 
-client = TestClient(app)
+import pytest
+from app.models import User
 
-# Mock Auth Dependency to bypass login
-async def mock_get_current_active_user():
-    return {"username": "testuser", "role": "admin"}
+@pytest.fixture
+def client():
+    """Fixture to provide a TestClient with dependency overrides."""
+    async def mock_get_current_active_user():
+        return User(username="testuser", role="admin", disabled=False)
+    
+    app.dependency_overrides[trades.get_current_active_user] = mock_get_current_active_user
+    
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
 
-app.dependency_overrides[trades.get_current_active_user] = mock_get_current_active_user
-
-def test_get_trades_endpoint():
+def test_get_trades_endpoint(client):
     # Mock DB response
     mock_cursor = [
         {"TradeID": "1", "Symbol": "AAPL", "Quantity": 10, "TradePrice": 150.0, "DateTime": "20240101"},
@@ -39,13 +46,13 @@ def test_get_trades_endpoint():
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
-        print(f"DEBUG RESPONSE KEYS: {data[0].keys()}")
+        
         # Check for either symbol or Symbol depending on serialization model
         symbol = data[0].get("symbol") or data[0].get("Symbol")
         # Assert GOOG because 20240102 > 20240101 and the API now sorts descending by date_time
         assert symbol == "GOOG"
 
-def test_get_analysis_endpoint():
+def test_get_analysis_endpoint(client):
     mock_cursor = [
         {"TradeID": "1", "Symbol": "AAPL", "Quantity": 10, "TradePrice": 100.0, "DateTime": "20240101"},
         {"TradeID": "2", "Symbol": "AAPL", "Quantity": -10, "TradePrice": 110.0, "DateTime": "20240102"} 

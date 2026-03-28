@@ -18,18 +18,37 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def mock_mongo_client(monkeypatch):
-    """Prevent real MongoDB connections in all unit tests.
+def cleanup_dependency_overrides():
+    """Ensure FastAPI dependency overrides are cleared after each test."""
+    from app.main import app
+    yield
+    app.dependency_overrides.clear()
 
-    Patches MongoClient at every module that imports it, so service
-    constructors (OpportunityService, SignalService, RollService,
-    DividendScanner) never attempt a real connection to mongo:27017.
-    Individual tests can layer their own patches on top if they need
-    to assert on specific MongoClient behaviour.
-    """
+@pytest.fixture(autouse=True)
+def mock_mongo_client(monkeypatch):
+    """Prevent real MongoDB connections in all unit tests."""
     mock = MagicMock()
-    monkeypatch.setattr(
-        "app.services.opportunity_service.MongoClient", mock
-    )
+    # Patch across major service modules
+    modules = [
+        "app.services.opportunity_service.MongoClient",
+        "app.services.signal_service.MongoClient",
+        "app.services.roll_service.MongoClient",
+        "app.services.ibkr_service.MongoClient",
+        "app.api.routes.MongoClient",
+        "app.api.trades.MongoClient",
+        "app.database.MongoClient",
+        "app.scheduler.jobs.MongoClient"
+    ]
+    for mod in modules:
+        try:
+            monkeypatch.setattr(mod, mock)
+        except (ImportError, AttributeError):
+            pass
     return mock
+
+@pytest.fixture(autouse=True)
+def disable_scheduler(monkeypatch):
+    """Disable the background scheduler during tests."""
+    monkeypatch.setattr("app.main.start_scheduler", lambda: None)
+    monkeypatch.setattr("app.main.stop_scheduler", lambda: None)
 

@@ -3,15 +3,22 @@ from app.main import app
 from app.api import routes
 from unittest.mock import MagicMock, patch
 
-client = TestClient(app)
+import pytest
+from app.models import User
 
-# Mock Auth Dependency
-async def mock_get_current_active_user():
-    return {"username": "testuser", "role": "admin"}
+@pytest.fixture
+def client():
+    """Fixture to provide a TestClient with dependency overrides."""
+    async def mock_get_current_active_user():
+        return User(username="testuser", role="admin", disabled=False)
+    
+    app.dependency_overrides[routes.get_current_active_user] = mock_get_current_active_user
+    
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
 
-app.dependency_overrides[routes.get_current_active_user] = mock_get_current_active_user
-
-def test_analyze_rolls_endpoint():
+def test_analyze_rolls_endpoint(client):
     # Payload
     payload = {
         "symbol": "AAPL",

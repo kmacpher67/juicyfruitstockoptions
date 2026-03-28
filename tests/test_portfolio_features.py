@@ -4,16 +4,22 @@ from app.api import routes, trades
 from unittest.mock import MagicMock, patch
 import pytest
 
-client = TestClient(app)
+from app.models import User
 
-# Mock Auth
-async def mock_get_current_active_user():
-    return {"username": "testuser", "role": "admin"}
+@pytest.fixture
+def client():
+    """Fixture to provide a TestClient with dependency overrides."""
+    async def mock_get_current_active_user():
+        return User(username="testuser", role="admin", disabled=False)
+    
+    app.dependency_overrides[routes.get_current_active_user] = mock_get_current_active_user
+    app.dependency_overrides[trades.get_current_active_user] = mock_get_current_active_user
+    
+    with TestClient(app) as c:
+        yield c
+    # app.dependency_overrides.clear() is handled by conftest.py autouse fixture
 
-app.dependency_overrides[routes.get_current_active_user] = mock_get_current_active_user
-app.dependency_overrides[trades.get_current_active_user] = mock_get_current_active_user
-
-def test_get_ticker_analysis_found():
+def test_get_ticker_analysis_found(client):
     with patch("app.api.routes.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.stock_data.find_one.return_value = {
@@ -29,7 +35,7 @@ def test_get_ticker_analysis_found():
         assert data["found"] == True
         assert data["data"]["Current Price"] == 150.0
 
-def test_get_ticker_analysis_not_found():
+def test_get_ticker_analysis_not_found(client):
     with patch("app.api.routes.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.stock_data.find_one.return_value = None
@@ -40,7 +46,7 @@ def test_get_ticker_analysis_not_found():
         assert data["found"] == False
         assert data["price"] == 0.0
 
-def test_get_opportunity_analysis():
+def test_get_opportunity_analysis(client):
     with patch("app.api.routes.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.stock_data.find_one.return_value = {
@@ -56,7 +62,7 @@ def test_get_opportunity_analysis():
         assert "High IV Rank" in data["reasons"]
         assert "High Liquidity" in data["reasons"]
 
-def test_get_portfolio_optimizer():
+def test_get_portfolio_optimizer(client):
     with patch("app.api.routes.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.stock_data.find_one.return_value = {
@@ -72,7 +78,7 @@ def test_get_portfolio_optimizer():
         # 100 * 1.05 = 105
         assert data[0]["strike_target"] == 105.0
 
-def test_trade_analysis_date_filter():
+def test_trade_analysis_date_filter(client):
     mock_cursor = [
         {"TradeID": "1", "Symbol": "AAPL", "Quantity": 10, "TradePrice": 100.0, "code_date": "20240115", "DateTime": "20240115"},
     ]

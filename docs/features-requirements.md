@@ -162,6 +162,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Options Due in X Days**: Signal for all options expiring in <#N (default 6) Days (DTE). Verify and update the scanner to ensure it is working as expected and passes tests Update plan if changes are needed. *Backend Implemented via `ExpirationScanner`.* 
     - [ ] **OTM filter**: ITM In The Money & OTM Out of the Money filter for portfolio options including the underlying_symbol STK, given % of strike price and show all contracts that "near" the money to focused on. 
     - [ ] **Last Price**: Sort and filter by last price. 
+    - [ ] **Account Filter**: Portfolio list Sort and filter by account #. 
+    - [ ] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). 
+    - [ ] **Options Due in X Days**: Add user changeable control/field for specifying the days to expiration. Expiring <##
     - [ ] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
 
 

@@ -465,7 +465,7 @@ async def sync_all_nav_reports(
 
 @router.get("/portfolio/stats")
 @log_endpoint
-def get_portfolio_stats(
+async def get_portfolio_stats(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """Get calculated NAV stats (Current, 30d, YTD, etc)."""
@@ -522,7 +522,7 @@ def get_nav_report_endpoint(
 
 @router.get("/portfolio/holdings")
 @log_endpoint
-def get_portfolio_holdings(
+async def get_portfolio_holdings(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """Get latest snapshot of holdings."""
@@ -638,7 +638,7 @@ def get_portfolio_holdings(
 
 @router.get("/portfolio/alerts")
 @log_endpoint
-def get_portfolio_alerts(
+async def get_portfolio_alerts(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
