@@ -111,7 +111,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Stock Analysis**: Bug fix the entire feature quit working after AI_Stock_Live_Comparison_20260327_203220.xlsx  and AI_Stock_Live_Comparison_20260327_165708.xlsx basically yesterday's changees broke this feature as it was previously working. 
     - [ ] **Stock Analysis**: columns Ticker	Current Price	1D % Change	Market Cap (T$)	P/E	YoY Price %	EMA_20	HMA_20	TSMOM_60	RSI_14	ATR_14	MA_30	MA_60	MA_120	MA_200	EMA_20_highlight	HMA_20_highlight	TSMOM_60_highlight	Ex-Div Date	Div Yield	Analyst 1-yr Target	1-yr 6% OTM PUT Price	Annual Yield Put Prem	3-mo Call Yield	6-mo Call Yield	1-yr Call Yield	Annual Yield Call Prem	Call/Put Skew	6-mo Call Strike	Error	Last Update	_PutExpDate_365	_CallExpDate_365	_CallExpDate_90	_CallExpDate_180	MA_30_highlight	MA_60_highlight	MA_120_highlight	MA_200_highlight
     - [ ] **Stock Analysis**: Create a spreadsheet for downloading AI_Stock_Live_Comparison_YYYYMMDD_HHMMSS.xlsx with all the columns store a copy in the local file system. 
-    - [ ] **Stock Analysis**: 
+    - [ ] **Stock Analysis**: Put most of the columns in the spreadsheet into a onscreen table for interactive viewing, sorting, and filtering. Ticker, Last/Current Price, Call/Put Skew (6% OTM 1 YR Options), YoY % (Year over Year percentage), TSMOM 60 (Time Series Momentum - 60 day), 200 MA (200-day Moving Average), EMA 20 (20-day Exponential Moving Average), HMA 20 (20-day Hull Moving Average), Div Yield 
+    - [ ] **Stock Analysis**: Default sort is by Call/Put Skew (6% OTM 1 YR Options) from highest to lowest.
+    - [ ] **Stock Analysis**: Link ticker's Call/Put Skew opens tab to Yahoo Options Chain for that STK. 
     - [x] **Run Live Analysis**: Disables button while analysis is running. Changes to "running" until ready again, reloads the grid.
     - [ ] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
     - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
