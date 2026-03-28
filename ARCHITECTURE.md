@@ -57,3 +57,190 @@ The newly added **`corporate_events`** collection interacts as follows:
 *   **Writer**: `DividendScanner.generate_corporate_events_calendar()` fetches data and upserts documents into `corporate_events`.
 *   **Reader**: The same method reads from `corporate_events` to generate the `.ics` file.
 *   **Context**: It uses `ibkr_holdings` to determine which tickers to track.
+
+---
+
+## File System Tree
+_Last reviewed: 2026-03-28_
+
+```
+juicyfruitstockoptions/
+├── CLAUDE.md                         # Claude Code workspace config + conventions
+├── ARCHITECTURE.md                   # This file — architecture + file tree
+├── DEPENDENCY_GRAPH.md
+├── README.md
+├── requirements.txt                  # Python dependencies
+├── docker-compose.yml
+├── Dockerfile
+├── .dockerignore
+├── docker-run-stock-app.sh
+│
+├── app/                              # Python FastAPI backend
+│   ├── main.py                       # App entry point, FastAPI init
+│   ├── config.py                     # Pydantic settings (env vars)
+│   ├── database.py                   # MongoDB connection + helpers
+│   ├── jobs.py                       # Top-level job orchestration
+│   ├── models_news.py                # News-related Pydantic models
+│   ├── zen_garden.py                 # Utility / misc helpers
+│   ├── api/
+│   │   ├── routes.py                 # All REST endpoints
+│   │   └── trades.py                 # Trade history endpoints
+│   ├── auth/
+│   │   ├── dependencies.py           # FastAPI auth dependency injection
+│   │   ├── users.py                  # User CRUD
+│   │   └── utils.py                  # JWT / password helpers
+│   ├── models/
+│   │   └── opportunity.py            # JuicyOpportunity Pydantic model
+│   ├── scheduler/
+│   │   └── jobs.py                   # APScheduler job definitions
+│   ├── scripts/                      # One-off admin / migration scripts
+│   │   ├── fix_data.py
+│   │   ├── import_manual_csv.py
+│   │   ├── import_manual_nav.py
+│   │   ├── import_nav_csv.py
+│   │   ├── reprocess_legacy_trades.py
+│   │   ├── reset_admin_password.py
+│   │   ├── seed_config.py
+│   │   └── seed_users.py
+│   ├── services/                     # Business logic layer (one responsibility per file)
+│   │   ├── dividend_scanner.py       # Dividend capture opportunities + ICS calendar
+│   │   ├── expiration_scanner.py     # Options expiring within N days
+│   │   ├── export_service.py         # CSV / XLSX data export
+│   │   ├── ibkr_service.py           # IBKR Flex Report parsing + sync
+│   │   ├── llm_service.py            # Gemini / LLM integration (GeminiService)
+│   │   ├── macro_service.py          # FRED macro economic indicators
+│   │   ├── mappers.py                # Data mapping utilities
+│   │   ├── news_service.py           # NewsAPI aggregation + storage
+│   │   ├── opportunity_service.py    # Opportunity persistence + grading
+│   │   ├── options_analysis.py       # Core options analysis (OptionsAnalyzer)
+│   │   ├── pnl_calculator.py         # P&L + cost basis (FIFO, account-aware)
+│   │   ├── portfolio_analysis.py     # Portfolio enrichment + NAV calculation
+│   │   ├── portfolio_fixer.py        # Data correction helpers
+│   │   ├── price_action_service.py   # ZigZag, BOS, FVG, Order Blocks
+│   │   ├── risk_service.py           # Position size / risk guardrails
+│   │   ├── roll_service.py           # Smart Roll + diagonal strategy scoring
+│   │   ├── scanner_service.py        # Master scanner orchestration
+│   │   ├── sentiment_service.py      # NLP sentiment analysis
+│   │   ├── signal_service.py         # Kalman filter + Markov chain signals
+│   │   ├── stock_live_comparison.py  # Live ticker analysis engine
+│   │   ├── ticker_discovery.py       # New ticker candidate discovery
+│   │   └── trade_analysis.py         # Trade history analytics
+│   └── utils/
+│       ├── excel_exporter.py         # XLSX report builder (openpyxl)
+│       ├── greeks_calculator.py      # Black-Scholes Greeks (py_vollib_vectorized)
+│       ├── logging_config.py         # Centralized logging setup
+│       └── mongo_client.py           # MongoDB client helpers
+│
+├── frontend/                         # React (Vite) frontend
+│   └── src/
+│       ├── App.jsx
+│       ├── App.css
+│       ├── main.jsx
+│       ├── index.css
+│       ├── context/
+│       │   └── AuthContext.jsx       # Auth state + token management
+│       ├── components/
+│       │   ├── AlertsDashboard.jsx   # Opportunity alert widgets
+│       │   ├── Dashboard.jsx         # Main layout + navigation + state routing
+│       │   ├── DividendAnalysisModal.jsx  # Dividend capture analysis view
+│       │   ├── DividendListModal.jsx  # Dividend opportunity list
+│       │   ├── DividendScanner.jsx   # Dividend scanner UI
+│       │   ├── Login.jsx
+│       │   ├── NAVStats.jsx          # Portfolio KPI widgets (NAV, d/w/m/y)
+│       │   ├── PortfolioGrid.jsx     # Portfolio positions data table
+│       │   ├── RollAnalysisModal.jsx # Smart Roll strategy analysis
+│       │   ├── SettingsModal.jsx     # App settings UI
+│       │   ├── StockGrid.jsx         # Stock analysis table (sortable/filterable)
+│       │   ├── TickerModal.jsx       # 6-tab ticker detail modal
+│       │   └── TradeHistory.jsx      # Trade history + metrics dashboard
+│       └── utils/
+│           └── downloadHelper.js
+│
+├── tests/                            # pytest test suite
+│   ├── conftest.py                   # Fixtures + MongoDB mock setup
+│   └── test_*.py                     # ~60+ test files, one per service/feature
+│
+├── docs/
+│   ├── features-requirements.md      # Master PRD / Kanban — source of truth
+│   ├── features/                     # Feature detail docs (one per feature)
+│   │   ├── stock_analysis_ticker_click.md
+│   │   ├── stock_analysis_feature_recap.md
+│   │   ├── SMA-EMA-HMA-TSMON.md
+│   │   ├── legacy_trade_ingestion.md
+│   │   ├── trade_history_analysis.md
+│   │   ├── Ticker_Protection_and_Discovery.md
+│   │   ├── automated_mongo_backup.md
+│   │   └── UI-UX Overhaul/
+│   ├── learning/                     # Domain knowledge / research docs
+│   │   ├── agent-frameworks.md
+│   │   ├── backtesting-engines.md
+│   │   ├── bad-trade-heuristics.md
+│   │   ├── dte-calculation-standards.md
+│   │   ├── greeks-data-ingestion.md
+│   │   ├── greeks-expiration-filters.md
+│   │   ├── ibkr-flex-report-dividends.md
+│   │   ├── juicy-thresholds.md
+│   │   ├── kalman-filters.md
+│   │   ├── llm-macro-news-targeting.md
+│   │   ├── markov-chains-signals.md
+│   │   ├── Moving_Averages_for_Stock_Value_Analysis.md
+│   │   ├── opportunity-persistence-and-grading.md
+│   │   ├── opportunity-scoring.md
+│   │   ├── price-action-concepts.md
+│   │   ├── reprocess-legacy-trades.md
+│   │   ├── smart-roll-diagonal.md
+│   │   ├── trade-metrics.md
+│   │   └── x-div-rolling.md
+│   └── plans/                        # Implementation plans (YYYYMMDD naming)
+│       └── implementation_plan-YYYYMMDD-short_name.md
+│
+├── .agent/                           # Agent rules + workflows (always-on)
+│   ├── rules/
+│   │   ├── document.md               # Documentation standards
+│   │   └── trader-ken.md             # Trading domain rules
+│   └── workflows/
+│       ├── create-a-plan.md          # Planning checklist (run before any impl)
+│       ├── learing-opportunity.md    # Learning doc workflow
+│       ├── test-coverage.md          # Testing standards
+│       ├── misson.md                 # Project mission
+│       └── agent.md
+│
+├── .github/                          # GitHub Actions / PR templates
+├── .vscode/
+│   ├── launch.json
+│   └── settings.json
+│
+├── report-results/                   # Generated XLSX stock analysis reports
+├── xdivs/                            # Generated ICS corporate event calendars
+├── scripts/                          # Utility shell/python scripts
+│   ├── cleanup_trades.py
+│   └── reprocess_legacy.sh
+│
+├── stock_live_comparison.py          # Standalone stock analysis script
+├── Ai_Stock_Database.py              # Legacy stock DB population script
+└── [debug_*.py / test_*.py]          # Root-level debug/test scripts (legacy)
+```
+
+---
+
+## MongoDB Collections (database: `stock_analysis`)
+
+| Collection | Purpose |
+|---|---|
+| `ibkr_holdings` | Live portfolio positions (synced from IBKR Flex) |
+| `stock_data` | Ticker analysis snapshots (used by TickerModal) |
+| `opportunities` | All detected Juicy trading opportunities |
+| `corporate_events` | Earnings + ex-div events calendar |
+| `system_config` | App settings / admin configuration |
+| `nav_history` | Historical NAV performance data |
+| `trades` | Trade history (ingested from IBKR Flex reports) |
+| `dividends` | Dividend history (in progress — ibkr_service.py) |
+| `news` | News articles + sentiment scores |
+
+---
+
+## Changelog
+
+| Date | Action | Reason |
+|---|---|---|
+| 2026-03-28 | **ADDED** File System Tree + MongoDB Collections table | Claude Code workspace setup; reviewed full project structure |

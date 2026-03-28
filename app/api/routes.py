@@ -1106,8 +1106,24 @@ def get_ticker_analysis(
     if not stock:
         # transform default structure if not found
         return {"symbol": symbol, "found": False, "price": 0.0}
-        
-    return {"symbol": symbol, "found": True, "data": stock}
+
+    # Provide company_name at top level for header convenience
+    company_name = stock.get("Company Name")
+    if not company_name:
+        try:
+            info = yf.Ticker(symbol).info
+            company_name = info.get("longName") or info.get("shortName") or symbol
+            # Backfill to DB for future requests
+            db.stock_data.update_one(
+                {"Ticker": symbol},
+                {"$set": {"Company Name": company_name}}
+            )
+            logging.info(f"routes.get_ticker_analysis - Backfilled Company Name for {symbol}: {company_name}")
+        except Exception as e:
+            logging.warning(f"routes.get_ticker_analysis - Could not fetch company name for {symbol}: {e}")
+            company_name = symbol
+
+    return {"symbol": symbol, "found": True, "data": stock, "company_name": company_name}
 
 @router.get("/opportunity/{symbol}")
 @log_endpoint

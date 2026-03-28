@@ -3,6 +3,9 @@
     - Follow all the rules documented in the workspace rules & workflow .md docs
     - The .gemini global rules rules file should be followed. 
     - When doing work from this document follow the `.agent/workflows/create-a-plan.md` workflow!
+    - Create or update existing feature details in docs/features/{feature_name}.md
+    - Create or update learning and definitions in docs/learning/{definition_name}.md
+
 
 > [!NOTE]
 > This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Todo items (maybe large feature sets with requirements) to guide future development. Items are not in any particular order. This Epic document should be used like Kanban board per Status Legend to mark items. 
@@ -117,16 +120,25 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Run Live Analysis**: Disables button while analysis is running. Changes to "running" until ready again, reloads the grid.
     - [x] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
     - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
-    - [ ] **Tickers**: Based on all the metrics of the ticker, news, momentum, call skew,  
-    - [ ] **Stock Analysis**: Pop up window when click on ticker. Display all the data for the ticker in the pop up window.  Document all the details of the data in the pop up window with addition line items for this feature-requirements.md doc. 
-    - [ ] **Stock Analysis**: Write or update a feature docs for the stock analysis feature. Put the filename link in this line. 
-    - [ ] **Stock Analysis-Analytics**: 
-    - [ ] **Stock Analysis-Signals**: 
-    - [ ] **Stock Analysis-Opportunties**: 
-    - [ ] **Stock Analysis-Optimizer**: 
-    - [ ] **Stock Analysis-Price_Action**: 
- 
-
+    - [ ] **Tickers — Composite Rating**: Aggregate all ticker metrics (momentum TSMOM_60, Call/Put Skew, news sentiment, technicals EMA/HMA/MA, RSI, ATR) into a single "Ticker Health" score column in the StockGrid. Should be color-coded (green/yellow/red) and sortable. Currently no composite score exists in the grid.
+    - [/] **Stock Analysis — Ticker Click Popup**: Pop-up modal (`TickerModal.jsx`) when clicking a ticker in StockGrid or PortfolioGrid. See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md). **Implemented:** 6-tab modal with parallel API fetches. **Source:** `TickerModal.jsx`, `Dashboard.jsx`.
+        - [x] **Backend API — Ticker Data**: `GET /api/ticker/{symbol}` — returns stock data from MongoDB `stock_data` collection (`routes.py` L1090).
+        - [x] **Backend API — Opportunity**: `GET /api/opportunity/{symbol}` — returns Juicy Score, drivers, risks, metrics (`routes.py` L1112).
+        - [x] **Backend API — Optimizer**: `GET /api/portfolio/optimizer/{symbol}` — returns ranked strategy suggestions (`routes.py` L1168).
+        - [x] **Backend API — Smart Rolls**: `GET /api/analysis/rolls/{symbol}` — returns roll suggestions with scoring (`routes.py` L816).
+        - [x] **Backend API — Signals**: `GET /api/analysis/signals/{symbol}` — returns Kalman + Markov analysis (`routes.py` L1038).
+        - [x] **Frontend — TickerModal UI**: 6 tabs (Analytics, Signals, Opportunity, Optimizer, Price Action, Smart Rolls) with loading spinner and dark theme. `TickerModal.jsx`.
+        - [x] **Frontend — StockGrid Integration**: Ticker column click handler passes ticker to Dashboard state → opens modal. `StockGrid.jsx` + `Dashboard.jsx`.
+        - [x] **Frontend — PortfolioGrid Integration**: Ticker click in portfolio view also opens the same TickerModal. `PortfolioGrid.jsx`.
+        - [ ] **All ~40 Columns in Analytics Tab**: The Analytics tab currently shows a subset of data. Expand to surface all ~40 analysis columns from the stock analysis spreadsheet.
+    - [x] **Stock Analysis — Feature Docs**: See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md) and [Stock Analysis Recap](features/stock_analysis_feature_recap.md).
+    - [ ] **Stock Analysis-Analytics**: Deeper technical analysis drill-down in the Analytics tab — IV surface visualization, Greeks heatmap, historical metrics comparison, and all moving average highlight deltas. Related: [SMA/EMA/HMA/TSMOM Guide](features/SMA-EMA-HMA-TSMON.md), [Greeks Data Ingestion](learning/greeks-data-ingestion.md).
+    - [ ] **Stock Analysis-Signals**: Expand Signals tab beyond Kalman/Markov to include news sentiment signals ([LLM Macro Targeting](learning/llm-macro-news-targeting.md)), macro impact scoring, and TSMOM trend alerts. Related: [Kalman Filters](learning/kalman-filters.md), [Markov Chains](learning/markov-chains-signals.md).
+    - [ ] **Stock Analysis-Opportunities**: Surface actionable Buy/Sell recommendations in Opportunity tab — dividend capture candidates, covered call premium opportunities, and gap share alerts. Integrate with `DividendScanner` and `ExpirationScanner`. Related: [Opportunity Scoring](learning/opportunity-scoring.md), [Opportunity Persistence & Grading](learning/opportunity-persistence-and-grading.md).
+    - [ ] **Stock Analysis-Optimizer**: Multi-leg strategy optimizer in Optimizer tab — risk/reward visualization, what-if scenario analysis (price up/down), and yield comparison across strategies. Related: [Smart Roll & Diagonal](learning/smart-roll-diagonal.md).
+    - [ ] **Stock Analysis-Price_Action**: Interactive price action charting in Price Action tab — ZigZag algorithm overlay, supply/demand zone visualization, Break of Structure (BOS) annotations, and Order Block/FVG zones on chart. Related: [Price Action Concepts](learning/price-action-concepts.md), [Price Action Plan](plans/implementation_plan-20260202-price-action.md).
+    - [/] **Stock Analysis-Header**: The existing header on the popup window shows OLN $23.41 -0.93%% (Ticker, Price, % Change) Include full name or description of the ticker.   (Ticker, Description, Price, % Change, Date/Time of last update), Make a link from the TICKER to finance.google.com/quote/{TICKER} and the Description to https://finance.yahoo.com/quote/{TICKER}/ See [Implementation Plan](plans/implementation_plan-20260328-stock_analysis_header.md).
+    - [ ] **Stock Analysis**: Add a new sub-tab for Profile, Include company Description, Sector, Style, Industry, other relevant profile information. Link to https://finance.yahoo.com/quote/{TICKER}/news/ 
 
 ### Portfolio Management UI
 - [/] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
@@ -449,3 +461,5 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-03-21 | **ADDED** | Implemented per-account trade metrics widget in Trade History UI. |
 | 2026-03-21 | **REFACTORED**| Updated P&L logic to support account-aware FIFO matching. |
 | 2026-03-25 | **UPDATED** | Trade History UI: Collapsed Trade Count widget to save vertical space. |
+| 2026-03-28 | **UPDATED** | Memorialized Stock Analysis ticker click popup (L120-L127): elaborated 8 sparse items into 20 detailed sub-items with `[x]` status for existing work. Created `stock_analysis_ticker_click.md` feature overview. |
+| 2026-03-28 | **ADDED** | Created `CLAUDE.md` — Claude Code workspace config with project overview, code standards, UI/UX rules, and full file tree. Updated `ARCHITECTURE.md` with current file system tree and MongoDB collections table. |

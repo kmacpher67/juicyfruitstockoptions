@@ -64,6 +64,8 @@ def test_fetch_ticker_record(monkeypatch):
         "dividendYield": 0.01,
         "targetMeanPrice": 120,
         "exDividendDate": 1710000000,
+        "longName": "Alpha Corp Inc.",
+        "shortName": "Alpha Corp",
     }
     hist = pd.DataFrame({
         "Close": [90, 100],
@@ -75,6 +77,7 @@ def test_fetch_ticker_record(monkeypatch):
     })
     record = comp.fetch_ticker_record("AAA", info, hist, DummyChain())
     assert record["Ticker"] == "AAA"
+    assert record["Company Name"] == "Alpha Corp Inc."
     assert record["1D % Change"] == "11.11%"
     assert record["YoY Price %"] == "11.1%"
     assert record["3-mo Call Yield"] == 1
@@ -84,6 +87,35 @@ def test_fetch_ticker_record(monkeypatch):
     assert record["1-yr 6% OTM PUT Price"] == 5
     assert record["Annual Yield Put Prem"] == 5
     assert record["Annual Yield Call Prem"] == 3
+
+
+def test_fetch_ticker_record_company_name_fallback(monkeypatch):
+    """Verify Company Name fallback: longName → shortName → ticker."""
+    comp = StockLiveComparison(["BBB"])
+
+    def fake_call(chain, price, days, otm_pct=6):
+        return (None, None, None)
+
+    def fake_put(chain, price, days, otm_pct=6):
+        return (None, None)
+
+    comp.get_otm_call_yield = fake_call
+    comp.get_otm_put_price = fake_put
+
+    # Test shortName fallback (no longName)
+    info_short = {"regularMarketPrice": 50, "shortName": "Beta Inc"}
+    hist = pd.DataFrame({
+        "Close": [48, 50], "High": [49, 51], "Low": [47, 49],
+        "Open": [48, 50], "Volume": [500, 500],
+        "Date": pd.date_range("2023-01-01", periods=2)
+    })
+    record = comp.fetch_ticker_record("BBB", info_short, hist, DummyChain())
+    assert record["Company Name"] == "Beta Inc"
+
+    # Test ticker fallback (no longName or shortName)
+    info_none = {"regularMarketPrice": 50}
+    record = comp.fetch_ticker_record("BBB", info_none, hist, DummyChain())
+    assert record["Company Name"] == "BBB"
 
 
 def test_add_ratio_column():

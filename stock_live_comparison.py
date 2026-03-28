@@ -298,6 +298,7 @@ class StockLiveComparison:
 
         record = {
             "Ticker": ticker,
+            "Company Name": info.get("longName") or info.get("shortName") or ticker,
             "Current Price": current_price,
             "1D % Change": f"{day_change:.2f}%" if day_change is not None else None,
             "Market Cap (T$)": info.get("marketCap") / 1e12 if info.get("marketCap") else None,
