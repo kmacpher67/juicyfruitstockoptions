@@ -333,6 +333,46 @@ class StockLiveComparison:
         # Add moving averages and highlight info
         record.update(ma_dict)
         record.update(highlight_dict)
+
+        # Company profile + recent news (stored as sub-document)
+        try:
+            raw_news = chain.news or []
+            news_items = [
+                {
+                    "title": n.get("title", ""),
+                    "publisher": n.get("publisher", ""),
+                    "link": n.get("link", ""),
+                    "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
+                    if n.get("providerPublishTime") else "",
+                }
+                for n in raw_news[:5]
+            ]
+        except Exception as e:
+            self.logger.warning(f"stock_live_comparison.fetch_ticker_record - Could not fetch news for {ticker}: {e}")
+            news_items = []
+
+        record["profile"] = {
+            "sector": info.get("sector", ""),
+            "industry": info.get("industry", ""),
+            "description": info.get("longBusinessSummary", ""),
+            "style": info.get("quoteType", ""),
+            "category": info.get("category", ""),
+            "exchange": info.get("exchange", ""),
+            "country": info.get("country", ""),
+            "employees": info.get("fullTimeEmployees"),
+            "website": info.get("website", ""),
+            "recommendation": info.get("recommendationKey", ""),
+            "analyst_opinions": info.get("numberOfAnalystOpinions"),
+            "beta": info.get("beta"),
+            "forward_pe": info.get("forwardPE"),
+            "price_to_book": info.get("priceToBook"),
+            "roe": info.get("returnOnEquity"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "earnings_growth": info.get("earningsGrowth"),
+            "revenue_growth": info.get("revenueGrowth"),
+            "news": news_items,
+        }
+
         return record
 
     @staticmethod

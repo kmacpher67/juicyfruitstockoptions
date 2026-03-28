@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -138,6 +138,12 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             <RotateCcw className="w-4 h-4" /> Smart Rolls
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('profile')}
+                        className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'profile' ? 'bg-gray-700 text-teal-400 border-b-2 border-teal-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
+                    >
+                        <Building2 className="w-4 h-4" /> Profile
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -155,6 +161,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             {activeTab === 'optimizer' && <OptimizerView data={optimizerData} />}
                             {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
                             {activeTab === 'smart_rolls' && <SmartRollView data={smartRollsData} />}
+                            {activeTab === 'profile' && <ProfileView data={tickerData} ticker={ticker} />}
                         </>
                     )}
                 </div>
@@ -552,6 +559,151 @@ const SmartRollView = ({ data }) => {
                     );
                 })}
             </div>
+        </div>
+    );
+};
+
+const ProfileView = ({ data, ticker }) => {
+    const [descExpanded, setDescExpanded] = useState(false);
+    const profile = data?.profile;
+
+    if (!profile) return <div className="text-center text-gray-400 py-12">Profile data unavailable. Run Live Comparison to populate.</div>;
+
+    const recColor = {
+        strong_buy: 'bg-green-700 text-green-100',
+        buy: 'bg-green-800 text-green-200',
+        hold: 'bg-yellow-800 text-yellow-200',
+        sell: 'bg-red-800 text-red-200',
+        strong_sell: 'bg-red-700 text-red-100',
+    }[profile.recommendation?.toLowerCase()] || 'bg-gray-700 text-gray-300';
+
+    const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '-';
+    const fmtNum = (v, dec = 2) => v != null ? v.toFixed(dec) : '-';
+    const fmtInt = (v) => v != null ? v.toLocaleString() : '-';
+
+    const profileGrid = [
+        ['Sector', profile.sector],
+        ['Industry', profile.industry],
+        ['Style / Type', [profile.style, profile.category].filter(Boolean).join(' · ') || null],
+        ['Exchange', profile.exchange],
+        ['Country', profile.country],
+        ['Employees', profile.employees != null ? fmtInt(profile.employees) : null],
+    ].filter(([, v]) => v);
+
+    const fundamentals = [
+        ['Beta', fmtNum(profile.beta)],
+        ['Fwd P/E', fmtNum(profile.forward_pe)],
+        ['Price/Book', fmtNum(profile.price_to_book)],
+        ['ROE', fmtPct(profile.roe)],
+        ['Debt/Equity', fmtNum(profile.debt_to_equity)],
+        ['EPS Growth', fmtPct(profile.earnings_growth)],
+        ['Rev Growth', fmtPct(profile.revenue_growth)],
+        ['# Analysts', profile.analyst_opinions != null ? String(profile.analyst_opinions) : null],
+    ].filter(([, v]) => v && v !== '-');
+
+    return (
+        <div className="space-y-5">
+            {/* Quick links */}
+            <div className="flex flex-wrap gap-2">
+                <a
+                    href={`https://finance.yahoo.com/quote/${ticker}/news/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 text-yellow-100 rounded text-sm font-medium transition-colors"
+                >
+                    Yahoo Finance News ↗
+                </a>
+                {profile.website && (
+                    <a
+                        href={profile.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-sm transition-colors"
+                    >
+                        {profile.website.replace(/^https?:\/\//, '')} ↗
+                    </a>
+                )}
+            </div>
+
+            {/* Profile identity grid */}
+            {profileGrid.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {profileGrid.map(([label, value]) => (
+                        <div key={label} className="bg-gray-800 rounded p-3">
+                            <p className="text-xs text-gray-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-white font-medium mt-1 text-sm">{value}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Analyst recommendation + fundamentals */}
+            <div className="space-y-3">
+                {profile.recommendation && (
+                    <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded text-sm font-bold uppercase tracking-wider ${recColor}`}>
+                            {profile.recommendation.replace('_', ' ')}
+                        </span>
+                        {profile.analyst_opinions != null && (
+                            <span className="text-gray-400 text-sm">{profile.analyst_opinions} analyst opinions</span>
+                        )}
+                    </div>
+                )}
+                {fundamentals.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {fundamentals.map(([label, value]) => (
+                            <div key={label} className="bg-gray-800 rounded p-2 text-center">
+                                <p className="text-xs text-gray-400 uppercase tracking-wider">{label}</p>
+                                <p className="text-white font-mono mt-0.5">{value}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Description */}
+            {profile.description && (
+                <div className="bg-gray-800 rounded p-4">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">About</p>
+                    <p className={`text-gray-300 text-sm leading-relaxed ${!descExpanded ? 'line-clamp-3' : ''}`}>
+                        {profile.description}
+                    </p>
+                    <button
+                        onClick={() => setDescExpanded(!descExpanded)}
+                        className="text-teal-400 text-xs mt-2 hover:text-teal-300 transition-colors"
+                    >
+                        {descExpanded ? 'Show less ▲' : 'Show more ▼'}
+                    </button>
+                </div>
+            )}
+
+            {/* Recent news */}
+            {profile.news && profile.news.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-2">Recent News</h4>
+                    <div className="space-y-2">
+                        {profile.news.map((item, i) => (
+                            <a
+                                key={i}
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-2 p-3 bg-gray-800 rounded hover:bg-gray-750 transition-colors group"
+                            >
+                                <span className="text-teal-500 mt-0.5 flex-shrink-0">●</span>
+                                <div className="min-w-0">
+                                    <p className="text-gray-200 text-sm group-hover:text-white transition-colors leading-snug">
+                                        {item.title}
+                                    </p>
+                                    <p className="text-gray-500 text-xs mt-0.5">
+                                        {item.publisher}{item.published_at ? ` · ${item.published_at}` : ''}
+                                    </p>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

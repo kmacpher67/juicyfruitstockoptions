@@ -138,7 +138,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Stock Analysis-Optimizer**: Multi-leg strategy optimizer in Optimizer tab — risk/reward visualization, what-if scenario analysis (price up/down), and yield comparison across strategies. Related: [Smart Roll & Diagonal](learning/smart-roll-diagonal.md).
     - [ ] **Stock Analysis-Price_Action**: Interactive price action charting in Price Action tab — ZigZag algorithm overlay, supply/demand zone visualization, Break of Structure (BOS) annotations, and Order Block/FVG zones on chart. Related: [Price Action Concepts](learning/price-action-concepts.md), [Price Action Plan](plans/implementation_plan-20260202-price-action.md).
     - [/] **Stock Analysis-Header**: The existing header on the popup window shows OLN $23.41 -0.93%% (Ticker, Price, % Change) Include full name or description of the ticker.   (Ticker, Description, Price, % Change, Date/Time of last update), Make a link from the TICKER to finance.google.com/quote/{TICKER} and the Description to https://finance.yahoo.com/quote/{TICKER}/ See [Implementation Plan](plans/implementation_plan-20260328-stock_analysis_header.md).
-    - [ ] **Stock Analysis**: Add a new sub-tab for Profile, Include company Description, Sector, Style, Industry, other relevant profile information. Link to https://finance.yahoo.com/quote/{TICKER}/news/ 
+    - [x] **Stock Analysis**: Add a new sub-tab for Profile, Include company Description, Sector, Style, Industry, other relevant profile information. Link to https://finance.yahoo.com/quote/{TICKER}/news/ See [Feature Doc](features/stock_analysis_profile_tab.md) | [Implementation Plan](plans/implementation_plan-20260328-stock_analysis_profile_tab.md). Profile refreshed on Run Live Comparison (manual) or daily schedule; lazy-hydrated on first ticker open if absent.
 
 ### Portfolio Management UI
 - [/] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
@@ -197,6 +197,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
+    - [/] **LINK to Stock Analysis Detail**: Portfolio Page Add small link next to ticker and existing  Google, Yahoo finance, D to modal detail window shared logic same pop up window used from the ticker analysis list. 
 
 
 ### Analysis & Signals
