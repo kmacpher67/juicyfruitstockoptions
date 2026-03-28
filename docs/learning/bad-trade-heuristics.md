@@ -89,3 +89,19 @@ This is the "Game Over" risk. It’s when a single trade or a market-wide crash 
 | **Tactical** | High IV/Earnings | **Sell Premium (Call/Put Spreads)** |
 | **Opportunity** | Low Annualized Yield | **Exit/Reallocate** |
 | **Survival** | High Beta-Delta/Margin | **Trim Position or Buy Protective Puts** |
+
+## 7. Portfolio Coverage Status Enforcement
+
+When evaluating portfolio risk, the system now calculates per-account coverage exactly:
+
+- **Covered**: `STK_qty == abs(OPT_short_qty * 100)`
+- **Uncovered**: `STK_qty > abs(OPT_short_qty * 100)`
+- **Naked**: `STK_qty < abs(OPT_short_qty * 100)`
+
+These rules are implemented in `app/api/routes.py` via `resolve_coverage_status(shares, short_calls)`.
+
+Test coverage is in `tests/test_portfolio_enrichment.py` with:
+
+- `test_get_portfolio_holdings_coverage_scenario_matches_user_case`
+
+This ensures filters and UI status remain consistent with the underlying data model, preventing misclassification between `Covered` and `Uncovered` states.

@@ -108,10 +108,15 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Stock Analysis UI
 - [x] **Stock Analysis**: Ticker list research grades averages and creates a .xlsx report for download of Call/Put Skew. 
 - [x] **Stock Analysis**: Run Live Analsis runs the live analysis of a ticker list updates the list.
+    - [ ] **Stock Analysis**: Bug fix the entire feature quit working after AI_Stock_Live_Comparison_20260327_203220.xlsx  and AI_Stock_Live_Comparison_20260327_165708.xlsx basically yesterday's changees broke this feature as it was previously working. 
+    - [ ] **Stock Analysis**: columns Ticker	Current Price	1D % Change	Market Cap (T$)	P/E	YoY Price %	EMA_20	HMA_20	TSMOM_60	RSI_14	ATR_14	MA_30	MA_60	MA_120	MA_200	EMA_20_highlight	HMA_20_highlight	TSMOM_60_highlight	Ex-Div Date	Div Yield	Analyst 1-yr Target	1-yr 6% OTM PUT Price	Annual Yield Put Prem	3-mo Call Yield	6-mo Call Yield	1-yr Call Yield	Annual Yield Call Prem	Call/Put Skew	6-mo Call Strike	Error	Last Update	_PutExpDate_365	_CallExpDate_365	_CallExpDate_90	_CallExpDate_180	MA_30_highlight	MA_60_highlight	MA_120_highlight	MA_200_highlight
+    - [ ] **Stock Analysis**: Create a spreadsheet for downloading AI_Stock_Live_Comparison_YYYYMMDD_HHMMSS.xlsx with all the columns store a copy in the local file system. 
+    - [ ] **Stock Analysis**: 
     - [x] **Run Live Analysis**: Disables button while analysis is running. Changes to "running" until ready again, reloads the grid.
     - [ ] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
     - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
     - [ ] **Tickers**: Based on all the metrics of the ticker, news, momentum, call skew,  
+    - [ ] **Stock Analysis**: 
 
 ### Portfolio Management UI
 - [/] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
@@ -162,14 +167,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **Options Due in X Days**: Signal for all options expiring in <#N (default 6) Days (DTE). Verify and update the scanner to ensure it is working as expected and passes tests Update plan if changes are needed. *Backend Implemented via `ExpirationScanner`.* 
     - [ ] **OTM filter**: ITM In The Money & OTM Out of the Money filter for portfolio options including the underlying_symbol STK, given % of strike price and show all contracts that "near" the money to focused on. 
     - [ ] **Last Price**: Sort and filter by last price. 
-    - [ ] **Account Filter**: Portfolio list Sort and filter by account #. 
-    - [ ] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). the link to "Uncovered filter" (existing) doesn't work. It should ONLY filter STKs that accountID.STK(qty)==accountID.OPT(qty)*100 by  NOTE:  
+    - [X] **Account Filter**: Portfolio list Sort and filter by account #. 
+    - [X] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). the link to "Uncovered filter" (existing) doesn't work. It should ONLY filter STKs that accountID.STK(qty)==accountID.OPT(qty)*100 by  NOTE:  
             Covered     : account.STK == abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
             Uncovered   : account.STK > abs(account.OPT_SHORT*100) only absolute value of qty of shorts
             Naked       : account.STK < abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
-    - [ ]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
-    - [ ] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
-    - [ ] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
+    - [X]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
+    - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
+    - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
 
 
 ### Analysis & Signals

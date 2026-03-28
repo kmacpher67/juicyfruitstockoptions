@@ -266,3 +266,99 @@ def test_get_portfolio_holdings_coverage_strict_account_coverage(client):
 
         assert u2_stk["coverage_status"] == "Uncovered"
         assert u2_stk["coverage_mismatch"] is True
+
+
+def test_get_portfolio_holdings_coverage_with_ibkr_pascal_case_asset_class(client):
+    """Regression test: IBKR CSV stores field as 'AssetClass' (PascalCase), not 'asset_class'.
+
+    Verifies the fix for the bug where STK rows were not recognized because
+    the coverage aggregation only checked snake_case field names.
+    """
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        # Simulate real IBKR CSV data (PascalCase "AssetClass" field)
+        mock_holdings = [
+            # AMD: 200 shares, no short calls -> should be Uncovered
+            {
+                "symbol": "AMD",
+                "AssetClass": "STK",
+                "account_id": "U110638",
+                "quantity": 200,
+                "report_date": "2026-03-28"
+            },
+            # OLN: 100 shares, 1 short call -> should be Covered (100 == 100)
+            {
+                "symbol": "OLN",
+                "AssetClass": "STK",
+                "account_id": "U110638",
+                "quantity": 100,
+                "report_date": "2026-03-28"
+            },
+            {
+                "symbol": "OLN   260417C00025000",
+                "AssetClass": "OPT",
+                "secType": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "underlying_symbol": "OLN",
+                "multiplier": 100
+            },
+            # ERO: 300 shares, 2 short calls (200 equiv) -> should be Uncovered
+            {
+                "symbol": "ERO",
+                "AssetClass": "STK",
+                "account_id": "U110638",
+                "quantity": 300,
+                "report_date": "2026-03-28"
+            },
+            {
+                "symbol": "ERO   260417C00025000",
+                "AssetClass": "OPT",
+                "secType": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "underlying_symbol": "ERO",
+                "multiplier": 100
+            },
+            {
+                "symbol": "ERO   260417C00030000",
+                "AssetClass": "OPT",
+                "secType": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "underlying_symbol": "ERO",
+                "multiplier": 100
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        amd_stk = next(h for h in data if h["symbol"] == "AMD")
+        oln_stk = next(h for h in data if h["symbol"] == "OLN")
+        ero_stk = next(h for h in data if h["symbol"] == "ERO")
+
+        # AMD: 200 shares, 0 short calls -> Uncovered
+        assert amd_stk["coverage_status"] == "Uncovered"
+        assert amd_stk["share_quantity_total"] == 200
+        assert amd_stk["covered_shares"] == 0
+
+        # OLN: 100 shares, 100 short call equiv -> Covered
+        assert oln_stk["coverage_status"] == "Covered"
+        assert oln_stk["coverage_mismatch"] is False
+        assert oln_stk["share_quantity_total"] == 100
+        assert oln_stk["covered_shares"] == 100
+
+        # ERO: 300 shares, 200 short call equiv -> Uncovered
+        assert ero_stk["coverage_status"] == "Uncovered"
+        assert ero_stk["share_quantity_total"] == 300
+        assert ero_stk["covered_shares"] == 200

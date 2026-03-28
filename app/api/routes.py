@@ -588,7 +588,7 @@ async def get_portfolio_holdings(
         if not und:
             continue
 
-        sec_type = row.get("asset_class") or row.get("secType") or row.get("sec_type")
+        sec_type = row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
         qty = float(row.get("quantity", 0) or 0)
         key = (account_id, und)
 
@@ -637,7 +637,7 @@ async def get_portfolio_holdings(
             row["coverage_mismatch"] = mismatch
 
         # B. Option Metrics
-        sec_type = row.get("asset_class") or row.get("secType")
+        sec_type = row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
         if sec_type in ["OPT", "FOP"]:
             # Parse Expiry & DTE
             exp_str = row.get("expiry")
