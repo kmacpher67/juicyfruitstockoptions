@@ -2,12 +2,12 @@
 description: Comprehensive checklist for creating implementation plans
 ---
 
-When creating an implementation plan (`implementation_plan.md`), you MUST go through the following checklist, ensuring all aspects are considered before finalizing the plan.
+When creating an implementation plan (`implementation_plan.md`), you MUST go through the following checklist, ensuring all aspects are considered before finalizing the plan. Provide any Given and When criteria. 
 
 ## 1. Settings Updates
-- [ ] Does this change require new environment variables?
+- [ ] Does this change require new environment variables in docker or os?
 - [ ] Are there changes to configuration files (e.g., config.py, .env)?
-- [ ] Do default settings need to be updated?
+- [ ] Do default settings database or UI need to be updated?
 - [ ] Impact on existing code (front and backend) inclusive of database collections/records? 
 
 ## 2. ACL Security Roles Compliance
@@ -17,13 +17,14 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 
 ## 3. Data Model ETL and Views
 - [ ] Are there changes to the database schema?
+- [ ] Store all the DB data provided from a source of truth. 
 - [ ] Does this affect existing ETL pipelines?
 - [ ] Do we need simple views or complex aggregations?
 - [ ] Is data migration required?
 - [ ] Always load raw data to work as a operational data store. Let the models create views on those collections.
 
 ## 4. New Routes or Service/Models
-- [ ] Are new API routes being added?
+- [ ] Are new API routes being added? (Don't break exisiting api routes.)
 - [ ] Do new services follow the Single Responsibility Principle?
 - [ ] Are models utilizing strong typing and validation?
 
@@ -32,7 +33,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Are we following the defined workflow steps?
 
 ## 7. Compliance with Global Gemini.md Rules
-- [ ] Review `~/.gemini/GEMINI.md` (or equivalent global rules).
+- [ ] Review `~/.gemini/GEMINI.md` (or equivalent global ai agent rules).
 - [ ] Adhere to all the rules inclusive of but not limited to: code style, logging, and testing standards defined there.
 
 ## 8. Best Practices from the Industry
@@ -41,7 +42,7 @@ When creating an implementation plan (`implementation_plan.md`), you MUST go thr
 - [ ] Security best practices (OWASP, input validation)?
 
 ## 9. Fit into Feature-Requirements master Planning
-- [ ] How does this relate to the current Epic? (Check `docs/features-requirements.md) 
+- [ ] How does this relate to the current feature-requirements? (Check `docs/features-requirements.md) 
 - [ ] Mark item {@features-requirements.md#L###} as [/] In Progress immediately. 
 - [ ] Does it block other work?
 - [ ] Update and/or add sub items or comment on the exisitng items or sub-items. 

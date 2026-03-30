@@ -8,7 +8,7 @@
 
 
 > [!NOTE]
-> This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Todo items (maybe large feature sets with requirements) to guide future development. Items are not in any particular order. This Epic document should be used like Kanban board per Status Legend to mark items. 
+> This document serves as the "Wish List" and high-level roadmap for the Juicy Fruit Stock Options project. It is **not** a strict project plan but a collection of Todo items (maybe large feature sets with requirements) to guide future development. Items are not in any particular order. This document should be used like Kanban board per Status Legend to mark items. Avoid use of Epic or waterfall methodologies. Tag or keywords should be related to the NFR or feature-requirement being implemented. 
 
 **Status Legend:**
 - [ ] Proposed / Todo
@@ -18,11 +18,11 @@
 
 ---
 # Implementation 
-- When performing an implementation plan based on items in this epic document, i would use the following rules:
+- When performing an implementation plan based on items in this feature-requirements document, i would use the following rules:
 -- All the rules documented in the workspace rules & workflow .md docs should be followed
 -- This file is a living document of master PRD document for directing coding, all existing features-requirements should be memorialized in this "docs/features-requirements.md" file. Later on this document could be used to generate a whole new green field project from scratch or track where we are in the development of the project went off the rails. 
 -- An implementation plan should be broken down into smaller items (added to the feature-requirements.md file as sub items or organized where relevant) that can be completed in a reasonable amount of time 
--- The incremental implementation plan should follow hierarchical decomposition for naming based the short name of the epic (e.g., epic-001-algorithmic-trading-001-task-001)
+-- The incremental implementation plan should follow hierarchical decomposition for naming based the short simple name of the feature-requirement. 
 
 ## UI/UX Design Standards (Juicy Fruit)
 - **Tool to help me**: This is tool to help me trade, track, and identify opportunities in the stock market. I have 3 accounts that I trade in and multiple positions (sometimes duplicate positions) in each account. 
@@ -44,7 +44,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ---
 
-## 2. Infrastructure & Modernization (Epic 1)
+## 2. Infrastructure & Modernization
 **Owner:** TBD | **Goal:** reliable, secure, and strictly typed foundation.
 
 ### Documentation & Knowledge Management
@@ -82,10 +82,43 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ### Data Reliability
 - [ ] **Mongo Backup Automation**:
-    - [ ] Automate backup to GitHub (current manual process).
-    - [ ] Investigate Google Drive as alternative storage.
-    - [ ] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
-- [ ] **TWS API container**: Evaluate need for a dedicated TWS API Docker container for stable IBKR connection, and create more epic items as neccessary.
+    - [X] Automate backup to GitHub (current manual process).
+    - [X] Investigate Google Drive as alternative storage.
+    - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
+- [ ] **IBKR Real-Time Data — IB Gateway Docker Container**: Add IB Gateway as a Docker Compose service for a persistent headless IBKR socket connection. Prerequisite for all TWS real-time tasks below.
+    - [ ] **ibkr-tws-gateway-001**: Research and select IB Gateway Docker image (`waytrade/ib-gateway` vs `mvberg`). Validate paper port (4002) and live port (4001). Document in `docs/learning/ibkr-realtime-data-integration.md`.
+    - [ ] **ibkr-tws-gateway-002**: Add `ib-gateway` service to `docker-compose.yml` with env vars `TWS_USERID`, `TWS_PASSWORD`, `TRADING_MODE`. Map port 4002. Add VNC port 5900 for dev debugging only.
+    - [ ] **ibkr-tws-gateway-003**: Add new env vars to `.env` and `app/config.py` (Pydantic settings): `IBKR_TWS_HOST`, `IBKR_TWS_PORT`, `IBKR_TWS_CLIENT_ID`, `IBKR_TWS_ENABLED` (feature flag, default `false`). Zero disruption to existing Flex pipeline when flag is off.
+    - [ ] **ibkr-tws-gateway-004**: Create `ibgateway-config/` directory at workspace root for IB Gateway settings persistence (volume mount). Add to `.gitignore`. Document setup steps in README.
+
+- [ ] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
+    - [ ] **ibkr-tws-service-001**: Add `ibapi>=10.19` to `requirements.txt`. Verify compatibility with Dockerfile Python version.
+    - [ ] **ibkr-tws-service-002**: Implement `IBKRTWSApp(EWrapper, EClient)` with callbacks: `position()`, `positionEnd()`, `updateAccountValue()`, `connectAck()`, `error()`. Follow logging standard: `{datetime} - {filename-class-method} - {LEVEL} - {message}`.
+    - [ ] **ibkr-tws-service-003**: Implement `IBKRTWSService` wrapper with `connect()`, `disconnect()`, `get_positions()`, `get_account_values(account)`, `is_connected()`. Use `threading.Thread(daemon=True)` for socket loop. Graceful no-op when `IBKR_TWS_ENABLED=false`.
+    - [ ] **ibkr-tws-service-004**: Register as singleton in `app/main.py` FastAPI lifespan. Connect on startup if `IBKR_TWS_ENABLED=true`, disconnect on shutdown.
+    - [ ] **ibkr-tws-service-005**: Write unit tests `tests/test_ibkr_tws_service.py`. Mock `EClient`/`EWrapper`. Cover: connect, position callback, account value callback, error handling, graceful degradation when flag is off.
+
+- [ ] **IBKR Real-Time Data — Scheduler Sync Jobs**: Add APScheduler jobs to sync live TWS positions and NAV snapshots into MongoDB on a continuous intraday basis.
+    - [ ] **ibkr-tws-jobs-001**: Add `run_tws_position_sync()` to `app/scheduler/jobs.py`. Pull from `IBKRTWSService.get_positions()`, upsert `ibkr_holdings` with `source: "tws"` and `last_tws_update` timestamp. Guard with `IBKR_TWS_ENABLED` flag. Schedule every 30s.
+    - [ ] **ibkr-tws-jobs-002**: Add `run_tws_nav_snapshot()` job. Pull account values (NetLiquidation, UnrealizedPnL, RealizedPnL) and append to `nav_history` with `source: "tws"`. Schedule every 3 min. **Fixes the 1D NAV showing 0 bug** — intraday data points will now exist.
+    - [ ] **ibkr-tws-jobs-003**: Tag existing Flex sync documents with `source: "flex"` so consumers can distinguish data freshness. Flex = authoritative for history; TWS = authoritative for current intraday state. Non-breaking additive field.
+
+- [ ] **IBKR Real-Time Data — API Endpoints**: Expose live connection status and data freshness to the frontend.
+    - [ ] **ibkr-tws-api-001**: Add `GET /api/portfolio/live-status` → returns `{ connected, last_position_update, position_count, tws_enabled }`. Used by frontend health indicator.
+    - [ ] **ibkr-tws-api-002**: Update `GET /api/portfolio/stats` to include `data_source` (`"tws_live"` or `"flex_eod"`) and `last_updated` timestamp. Frontend uses this to show data staleness.
+    - [ ] **ibkr-tws-api-003**: Add `GET /api/portfolio/nav/live` returning the latest intraday NAV snapshot from `nav_history` with `source: "tws"` tag.
+
+- [ ] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
+    - [ ] **ibkr-tws-ui-001**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
+    - [ ] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
+    - [ ] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
+
+- [ ] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
+    - [ ] **ibkr-portal-001**: Downloaded clientportal.gw and running from command line, put this into a docker-compose service. Add `IBKR_PORTAL_ENABLED` feature flag. clientportal.gw$ ./bin/run.sh root/conf.yaml
+    - [ ] **ibkr-portal-002**: Create `app/services/ibkr_portal_service.py` with session-aware polling: `get_positions()`, `get_summary()`, `keepalive()`. Add `IBKR_PORTAL_ENABLED` feature flag.
+    - [x] **clientportal.gw**: Client Portal requires `clientportal.gw` downloaded Java process. 
+
+- [ ] **TWS API container**: Evaluate need for a dedicated TWS API Docker container for stable IBKR connection, and create more feature-requirement items as neccessary.
     - [ ] Research standard IBC-based containers (e.g., `mvberg/ib-gateway-docker`).
     - [ ] Test reliability of headless TWS vs IB Gateway. 
     - [ ] IBApi The official API for Interactive Brokers provides access to all the data available through IB. Replaces IBPy. interactivebrokers.github.io/tws-api/
@@ -105,7 +138,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ---
 
-## 3. Algorithmic Trading Engines (Epic 2)
+## 3. Algorithmic Trading Engines
 **Owner:** Ken | **Goal:** Automated insights and strategy backtesting.
 
 
@@ -371,7 +404,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ---
 
-## 4. Dashboard & UX Features (Epic 3)
+## 4. Dashboard & UX Features 
 **Owner:** Frontend Team | **Goal:** A "Wow" factor UI with actionable data.
 
 ### Visualizations
@@ -402,7 +435,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ---
 
-## 5. Agentic AI & Intelligence (Epic 4)
+## 5. Agentic AI & Intelligence
 **Owner:** Antigravity Data | **Goal:** Force multiplication via AI agents.
 
 ### Capabilities
@@ -426,7 +459,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 ---
 
-## 6. Risk Management & Safety (Epic 5)
+## 6. Risk Management & Safety 
 **Owner:** Risk Officer | **Goal:** Protect capital.
 
 - [ ] **Guardrails**:
@@ -441,9 +474,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ---
 
 ## 7. Agile & Project Governance
-**Rules for Agents working on this Epic:**
+**Rules for Agents working on this **
 1.  **Decomposition**: Evaluate features and requirements, elaborate them, make sure if required add a new feature/requirement to generate a learning-opportunity or implementation-plan document. That fits into the context window of the technical limitations of the LLM and the project. Add questions or highlight to the user for feedback as needed. 
-2.  **Naming**: Use hierarchical IDs (e.g., `epic-001-trading-001-task-001`).
+2.  **Naming**: Use hierarchical IDs (e.g., `{feature_header}-{specific_feature_name}`) Don't use terms like epic or numbers which reflect sequences of water fall methodology, instead more agile scrum and names should be zen like reference to the function, page, or result. 
 3.  **Parallelism**: Note if tasks can be run by multiple agents concurrently.
 4.  **Next Steps**: If a feature is not completed, part of the plan should be next features-requirements to be implemented. 
 4.  **Cleanup**: If reviewing, add a "Review and Cleanup" section.
