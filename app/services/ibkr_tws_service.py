@@ -62,14 +62,45 @@ class IBKRTWSApp(EWrapper, EClient):
         self.positions: dict[tuple[str, str, str], dict[str, Any]] = {}
         self.account_values: dict[tuple[str, str], dict[str, Any]] = {}
         self.connected = False
+        self.connection_attempted_at: str | None = None
+        self.connected_at: str | None = None
+        self.last_callback_at: str | None = None
+        self.position_snapshot_complete = False
+        self.next_valid_order_id: int | None = None
+        self.managed_accounts: list[str] = []
         self.last_position_update: str | None = None
         self.last_account_value_update: str | None = None
         self.last_error: dict[str, Any] | None = None
 
+    def _mark_callback(self) -> str:
+        timestamp = _utc_now_iso()
+        with self._lock:
+            self.last_callback_at = timestamp
+        return timestamp
+
     def connectAck(self) -> None:
+        timestamp = self._mark_callback()
         with self._lock:
             self.connected = True
+            self.connected_at = timestamp
         self.logger.info("TWS API connection acknowledged.")
+
+    def nextValidId(self, orderId: int) -> None:
+        timestamp = self._mark_callback()
+        with self._lock:
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+            self.next_valid_order_id = orderId
+        self.logger.info("Received nextValidId=%s from TWS.", orderId)
+
+    def managedAccounts(self, accountsList: str) -> None:
+        timestamp = self._mark_callback()
+        accounts = [account for account in accountsList.split(",") if account]
+        with self._lock:
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+            self.managed_accounts = accounts
+        self.logger.info("Received %s managed account(s) from TWS.", len(accounts))
 
     def position(
         self,
@@ -86,15 +117,22 @@ class IBKRTWSApp(EWrapper, EClient):
             "currency": getattr(contract, "currency", ""),
             "position": position,
             "avg_cost": avgCost,
-            "last_update": _utc_now_iso(),
+            "last_update": self._mark_callback(),
         }
         key = (payload["account"], payload["symbol"], payload["sec_type"])
         with self._lock:
+            self.connected = True
+            self.connected_at = self.connected_at or payload["last_update"]
             self.positions[key] = payload
             self.last_position_update = payload["last_update"]
         self.logger.debug("Received position update for %s.", key)
 
     def positionEnd(self) -> None:
+        timestamp = self._mark_callback()
+        with self._lock:
+            self.position_snapshot_complete = True
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
         self.logger.info("Completed position snapshot with %s positions.", len(self.positions))
 
     def updateAccountValue(
@@ -109,9 +147,11 @@ class IBKRTWSApp(EWrapper, EClient):
             "value": val,
             "currency": currency,
             "account": accountName,
-            "last_update": _utc_now_iso(),
+            "last_update": self._mark_callback(),
         }
         with self._lock:
+            self.connected = True
+            self.connected_at = self.connected_at or payload["last_update"]
             self.account_values[(accountName, key)] = payload
             self.last_account_value_update = payload["last_update"]
         self.logger.debug("Received account value update for %s/%s.", accountName, key)
@@ -128,7 +168,7 @@ class IBKRTWSApp(EWrapper, EClient):
             "error_code": errorCode,
             "error": errorString,
             "advanced_order_reject_json": advancedOrderRejectJson,
-            "timestamp": _utc_now_iso(),
+            "timestamp": self._mark_callback(),
         }
         with self._lock:
             self.last_error = payload
@@ -188,17 +228,52 @@ class IBKRTWSService:
                 return True
 
             app = self._app_factory()
+            app.connection_attempted_at = _utc_now_iso()
+            self._app = app
             app.connect(self.host, self.port, self.client_id)
             thread = threading.Thread(target=app.run, daemon=True)
             thread.start()
             self._sleep_fn(1)
             app.reqPositions()
+            self._wait_for_connection_signal(app)
 
-            self._app = app
             self._thread = thread
 
-        self.logger.info("Connected to IBKR TWS at %s:%s.", self.host, self.port)
-        return True
+        connected = self.is_connected()
+        if connected:
+            self.logger.info("Connected to IBKR TWS at %s:%s.", self.host, self.port)
+        else:
+            self.logger.warning(
+                "TWS connect attempt did not reach a confirmed connected state for %s:%s.",
+                self.host,
+                self.port,
+            )
+        return connected
+
+    def _wait_for_connection_signal(
+        self,
+        app: IBKRTWSApp,
+        timeout_seconds: float = 3.0,
+        poll_interval: float = 0.1,
+    ) -> None:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            with app._lock:
+                connected = bool(
+                    app.connected
+                    or app.next_valid_order_id is not None
+                    or app.managed_accounts
+                    or app.positions
+                    or app.position_snapshot_complete
+                )
+                fatal_error = (
+                    app.last_error is not None
+                    and int(app.last_error.get("error_code", 0)) == 504
+                    and not connected
+                )
+            if connected or fatal_error:
+                return
+            self._sleep_fn(poll_interval)
 
     def disconnect(self) -> None:
         if self._is_disabled():
@@ -244,13 +319,19 @@ class IBKRTWSService:
             if self._app is None:
                 return False
             app_connected = getattr(self._app, "connected", False)
+            callback_connected = bool(
+                getattr(self._app, "next_valid_order_id", None) is not None
+                or getattr(self._app, "managed_accounts", [])
+                or getattr(self._app, "positions", {})
+                or getattr(self._app, "position_snapshot_complete", False)
+            )
             client_connected = getattr(self._app, "isConnected", None)
             if callable(client_connected):
                 try:
-                    return bool(client_connected() or app_connected)
+                    return bool(client_connected() or app_connected or callback_connected)
                 except Exception:
-                    return bool(app_connected)
-            return bool(app_connected)
+                    return bool(app_connected or callback_connected)
+            return bool(app_connected or callback_connected)
 
     @property
     def app(self) -> IBKRTWSApp | None:
@@ -275,7 +356,18 @@ class IBKRTWSService:
 
             return {
                 "connected": self.is_connected(),
+                "host": self.host,
+                "port": self.port,
+                "client_id": self.client_id,
+                "managed_accounts": list(getattr(app, "managed_accounts", [])) if app is not None else [],
+                "next_valid_order_id": getattr(app, "next_valid_order_id", None) if app is not None else None,
+                "connection_attempted_at": getattr(app, "connection_attempted_at", None) if app is not None else None,
+                "connected_at": getattr(app, "connected_at", None) if app is not None else None,
+                "last_callback_at": getattr(app, "last_callback_at", None) if app is not None else None,
+                "position_snapshot_complete": getattr(app, "position_snapshot_complete", False) if app is not None else False,
                 "last_position_update": last_position_update,
+                "last_account_value_update": getattr(app, "last_account_value_update", None) if app is not None else None,
+                "last_error": getattr(app, "last_error", None) if app is not None else None,
                 "position_count": len(positions),
                 "tws_enabled": bool(self.enabled and IBAPI_IMPORT_ERROR is None),
             }
