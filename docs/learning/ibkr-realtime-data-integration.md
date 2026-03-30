@@ -101,7 +101,11 @@ docker pull ghcr.io/waytrade/ib-gateway:latest
 ### Step 2: Configure IB Gateway to allow API connections
 In IB Gateway UI (or config file):
 - Enable **API** → check "Enable ActiveX and Socket Clients"
-- Set **Socket port**: `4002` (paper) or `7497` (live)  
+- Set **Socket port** based on client type:
+- `4002` = IB Gateway paper
+- `4001` = IB Gateway live
+- `7497` = Trader Workstation paper
+- `7496` = Trader Workstation live
 - Allow connections from: `127.0.0.1` (or Docker network subnet)
 - Disable "Read-Only API" if you want order placement later
 
@@ -109,8 +113,10 @@ In IB Gateway UI (or config file):
 ```bash
 pip install ibapi
 # or via requirements.txt:
-echo "ibapi>=10.19" >> requirements.txt
+echo "ibapi==9.81.1.post1" >> requirements.txt
 ```
+
+Note: as of March 30, 2026, PyPI exposes `ibapi==9.81.1.post1`, not `10.19+`. The local Juicy Fruit setup was verified with the PyPI package on Python 3.12.
 
 ### Step 4: Create `app/services/ibkr_tws_service.py`
 ```python
@@ -200,10 +206,28 @@ class IBKRTWSService:
 ```bash
 # TWS / IB Gateway connection
 IBKR_TWS_HOST=127.0.0.1
-IBKR_TWS_PORT=4002          # 4002=paper, 7497=live, 4001=gateway-live
+IBKR_TWS_PORT=7496          # live TWS desktop on localhost
 IBKR_TWS_CLIENT_ID=1
-IBKR_TWS_ENABLED=false      # Feature flag — set true when gateway is running
+IBKR_TWS_ENABLED=true       # Feature flag — enable when TWS is running locally
 ```
+
+For IB Gateway, switch the port to `4002` for paper or `4001` for live.
+
+### Step 5A: Interpreting the first successful live connection
+
+Example local verification:
+
+```bash
+python -m app.scripts.ibkr_tws_cli connect-test --force-enable
+```
+
+Typical startup output may include:
+
+- `2104`: market data farm connection is OK
+- `2106`: HMDS data farm connection is OK
+- `2158`: sec-def data farm connection is OK
+
+These are informational IBKR status messages, not failures. A successful session will still report `"connected": true` even if the initial position count is `0`.
 
 ### Step 6: Docker Compose addition
 ```yaml

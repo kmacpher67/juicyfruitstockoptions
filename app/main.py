@@ -4,17 +4,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api import routes, trades
 from app.scheduler.jobs import start_scheduler, stop_scheduler
+from app.services.ibkr_tws_service import get_ibkr_tws_service, set_ibkr_tws_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     from app.utils.logging_config import setup_logging
     setup_logging()
-    
+
+    tws_service = get_ibkr_tws_service()
+    app.state.ibkr_tws_service = tws_service
+    if settings.IBKR_TWS_ENABLED:
+        tws_service.connect()
+
     start_scheduler()
     yield
     # Shutdown
     stop_scheduler()
+    tws_service.disconnect()
+    set_ibkr_tws_service(None)
 
 app = FastAPI(
     title=settings.APP_NAME,

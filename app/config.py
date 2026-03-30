@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     IBKR_PORTAL_ACCOUNT_ID: str | None = None
     IBKR_PORTAL_VERIFY_SSL: bool = False
     IBKR_PORTAL_TIMEOUT_SECONDS: int = 10
+
+    # IBKR TWS / Gateway socket connection
+    IBKR_TWS_ENABLED: bool = False
+    IBKR_TWS_HOST: str = "127.0.0.1"
+    IBKR_TWS_PORT: int = 4002
+    IBKR_TWS_CLIENT_ID: int = 1
     
     # Security
     SECRET_KEY: str = "CHANGE_ME_IN_PROD_9834758934758934" 
