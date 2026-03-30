@@ -113,9 +113,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [ ] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
-- [ ] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
-    - [ ] **ibkr-portal-001**: Downloaded clientportal.gw and running from command line, put this into a docker-compose service. Add `IBKR_PORTAL_ENABLED` feature flag. clientportal.gw$ ./bin/run.sh root/conf.yaml
-    - [ ] **ibkr-portal-002**: Create `app/services/ibkr_portal_service.py` with session-aware polling: `get_positions()`, `get_summary()`, `keepalive()`. Add `IBKR_PORTAL_ENABLED` feature flag.
+- [x] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
+    - [x] **ibkr-portal-001**: Downloaded clientportal.gw and running from command line, put this into a docker-compose service. Add `IBKR_PORTAL_ENABLED` feature flag. clientportal.gw$ ./bin/run.sh root/conf.yaml
+    - [x] **ibkr-portal-002**: Create `app/services/ibkr_portal_service.py` with session-aware polling: `get_positions()`, `get_summary()`, `keepalive()`. Add `IBKR_PORTAL_ENABLED` feature flag.
+    - [x] **ibkr-portal-CLI**: Provide a command line version for testing and checking feature.
+    - [ ] **ibkr-portal-003**: Decide whether to register the portal service into FastAPI lifespan / scheduler jobs, or keep it as an on-demand fallback only.
     - [x] **clientportal.gw**: Client Portal requires `clientportal.gw` downloaded Java process. 
 
 - [ ] **TWS API container**: Evaluate need for a dedicated TWS API Docker container for stable IBKR connection, and create more feature-requirement items as neccessary.

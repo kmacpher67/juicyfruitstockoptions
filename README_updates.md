@@ -1,5 +1,12 @@
 # Project Updates
 
+## 2026-03-30: IBKR Client Portal Fallback
+
+- **Infrastructure**: Added an `ibkr-portal` Docker Compose service that runs the bundled `clientportal.gw` gateway on port `5000`.
+- **Backend**: Added `app/services/ibkr_portal_service.py` with session-aware `keepalive()`, `get_positions()`, and `get_summary()` methods behind the `IBKR_PORTAL_ENABLED` feature flag.
+- **CLI**: Added `python -m app.scripts.ibkr_portal_cli` for manual status, keepalive, positions, and summary checks.
+- **Testing**: Added unit coverage for disabled mode, keepalive, account discovery, and summary fetching.
+
 ## 2026-01-16: Running Averages Fix
 
 - **Feature**: Implementing standard Simple Moving Average (SMA) calculation using pandas `rolling().mean()`.

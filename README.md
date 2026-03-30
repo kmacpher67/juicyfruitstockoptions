@@ -56,6 +56,30 @@ The project has been upgraded to a Dockerized Web Application.
 2.  **Access API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 3.  **Admin Login**: `admin` / `admin123` (Default)
 
+### IBKR Client Portal Fallback
+
+The repo includes the `clientportal.gw` bundle and a Docker Compose service for it:
+
+```bash
+docker-compose up ibkr-portal
+```
+
+Backend support is additive and disabled by default. Enable it with:
+
+```bash
+export IBKR_PORTAL_ENABLED=true
+export IBKR_PORTAL_BASE_URL=https://localhost:5000/v1/api
+export IBKR_PORTAL_ACCOUNT_ID=YOUR_ACCOUNT_ID
+```
+
+For manual verification, use:
+
+```bash
+python -m app.scripts.ibkr_portal_cli status
+python -m app.scripts.ibkr_portal_cli keepalive --force-enable --base-url https://localhost:5000/v1/api
+python -m app.scripts.ibkr_portal_cli positions --force-enable --account-id YOUR_ACCOUNT_ID
+```
+
 ---
 
 ## Legacy Script Usage

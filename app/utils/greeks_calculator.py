@@ -1,7 +1,16 @@
 import pandas as pd
 import numpy as np
 import logging
-from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
+
+
+def _load_greeks_backend():
+    """Import the optional Greeks backend lazily so unrelated app imports stay resilient."""
+    try:
+        from py_vollib_vectorized import get_all_greeks
+    except Exception as exc:  # pragma: no cover - depends on local numba/runtime state
+        logging.error("Failed to import py_vollib_vectorized Greeks backend: %s", exc)
+        return None
+    return get_all_greeks
 
 class GreeksCalculator:
     """
@@ -31,6 +40,10 @@ class GreeksCalculator:
             return df # Return unmodified
 
         try:
+            get_all_greeks = _load_greeks_backend()
+            if get_all_greeks is None:
+                raise RuntimeError("Greeks backend unavailable")
+
             # Prepare inputs
             # Map 'type' column to 'c' or 'p' if needed (yfinance usually provides 'call'/'put' objects, 
             # but if we passed a constructed DF, ensure strict 'c'/'p')

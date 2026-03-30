@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     # Logic
     MAX_AGE_HOURS: int = 4
     DATA_DIR: str = "/app/data/ibkr_data"
+
+    # IBKR Client Portal fallback
+    IBKR_PORTAL_ENABLED: bool = False
+    IBKR_PORTAL_BASE_URL: str = "https://ibkr-portal:5000/v1/api"
+    IBKR_PORTAL_ACCOUNT_ID: str | None = None
+    IBKR_PORTAL_VERIFY_SSL: bool = False
+    IBKR_PORTAL_TIMEOUT_SECONDS: int = 10
     
     # Security
     SECRET_KEY: str = "CHANGE_ME_IN_PROD_9834758934758934" 

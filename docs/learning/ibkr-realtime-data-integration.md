@@ -229,14 +229,23 @@ services:
 ## 5. Client Portal REST API Setup (Alternative)
 
 If Docker/socket complexity is undesirable, the Client Portal gateway is a REST-based option.
+https://www.interactivebrokers.com/campus/ibkr-api-page/cpapi-v1/#download-java
+
+Should I create a custom Dockerfile-ibkr-port or just a shell script likely need that for docker
+put a script in there to curl download and unzip into clientportal.gw/ 
+https://download2.interactivebrokers.com/portal/clientportal.gw.zip
+& Update this section 
 
 ### Step 1: Download and run Client Portal Gateway
 ```bash
-# Download from: https://www.interactivebrokers.com/en/trading/ib-api.php
-# Unzip and run:
+# Repo-local gateway bundle:
+docker-compose up ibkr-portal
+
+# Or run directly from the checked-in bundle:
 cd clientportal.gw
 ./bin/run.sh root/conf.yaml
-# Runs on https://localhost:5000
+
+# Gateway listens on https://localhost:5000
 ```
 
 ### Step 2: Authenticate (one-time per session)
@@ -262,6 +271,23 @@ def get_positions(account_id: str) -> list:
 def get_summary(account_id: str) -> dict:
     r = requests.get(f"{BASE}/portfolio/{account_id}/summary", verify=False)
     return r.json()
+```
+
+### Step 4: Juicy Fruit fallback settings
+```bash
+export IBKR_PORTAL_ENABLED=true
+export IBKR_PORTAL_BASE_URL=https://localhost:5000/v1/api
+export IBKR_PORTAL_ACCOUNT_ID=DU123456      # Optional; service can auto-discover via /portfolio/accounts
+export IBKR_PORTAL_VERIFY_SSL=false         # Expected for the local self-signed cert
+export IBKR_PORTAL_TIMEOUT_SECONDS=10
+```
+
+### Step 5: Manual verification CLI
+```bash
+python -m app.scripts.ibkr_portal_cli status
+python -m app.scripts.ibkr_portal_cli keepalive --force-enable --base-url https://localhost:5000/v1/api
+python -m app.scripts.ibkr_portal_cli positions --force-enable --account-id DU123456
+python -m app.scripts.ibkr_portal_cli summary --force-enable --account-id DU123456
 ```
 
 ---

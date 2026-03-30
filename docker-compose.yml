@@ -23,8 +23,14 @@ services:
       - ADMIN_USER=admin
       - ADMIN_PASS=admin123
       - ENVIRONMENT=development
+      - IBKR_PORTAL_ENABLED=${IBKR_PORTAL_ENABLED:-true}
+      - IBKR_PORTAL_BASE_URL=${IBKR_PORTAL_BASE_URL:-https://ibkr-portal:5000/v1/api}
+      - IBKR_PORTAL_ACCOUNT_ID=${IBKR_PORTAL_ACCOUNT_ID:-U110638}
+      - IBKR_PORTAL_VERIFY_SSL=${IBKR_PORTAL_VERIFY_SSL:-false}
+      - IBKR_PORTAL_TIMEOUT_SECONDS=${IBKR_PORTAL_TIMEOUT_SECONDS:-10}
     depends_on:
       - mongo
+      - ibkr-portal
     restart: always
 
   mongo:
@@ -39,6 +45,19 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin123
     restart: always
+
+  # IBKR Portal
+  ibkr-portal:
+    image: eclipse-temurin:17-jre
+    container_name: stock_portal_ibkr_portal
+    working_dir: /opt/clientportal.gw
+    command: ["./bin/run.sh", "root/conf.yaml"]
+    volumes:
+      - ./clientportal.gw:/opt/clientportal.gw
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
   # Frontend (Phase 2)
   frontend:
     build: ./frontend
