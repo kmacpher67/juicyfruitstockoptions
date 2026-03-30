@@ -13,6 +13,7 @@ __pycache__
 
 # Data & Output (Ignored to prevent huge build context and permission errors)
 mongo_data
+mongo_data_fresh
 report-results
 mongo_backup.json
 **/node_modules
