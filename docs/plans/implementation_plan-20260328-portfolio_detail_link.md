@@ -8,6 +8,7 @@
 
 ### 1. `frontend/src/components/PortfolioGrid.jsx`
 - Add a small text button `D` next to the existing `G` (Google Finance) and `Y` (Yahoo Finance) quick links in the ticker column renderer.
+- Use the same little style as used on the current analysis list next to the ticker there. 
 - On click, this `D` link will trigger `params.context.onTickerClick(sym)` seamlessly leveraging the already-existing modal logic (`TickerModal.jsx`) that the Dashboard view provides.
 - Wrap it in a span with appropriate styling (e.g., `text-emerald-400 cursor-pointer hover:text-emerald-300 ml-1`) and a `title="Ticker Detail Analysis"` tooltip to match the aesthetic. (Using an `onClick` with `e.stopPropagation()` if necessary to prevent bubbling, though typical span-in-cell logic is safe here).
 

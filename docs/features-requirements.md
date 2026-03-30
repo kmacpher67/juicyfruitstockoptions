@@ -70,7 +70,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Implement non-root user in Dockerfiles.
     - [ ] Set up Docker Secrets or strict Env Var management (no hardcoded secrets).
 - [ ] **Authentication**:
-    - [ ] Auto-logout UI if backend token expires.
+    - [x] Auto-logout in UI if backend token expires, returns view control to login.
+    - [ ] Deep p link to a specific page every page as url target that can copied
     - [ ] Synced session state between generic React usage and Python backend.
     - [ ] Implement "Remember Me" vs "High Security" modes.
 - [ ] **Settings Management**:
@@ -197,7 +198,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
-    - [/] **LINK to Stock Analysis Detail**: Portfolio Page Add small link next to ticker and existing  Google, Yahoo finance, D to modal detail window shared logic same pop up window used from the ticker analysis list. 
+    - [x] **LINK to Stock Analysis Detail**: Portfolio Page Add small link next to ticker and existing  Google, Yahoo finance, D to modal detail window shared logic same pop up window used from the ticker analysis list. 
 
 
 ### Analysis & Signals

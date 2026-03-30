@@ -18,4 +18,16 @@ api.interceptors.request.use(
     }
 );
 
+// Response interceptor: on 401 (expired/invalid token), clear token and notify AuthContext
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            window.dispatchEvent(new Event('auth:logout'));
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default api;

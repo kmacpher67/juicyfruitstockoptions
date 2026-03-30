@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import { ExternalLink } from 'lucide-react';
 
 const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
     const [focus, setFocus] = useState('all'); // 'all', 'uncovered', 'expiring', 'near-money'
@@ -36,10 +37,11 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                 return (
                     <div className="flex items-center gap-2">
                         <span
-                            className="font-bold cursor-pointer hover:text-blue-400 hover:underline"
+                            className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
                             onClick={() => params.context.onTickerClick && params.context.onTickerClick(sym)}
                         >
                             {sym}
+                            <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </span>
                         <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
                             <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>

@@ -17,6 +17,13 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    useEffect(() => {
+        // Auto-logout when axios interceptor detects a 401 (expired token)
+        const handleAuthLogout = () => logout();
+        window.addEventListener('auth:logout', handleAuthLogout);
+        return () => window.removeEventListener('auth:logout', handleAuthLogout);
+    }, []);
+
     const fetchUser = async () => {
         try {
             const response = await api.get('/users/me');
