@@ -37,14 +37,14 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
         <div
             onClick={onClick}
             className={`
-                bg-gray-800 p-2 rounded flex flex-col items-center justify-center 
+                bg-gray-800 px-2 py-1.5 rounded flex flex-col items-center justify-center 
                 border ${loading ? 'border-yellow-500 animate-pulse' : 'border-gray-700 hover:border-blue-500'} 
-                transition-all cursor-pointer relative group h-20 w-full select-none
+                transition-all cursor-pointer relative group h-[74px] w-full select-none
             `}
             title={tooltip}
         >
             <span className="text-gray-400 text-[10px] uppercase font-semibold">{label}</span>
-            <span className={`text-lg font-bold ${colorClass} font-mono`}>
+            <span className={`text-base lg:text-lg font-bold ${colorClass} font-mono`}>
                 {displayValue}
             </span>
             {/* Loading Indicator Overlay */}
@@ -212,33 +212,33 @@ const NAVStats = ({ stats }) => {
 
     return (
         <div className="mb-4 w-full">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 items-center w-full">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 items-center w-full">
                 <div className="col-span-2 md:col-span-2 lg:col-span-2 w-full">
                     <button
                         onClick={handleLiveSync}
                         className={`
-                            h-20 w-full rounded border border-gray-600 bg-gray-800 px-4 text-left transition-colors
+                            h-[74px] w-full rounded border border-gray-600 bg-gray-800 px-3 text-left transition-colors
                             hover:bg-gray-700
                         `}
                         title="Refresh NAV widgets and live TWS status"
                     >
-                        <div className="flex h-full items-center justify-between gap-3">
+                        <div className="flex h-full items-center justify-between gap-2">
                             <div className="min-w-0">
-                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <div className="mb-1 flex flex-wrap items-center gap-1.5">
                                     <StatusPill dotClass={statusConfig.dotClass} label={statusConfig.label} />
-                                    <span className="text-[11px] uppercase tracking-wide text-gray-500">
+                                    <span className="text-[10px] uppercase tracking-wide text-gray-500">
                                         {mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD'}
                                     </span>
                                 </div>
                                 <div className="text-[10px] uppercase tracking-wide text-gray-400">Current NAV</div>
-                                <div className="font-mono text-xl font-bold text-white">
+                                <div className="font-mono text-lg lg:text-[1.55rem] font-bold text-white leading-tight">
                                     {mergedStats.current_nav === null || mergedStats.current_nav === undefined
                                         ? '--.--'
                                         : `$${mergedStats.current_nav.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 </div>
-                                <div className="mt-1 text-xs text-gray-400">{freshnessText}</div>
+                                <div className="text-[11px] text-gray-400">{freshnessText}</div>
                             </div>
-                            <div className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-100">
+                            <div className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-100 shrink-0">
                                 <div className={`h-3 w-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
                                 <span>Sync All</span>
                             </div>

@@ -489,7 +489,7 @@ const Dashboard = () => {
     const [selectedRollOpportunity, setSelectedRollOpportunity] = useState(null);
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-6">
+        <div className="min-h-screen w-full bg-gray-900 px-4 py-5 text-white lg:px-6">
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
@@ -575,7 +575,7 @@ const Dashboard = () => {
                             {toast.message}
                         </div>
                     )}
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="mb-4 w-full">
                         <NAVStats stats={portfolioStats} />
                     </div>
 
