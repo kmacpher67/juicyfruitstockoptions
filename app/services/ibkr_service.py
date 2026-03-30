@@ -24,9 +24,11 @@ def save_debug_file(label: str, content: bytes):
         import os
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         # Detect if XML or CSV
-        ext = "xml"
-        if content.strip().startswith(b"Date,"): # Simple CSV check
-             ext = "csv"
+        stripped = content.strip()
+        if stripped.startswith(b"<"):
+            ext = "xml"
+        else:
+            ext = "csv"
         
         filename = f"{settings.DATA_DIR}/{label}/{timestamp}.{ext}"
         os.makedirs(os.path.dirname(filename), exist_ok=True)
