@@ -182,6 +182,7 @@ def parse_csv_holdings(csv_str):
             # 2. Add Normalized Types for App Logic
             doc["date"] = datetime.utcnow()
             doc["report_date"] = datetime.utcnow().strftime("%Y-%m-%d")
+            doc["source"] = "flex"
             
             # Key Mapping for internal consistency
             doc["symbol"] = row.get("Symbol") # Normalization for querying
@@ -280,6 +281,7 @@ def parse_xml_holdings(xml_content):
         # 2. Normalize
         doc["date"] = datetime.utcnow()
         doc["report_date"] = root.find(".//FlexStatement").attrib.get("date") if root.find(".//FlexStatement") is not None else datetime.utcnow().strftime("%Y-%m-%d")
+        doc["source"] = "flex"
         doc["symbol"] = data.get("symbol")
         doc["quantity"] = float(data.get("position", 0))
         doc["market_value"] = float(data.get("markValue", 0))
@@ -745,6 +747,7 @@ def parse_csv_nav(csv_str, metadata: dict = None):
                 query_id=q_id,
                 query_name=q_name
             )
+            doc["source"] = "flex"
             
             # Upsert
             db.ibkr_nav_history.update_one(
@@ -822,6 +825,7 @@ def parse_xml_nav(xml_content, metadata: dict = None):
                 query_id=q_id,
                 query_name=q_name
             )
+            doc["source"] = "flex"
             
             # Upsert End Value (Today)
             db.ibkr_nav_history.update_one(
@@ -846,6 +850,7 @@ def parse_xml_nav(xml_content, metadata: dict = None):
                          doc_prev = doc.copy()
                          doc_prev["_report_date"] = prev_date_str
                          doc_prev["ending_value"] = start_val
+                         doc_prev["source"] = "flex"
                          # Zero out flows for the "virtual" T-1 record? Or keep them?
                          # Usually we just want the NAV point.
                          doc_prev["starting_value"] = 0 # Unknown
@@ -997,4 +1002,3 @@ def trigger_all_nav_reports():
             logging.warning(f"Skipping {report_type}: No Query ID configured.")
             
     save_sync_status("success", "Full NAV Schedule Completed: " + "; ".join(results))
-

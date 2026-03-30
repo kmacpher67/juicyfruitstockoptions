@@ -102,9 +102,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-service-live-verify**: Verified local CLI connection against live TWS on localhost using port `7496`. `2104`, `2106`, and `2158` startup messages were informational farm-status messages, and `connect-test` returned `"connected": true`.
 
 - [ ] **IBKR Real-Time Data — Scheduler Sync Jobs**: Add APScheduler jobs to sync live TWS positions and NAV snapshots into MongoDB on a continuous intraday basis.
-    - [ ] **ibkr-tws-jobs-001**: Add `run_tws_position_sync()` to `app/scheduler/jobs.py`. Pull from `IBKRTWSService.get_positions()`, upsert `ibkr_holdings` with `source: "tws"` and `last_tws_update` timestamp. Guard with `IBKR_TWS_ENABLED` flag. Schedule every 30s.
-    - [ ] **ibkr-tws-jobs-002**: Add `run_tws_nav_snapshot()` job. Pull account values (NetLiquidation, UnrealizedPnL, RealizedPnL) and append to `nav_history` with `source: "tws"`. Schedule every 3 min. **Fixes the 1D NAV showing 0 bug** — intraday data points will now exist.
-    - [ ] **ibkr-tws-jobs-003**: Tag existing Flex sync documents with `source: "flex"` so consumers can distinguish data freshness. Flex = authoritative for history; TWS = authoritative for current intraday state. Non-breaking additive field.
+    - [x] **ibkr-tws-jobs-001**: Add `run_tws_position_sync()` to `app/scheduler/jobs.py`. Pull from `IBKRTWSService.get_positions()`, upsert `ibkr_holdings` with `source: "tws"` and `last_tws_update` timestamp. Guard with `IBKR_TWS_ENABLED` flag. Schedule every 30s.
+    - [x] **ibkr-tws-jobs-002**: Add `run_tws_nav_snapshot()` job. Pull account values (NetLiquidation, UnrealizedPnL, RealizedPnL) and append to `nav_history` with `source: "tws"`. Schedule every 3 min. **Fixes the 1D NAV showing 0 bug** — intraday data points will now exist.
+    - [x] **ibkr-tws-jobs-003**: Tag existing Flex sync documents with `source: "flex"` so consumers can distinguish data freshness. Flex = authoritative for history; TWS = authoritative for current intraday state. Non-breaking additive field.
 
 - [ ] **IBKR Real-Time Data — API Endpoints**: Expose live connection status and data freshness to the frontend.
     - [ ] **ibkr-tws-api-001**: Add `GET /api/portfolio/live-status` → returns `{ connected, last_position_update, position_count, tws_enabled }`. Used by frontend health indicator.

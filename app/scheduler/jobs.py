@@ -1,8 +1,13 @@
 from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timezone
+
+from pymongo import MongoClient
+
 from app.config import settings
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import run_ibkr_sync
+from app.services.ibkr_tws_service import get_ibkr_tws_service
 from app.services.dividend_scanner import DividendScanner
 from app.services.expiration_scanner import ExpirationScanner
 import logging
@@ -10,6 +15,165 @@ import json
 import os
 
 scheduler = BackgroundScheduler()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _get_db():
+    client = MongoClient(settings.MONGO_URI)
+    return client.get_default_database("stock_analysis")
+
+
+def _get_tws_accounts(tws_service) -> list[str]:
+    accounts: set[str] = set()
+    app = tws_service.app
+    if app is None:
+        return []
+
+    for position in tws_service.get_positions():
+        account = position.get("account") or position.get("account_id")
+        if account:
+            accounts.add(account)
+
+    for account_name, _ in app.account_values.keys():
+        if account_name:
+            accounts.add(account_name)
+
+    return sorted(accounts)
+
+
+def run_tws_position_sync():
+    """Persist the latest TWS positions into ibkr_holdings as a live snapshot."""
+    if not settings.IBKR_TWS_ENABLED:
+        logging.info("Scheduler: Skipping TWS position sync because IBKR_TWS_ENABLED is false.")
+        return
+
+    tws_service = get_ibkr_tws_service()
+    if not tws_service.is_connected():
+        logging.warning("Scheduler: Skipping TWS position sync because TWS is not connected.")
+        return
+
+    positions = tws_service.get_positions()
+    if not positions:
+        logging.info("Scheduler: No TWS positions available to sync.")
+        return
+
+    db = _get_db()
+    now = _utc_now()
+    snapshot_id = f"tws_{now.strftime('%Y%m%dT%H%M%S%fZ')}"
+    report_date = now.strftime("%Y-%m-%d")
+    synced_count = 0
+
+    for position in positions:
+        account_id = position.get("account") or position.get("account_id")
+        symbol = position.get("symbol")
+        sec_type = position.get("sec_type") or position.get("secType") or "UNKNOWN"
+        if not account_id or not symbol:
+            continue
+
+        doc = dict(position)
+        doc.update(
+            {
+                "account_id": account_id,
+                "date": now,
+                "report_date": report_date,
+                "snapshot_id": snapshot_id,
+                "quantity": position.get("position", 0),
+                "secType": sec_type,
+                "source": "tws",
+                "last_tws_update": now,
+            }
+        )
+
+        db.ibkr_holdings.update_one(
+            {
+                "snapshot_id": snapshot_id,
+                "account_id": account_id,
+                "symbol": symbol,
+                "secType": sec_type,
+                "source": "tws",
+            },
+            {"$set": doc},
+            upsert=True,
+        )
+        synced_count += 1
+
+    logging.info(
+        "Scheduler: TWS position sync stored %s positions in snapshot %s.",
+        synced_count,
+        snapshot_id,
+    )
+
+
+def run_tws_nav_snapshot():
+    """Append live account NAV snapshots from TWS into ibkr_nav_history."""
+    if not settings.IBKR_TWS_ENABLED:
+        logging.info("Scheduler: Skipping TWS NAV snapshot because IBKR_TWS_ENABLED is false.")
+        return
+
+    tws_service = get_ibkr_tws_service()
+    if not tws_service.is_connected():
+        logging.warning("Scheduler: Skipping TWS NAV snapshot because TWS is not connected.")
+        return
+
+    accounts = _get_tws_accounts(tws_service)
+    if not accounts:
+        logging.info("Scheduler: No TWS accounts available for NAV snapshot.")
+        return
+
+    db = _get_db()
+    now = _utc_now()
+    report_date = now.strftime("%Y-%m-%d")
+    inserted = 0
+
+    for account in accounts:
+        values = tws_service.get_account_values(account)
+        if not values:
+            continue
+
+        def _float_value(key: str) -> float:
+            payload = values.get(key) or {}
+            try:
+                return float(payload.get("value") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        nav = _float_value("NetLiquidation")
+        doc = {
+            "account_id": account,
+            "_report_date": report_date,
+            "timestamp": now,
+            "source": "tws",
+            "ending_value": nav,
+            "total_nav": nav,
+            "unrealized_pnl": _float_value("UnrealizedPnL"),
+            "realized_pnl": _float_value("RealizedPnL"),
+            "last_tws_update": now,
+        }
+        db.ibkr_nav_history.insert_one(doc)
+        inserted += 1
+
+    logging.info("Scheduler: TWS NAV snapshot stored %s account snapshots.", inserted)
+
+
+def tag_existing_flex_sync_sources():
+    """Additive metadata tag so downstream consumers can distinguish Flex from TWS."""
+    db = _get_db()
+    holdings_result = db.ibkr_holdings.update_many(
+        {"source": {"$exists": False}},
+        {"$set": {"source": "flex"}},
+    )
+    nav_result = db.ibkr_nav_history.update_many(
+        {"source": {"$exists": False}},
+        {"$set": {"source": "flex"}},
+    )
+    logging.info(
+        "Scheduler: Tagged Flex source metadata on %s holdings docs and %s NAV docs.",
+        holdings_result.modified_count,
+        nav_result.modified_count,
+    )
 
 def get_schedule_config():
     """Load schedule from MongoDB or default to 10:00."""
@@ -73,6 +237,7 @@ def reschedule_daily_job(hour: int, minute: int):
 def start_scheduler():
     """Configure and start the background scheduler."""
     logging.info("Starting Scheduler...")
+    tag_existing_flex_sync_sources()
     
     # Load Config
     config = get_schedule_config()
@@ -100,6 +265,24 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info(f"Scheduled IBKR Sync for {hour:02d}:{minute:02d} daily.")
+
+    scheduler.add_job(
+        run_tws_position_sync,
+        trigger="interval",
+        seconds=30,
+        id="tws_position_sync",
+        replace_existing=True
+    )
+    logging.info("Scheduled TWS Position Sync every 30 seconds.")
+
+    scheduler.add_job(
+        run_tws_nav_snapshot,
+        trigger="interval",
+        minutes=3,
+        id="tws_nav_snapshot",
+        replace_existing=True
+    )
+    logging.info("Scheduled TWS NAV Snapshot every 3 minutes.")
 
     # Portfolio Fixer (Keep existing 3am logic)
     scheduler.add_job(

@@ -26,7 +26,9 @@ class IBKRPortalService:
         self.base_url = self._normalize_base_url(
             base_url or settings.IBKR_PORTAL_BASE_URL
         )
-        self.account_id = account_id if account_id is not None else settings.IBKR_PORTAL_ACCOUNT_ID
+        self.account_id = account_id
+        self._fallback_account_id = settings.IBKR_PORTAL_ACCOUNT_ID
+        self._account_id_explicit = account_id is not None
         self.verify_ssl = (
             settings.IBKR_PORTAL_VERIFY_SSL if verify_ssl is None else verify_ssl
         )
@@ -92,7 +94,7 @@ class IBKRPortalService:
         return None
 
     def _resolve_account_id(self) -> str | None:
-        if self.account_id:
+        if self._account_id_explicit and self.account_id:
             return self.account_id
 
         accounts = self._request("GET", "/portfolio/accounts")
@@ -101,6 +103,16 @@ class IBKRPortalService:
             self.account_id = resolved_account_id
             logger.info("Resolved IBKR Client Portal account id: %s", resolved_account_id)
             return resolved_account_id
+
+        if self.account_id:
+            return self.account_id
+        if self._fallback_account_id:
+            self.account_id = self._fallback_account_id
+            logger.info(
+                "Falling back to configured IBKR Client Portal account id: %s",
+                self._fallback_account_id,
+            )
+            return self._fallback_account_id
 
         logger.warning("Unable to resolve an IBKR Client Portal account id from gateway response.")
         return None
@@ -141,4 +153,3 @@ class IBKRPortalService:
         if isinstance(payload, dict):
             return payload
         return {"summary": payload}
-

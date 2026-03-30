@@ -21,10 +21,10 @@ The **Flex Reports** (`ibkr_service.py`) already handle EOD and post-fill data. 
 
 ---
 
-To download the Python API, you do not need to download it manually from the official website. The official IBKR Python SDK is distributed as a package named ibapi, which you can install via pip
-. Simply add ibapi>=10.19 to your project's requirements.txt file and run pip install ibapi
+To download the Python API, you do not need to download it manually from the official website. The official IBKR Python SDK is distributed as a package named `ibapi`, which you can install via pip.
+For this project, use the PyPI package version that has already been verified locally: `ibapi==9.81.1.post1`.
 https://ibkrcampus.com/campus/trading-course/python-tws-api/
-The way docker is NOT used anymore: https://github.com/waytrade/ib-gateway-docker?tab=readme-ov-file
+Current Juicy Fruit direction: connect to **Trader Workstation on localhost** first. IB Gateway Docker remains optional research, not the primary path.
 
 
 ## 2. The Three Mechanisms — Deep Dive
@@ -52,7 +52,7 @@ The way docker is NOT used anymore: https://github.com/waytrade/ib-gateway-docke
   app.reqPositions()                          # All positions across accounts
   app.reqMktData(reqId, contract, "", False, False, [])  # Live price ticks
   ```
-- **Gotcha**: TWS/IB Gateway must stay running. For production use, IB Gateway (headless) is preferred over full TWS.
+- **Gotcha**: TWS must stay running and logged in on `127.0.0.1`. For Juicy Fruit right now, localhost TWS is the active integration target.
 
 ### 2C. Client Portal REST API (Alternative — Dashboard Friendly)
 - **What**: Standard HTTPS REST API — no socket needed
@@ -80,33 +80,27 @@ TWS API (add)               → Intraday positions, NAV, live prices     ← ADD
 Client Portal (optional)    → Alternative if TWS socket is too complex ← CONSIDER
 ```
 
-**Recommended path**: Add TWS API via `ibapi`. It's the most real-time, requires no OAuth setup, and works with the IB Gateway Docker container your team already researched (`mvberg/ib-gateway-docker`).
+**Recommended path**: Add TWS API via `ibapi` against **Trader Workstation on localhost**. It's the most real-time, requires no OAuth setup, and matches the verified local connection on `127.0.0.1:7496`.
 
 ---
 
 ## 4. TWS API Setup — Step by Step
 
-### Step 1: Install IB Gateway (headless, Docker-friendly)
+### Step 1: Run Trader Workstation locally
 ```bash
-# https://ibkrcampus.com/campus/trading-course/python-tws-api/ 
-# Option A: IBC-based Docker container (recommended for server/Docker Compose)
-# Reference: https://github.com/IbcAlpha/IBC
-# Reference: https://github.com/waytrade/ib-gateway-docker
-
-docker pull ghcr.io/waytrade/ib-gateway:latest
-
-# docker-compose addition (see Section 6 below)
+# Launch Trader Workstation on this machine and sign in.
+# Keep it running while Juicy Fruit needs realtime positions/NAV.
 ```
 
-### Step 2: Configure IB Gateway to allow API connections
-In IB Gateway UI (or config file):
+### Step 2: Configure Trader Workstation to allow API connections
+In TWS:
 - Enable **API** → check "Enable ActiveX and Socket Clients"
 - Set **Socket port** based on client type:
 - `4002` = IB Gateway paper
 - `4001` = IB Gateway live
 - `7497` = Trader Workstation paper
 - `7496` = Trader Workstation live
-- Allow connections from: `127.0.0.1` (or Docker network subnet)
+- Allow connections from: `127.0.0.1`
 - Disable "Read-Only API" if you want order placement later
 
 ### Step 3: Install Python library
@@ -211,7 +205,7 @@ IBKR_TWS_CLIENT_ID=1
 IBKR_TWS_ENABLED=true       # Feature flag — enable when TWS is running locally
 ```
 
-For IB Gateway, switch the port to `4002` for paper or `4001` for live.
+For local TWS, use `7497` for paper or `7496` for live.
 
 ### Step 5A: Interpreting the first successful live connection
 
@@ -229,24 +223,28 @@ Typical startup output may include:
 
 These are informational IBKR status messages, not failures. A successful session will still report `"connected": true` even if the initial position count is `0`.
 
-### Step 6: Docker Compose addition
-```yaml
-# Add to docker-compose.yml
-services:
-  ib-gateway:
-    image: ghcr.io/waytrade/ib-gateway:latest
-    restart: always
-    environment:
-      TWS_USERID: ${IBKR_USERNAME}
-      TWS_PASSWORD: ${IBKR_PASSWORD}
-      TRADING_MODE: paper   # or 'live'
-      TWS_SETTINGS_PATH: /home/ibgateway/Jts
-    ports:
-      - "4002:4002"   # paper API port
-      - "5900:5900"   # VNC (optional, for debugging)
-    volumes:
-      - ./ibgateway-config:/home/ibgateway/Jts
+### Step 6: Scheduler integration for localhost TWS
+```python
+scheduler.add_job(
+    run_tws_position_sync,
+    trigger="interval",
+    seconds=30,
+    id="tws_position_sync",
+    replace_existing=True,
+)
+
+scheduler.add_job(
+    run_tws_nav_snapshot,
+    trigger="interval",
+    minutes=3,
+    id="tws_nav_snapshot",
+    replace_existing=True,
+)
 ```
+
+- `run_tws_position_sync()` should write a fresh TWS snapshot into `ibkr_holdings`
+- `run_tws_nav_snapshot()` should append intraday points into `ibkr_nav_history`
+- both jobs should no-op when `IBKR_TWS_ENABLED=false` or TWS is disconnected
 
 ---
 
@@ -320,7 +318,7 @@ python -m app.scripts.ibkr_portal_cli summary --force-enable --account-id DU1234
 
 ### Where TWS data fits in the data flow:
 ```
-[IB Gateway Docker] ──socket──► [IBKRTWSService]
+[TWS Workstation on localhost] ──socket──► [IBKRTWSService]
                                       │
                               reqPositions() every ~30s
                               reqAccountUpdates() continuous
@@ -359,9 +357,9 @@ scheduler.add_job(
 | Factor | TWS API | Client Portal REST |
 |--------|---------|-------------------|
 | Latency | ~250ms ticks | ~5-30s polled |
-| Setup complexity | Medium (socket + Docker) | High (Java gateway + OAuth session) |
-| Requires running process | IB Gateway | clientportal.gw |
-| Docker-friendly | ✅ Yes (`ib-gateway-docker`) | ⚠️ Harder to containerize |
+| Setup complexity | Medium (socket + local TWS) | High (Java gateway + OAuth session) |
+| Requires running process | Trader Workstation | clientportal.gw |
+| Docker-friendly | Optional, not required for current path | ⚠️ Harder to containerize |
 | Production stability | ✅ Battle-tested | ⚠️ Session expiry issues |
 | Order placement (future) | ✅ Yes | ✅ Yes |
 | **Recommendation** | **✅ Use this** | Fallback only |
@@ -370,7 +368,7 @@ scheduler.add_job(
 
 ## 8. Security Considerations
 
-- Never expose TWS API port (4002/7497) to the public internet — localhost/Docker network only
+- Never expose TWS API port (7496/7497/4001/4002) to the public internet — localhost only for the current setup
 - Store `IBKR_USERNAME` and `IBKR_PASSWORD` in Docker Secrets or `.env` (never hardcode)
 - Use `IBKR_TWS_ENABLED=false` feature flag so the service gracefully degrades when gateway is down
 - Client ID must be unique per connection — conflicts cause disconnections
