@@ -77,6 +77,13 @@ const formatRelativeTime = (value) => {
     return `updated ${diffDays}d ago`;
 };
 
+const StatusPill = ({ dotClass, label }) => (
+    <div className="inline-flex items-center gap-2 rounded-full border border-gray-700 bg-gray-900/70 px-2.5 py-1">
+        <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`}></span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-100">{label}</span>
+    </div>
+);
+
 const NAVStats = ({ stats }) => {
     const [loadingStates, setLoadingStates] = useState({});
     const [localStats, setLocalStats] = useState({});
@@ -139,7 +146,46 @@ const NAVStats = ({ stats }) => {
         setLoadingStates(prev => ({ ...prev, ...newLoading }));
 
         // Fire off requests in parallel
-        Promise.all(allTypes.map(t => handleWidgetClick(t)))
+        Promise.all([
+            ...allTypes.map(t => handleWidgetClick(t)),
+            api.get('/portfolio/nav/live'),
+            api.get('/portfolio/live-status'),
+        ])
+            .then((results) => {
+                const liveNav = results[allTypes.length]?.data;
+                const liveStatus = results[allTypes.length + 1]?.data;
+                const start1d = mergedStats.start_1d ?? localStats.start_1d;
+                const liveCurrentNav = liveNav?.total_nav;
+
+                setLocalStats((prev) => ({
+                    ...prev,
+                    current_nav: liveCurrentNav ?? prev.current_nav,
+                    data_source: liveNav?.source === 'tws' ? 'tws_live' : prev.data_source,
+                    last_updated:
+                        liveNav?.last_tws_update ||
+                        liveNav?.timestamp ||
+                        liveStatus?.last_account_value_update ||
+                        liveStatus?.last_position_update ||
+                        prev.last_updated,
+                    live_connected: liveStatus?.connected ?? prev.live_connected,
+                    tws_enabled: liveStatus?.tws_enabled ?? prev.tws_enabled,
+                    mtm_1d:
+                        start1d !== null && start1d !== undefined && liveCurrentNav !== null && liveCurrentNav !== undefined
+                            ? liveCurrentNav - start1d
+                            : prev.mtm_1d,
+                    change_1d:
+                        start1d && liveCurrentNav !== null && liveCurrentNav !== undefined
+                            ? ((liveCurrentNav - start1d) / start1d) * 100
+                            : prev.change_1d,
+                    date_1d:
+                        liveNav?.last_tws_update ||
+                        liveNav?.timestamp ||
+                        prev.date_1d,
+                }));
+            })
+            .catch((error) => {
+                console.error('Failed to refresh live TWS state', error);
+            })
             .finally(() => setLoadingStates({}));
         // Note: handleWidgetClick handles its own loading state removal, 
         // but this ensures cleanup if something goes wrong.
@@ -165,24 +211,41 @@ const NAVStats = ({ stats }) => {
     const freshnessText = formatRelativeTime(mergedStats.last_updated);
 
     return (
-        <div className="mb-4">
-            <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-gray-700 bg-gray-800/70 px-3 py-2">
-                <div className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${statusConfig.dotClass}`}></span>
-                    <span className="text-sm font-semibold text-gray-100">{statusConfig.label}</span>
-                </div>
-                <span className="text-sm text-gray-400">{freshnessText}</span>
-                <span className="text-xs uppercase tracking-wide text-gray-500">
-                    Source: {mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD'}
-                </span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 items-center w-full">
-                {/* Current NAV */}
-                <div className="w-full">
-                    <StatCard label="Current NAV" value={mergedStats.current_nav} isCurrency />
+        <div className="mb-4 w-full">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 items-center w-full">
+                <div className="col-span-2 md:col-span-2 lg:col-span-2 w-full">
+                    <button
+                        onClick={handleLiveSync}
+                        className={`
+                            h-20 w-full rounded border border-gray-600 bg-gray-800 px-4 text-left transition-colors
+                            hover:bg-gray-700
+                        `}
+                        title="Refresh NAV widgets and live TWS status"
+                    >
+                        <div className="flex h-full items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                    <StatusPill dotClass={statusConfig.dotClass} label={statusConfig.label} />
+                                    <span className="text-[11px] uppercase tracking-wide text-gray-500">
+                                        {mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD'}
+                                    </span>
+                                </div>
+                                <div className="text-[10px] uppercase tracking-wide text-gray-400">Current NAV</div>
+                                <div className="font-mono text-xl font-bold text-white">
+                                    {mergedStats.current_nav === null || mergedStats.current_nav === undefined
+                                        ? '--.--'
+                                        : `$${mergedStats.current_nav.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-400">{freshnessText}</div>
+                            </div>
+                            <div className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-100">
+                                <div className={`h-3 w-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
+                                <span>Sync All</span>
+                            </div>
+                        </div>
+                    </button>
                 </div>
 
-                {/* Histograms */}
                 <div className="w-full">
                     <StatCard
                         label="1 Day"
@@ -254,22 +317,6 @@ const NAVStats = ({ stats }) => {
                         onClick={() => handleWidgetClick(REPORT_MAP["1 Year"])}
                         loading={loadingStates[REPORT_MAP["1 Year"]]}
                     />
-                </div>
-
-                {/* Sync Button */}
-                <div className="w-full">
-                    <button
-                        onClick={handleLiveSync}
-                        className={`
-                            h-20 w-full px-4 rounded border border-gray-600 bg-gray-800 hover:bg-gray-700 
-                            text-[10px] font-bold uppercase tracking-wider transition-colors 
-                            flex flex-col items-center justify-center gap-1
-                        `}
-                        title="Force Live Update All"
-                    >
-                        <div className={`w-3 h-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
-                        <span>SYNC ALL</span>
-                    </button>
                 </div>
             </div>
         </div>

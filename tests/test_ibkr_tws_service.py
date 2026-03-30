@@ -1,4 +1,5 @@
 import logging
+import threading
 from types import SimpleNamespace
 
 import app.services.ibkr_tws_service as tws_module
@@ -7,12 +8,20 @@ from app.services.ibkr_tws_service import IBKRTWSApp, IBKRTWSService
 
 class FakeApp:
     def __init__(self) -> None:
+        self._lock = threading.RLock()
         self.positions = {}
         self.account_values = {}
         self.connected = False
         self.connect_calls: list[tuple[str, int, int]] = []
         self.req_positions_called = False
+        self.req_account_updates_calls: list[tuple[bool, str]] = []
         self.disconnect_called = False
+        self.managed_accounts = []
+        self.next_valid_order_id = 1
+        self.position_snapshot_complete = False
+        self.last_position_update = None
+        self.last_account_value_update = None
+        self.last_error = None
 
     def connect(self, host: str, port: int, client_id: int) -> None:
         self.connect_calls.append((host, port, client_id))
@@ -23,6 +32,9 @@ class FakeApp:
 
     def reqPositions(self) -> None:
         self.req_positions_called = True
+
+    def reqAccountUpdates(self, subscribe: bool, account_code: str) -> None:
+        self.req_account_updates_calls.append((subscribe, account_code))
 
     def disconnect(self) -> None:
         self.disconnect_called = True
@@ -75,6 +87,28 @@ def test_position_and_account_callbacks_capture_state():
     account_value = app.account_values[("DU123456", "NetLiquidation")]
     assert account_value["value"] == "25000.50"
     assert account_value["currency"] == "USD"
+
+
+def test_managed_accounts_subscribe_to_account_updates():
+    app = IBKRTWSApp()
+    calls = []
+    app.reqAccountUpdates = lambda subscribe, account: calls.append((subscribe, account))
+
+    app.managedAccounts("DU123456,DU999999")
+
+    assert calls == [(True, "DU123456"), (True, "DU999999")]
+
+
+def test_position_callback_subscribes_account_updates_once():
+    app = IBKRTWSApp()
+    calls = []
+    app.reqAccountUpdates = lambda subscribe, account: calls.append((subscribe, account))
+    contract = SimpleNamespace(symbol="AAPL", secType="STK", exchange="SMART", currency="USD")
+
+    app.position("DU123456", contract, 10, 150.25)
+    app.position("DU123456", contract, 11, 150.25)
+
+    assert calls == [(True, "DU123456")]
 
 
 def test_get_account_values_filters_by_account(monkeypatch):

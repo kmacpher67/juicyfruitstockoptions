@@ -251,7 +251,11 @@ const Dashboard = () => {
                 live_position_count: liveStatusRes.data.position_count,
                 tws_enabled: liveStatusRes.data.tws_enabled,
                 last_position_update: liveStatusRes.data.last_position_update,
-                last_updated: statsRes.data.last_updated || liveStatusRes.data.last_position_update,
+                last_account_value_update: liveStatusRes.data.last_account_value_update,
+                last_updated:
+                    statsRes.data.last_updated ||
+                    liveStatusRes.data.last_account_value_update ||
+                    liveStatusRes.data.last_position_update,
             });
             setPortfolioHoldings(holdingsRes.data);
             setLiveStatus(liveStatusRes.data);
@@ -289,10 +293,13 @@ const Dashboard = () => {
                         live_position_count: res.data.position_count,
                         tws_enabled: res.data.tws_enabled,
                         last_position_update: res.data.last_position_update,
+                        last_account_value_update: res.data.last_account_value_update,
                         last_updated:
-                            res.data.connected && res.data.last_position_update
-                                ? res.data.last_position_update
-                                : prev.last_updated || res.data.last_position_update,
+                            res.data.connected && (res.data.last_account_value_update || res.data.last_position_update)
+                                ? (res.data.last_account_value_update || res.data.last_position_update)
+                                : prev.last_updated ||
+                                  res.data.last_account_value_update ||
+                                  res.data.last_position_update,
                     };
                 });
             } catch (error) {

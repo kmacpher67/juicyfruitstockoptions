@@ -190,6 +190,11 @@ def get_nav_history_stats():
         stats["current_nav"] = live_snapshot.get("total_nav", stats["current_nav"])
         stats["data_source"] = "tws_live"
         stats["last_updated"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
+        if stats["start_1d"] not in (None, 0):
+            live_nav = live_snapshot.get("total_nav", stats["current_nav"])
+            stats["mtm_1d"] = live_nav - stats["start_1d"]
+            stats["change_1d"] = (stats["mtm_1d"] / stats["start_1d"]) * 100
+            stats["date_1d"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
     elif s_1d:
         stats["last_updated"] = s_1d.get("_report_date")
 

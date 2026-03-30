@@ -33,6 +33,9 @@ except ImportError as exc:  # pragma: no cover - exercised indirectly in runtime
         def reqPositions(self) -> None:
             return None
 
+        def reqAccountUpdates(self, subscribe: bool, account_code: str) -> None:
+            return None
+
         def isConnected(self) -> bool:
             return self._connected
 
@@ -71,12 +74,30 @@ class IBKRTWSApp(EWrapper, EClient):
         self.last_position_update: str | None = None
         self.last_account_value_update: str | None = None
         self.last_error: dict[str, Any] | None = None
+        self.account_update_subscriptions: set[str] = set()
 
     def _mark_callback(self) -> str:
         timestamp = _utc_now_iso()
         with self._lock:
             self.last_callback_at = timestamp
         return timestamp
+
+    def _subscribe_account_updates(self, account: str) -> None:
+        if not account:
+            return
+
+        with self._lock:
+            if account in self.account_update_subscriptions:
+                return
+            self.account_update_subscriptions.add(account)
+
+        try:
+            self.reqAccountUpdates(True, account)
+            self.logger.info("Subscribed to TWS account updates for %s.", account)
+        except Exception:
+            with self._lock:
+                self.account_update_subscriptions.discard(account)
+            self.logger.exception("Failed to subscribe to TWS account updates for %s.", account)
 
     def connectAck(self) -> None:
         timestamp = self._mark_callback()
@@ -101,6 +122,8 @@ class IBKRTWSApp(EWrapper, EClient):
             self.connected_at = self.connected_at or timestamp
             self.managed_accounts = accounts
         self.logger.info("Received %s managed account(s) from TWS.", len(accounts))
+        for account in accounts:
+            self._subscribe_account_updates(account)
 
     def position(
         self,
@@ -126,6 +149,7 @@ class IBKRTWSApp(EWrapper, EClient):
             self.positions[key] = payload
             self.last_position_update = payload["last_update"]
         self.logger.debug("Received position update for %s.", key)
+        self._subscribe_account_updates(account)
 
     def positionEnd(self) -> None:
         timestamp = self._mark_callback()

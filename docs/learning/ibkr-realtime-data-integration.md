@@ -282,6 +282,16 @@ Frontend behavior tied to this contract:
 - `NAVStats.jsx` shows green/yellow/grey status for live, fallback EOD, or disabled
 - if TWS drops mid-session, the UI shows a warning toast and keeps the last known portfolio stats visible
 
+### Implementation review update - 2026-03-30
+
+- Verified root cause for "real-time not showing as working": the TWS client was requesting `reqPositions()` but was not subscribing to `reqAccountUpdates()`, so live NAV/account values were not being populated for the scheduler.
+- Fix applied: subscribe to `reqAccountUpdates(True, account)` when TWS reports managed accounts and when position callbacks reveal an account for the first time.
+- Verified backend behavior after fix: `run_tws_nav_snapshot()` can now persist `NetLiquidation`, `UnrealizedPnL`, and `RealizedPnL` into `ibkr_nav_history` with `source: "tws"`.
+- Verified portfolio stat behavior after fix: `/api/portfolio/stats` now uses the latest TWS live NAV to override `current_nav` and recalculate the `1 Day` widget from the latest Flex 1D starting value plus live TWS current NAV.
+- Verified UI/UX update: `NAVStats.jsx` now folds status, freshness, and current NAV into the same compact card as the `Sync All` control so the portfolio header uses less vertical space.
+- Current limitation: the existing `Sync All` control refreshes NAV widgets plus live TWS status/current NAV visibility, but it does not yet trigger a dedicated current-trades sync flow.
+- Current trades support answer: yes, TWS can support current-day trade/execution ingestion, but that requires adding execution callbacks such as `reqExecutions`, `execDetails`, and likely `commissionReport` handling. That path is not yet implemented in `app/services/ibkr_tws_service.py`, so `?view=TRADES` still relies on stored trade history rather than live TWS executions.
+
 ---
 
 ## 5. Client Portal REST API Setup (Alternative)

@@ -112,7 +112,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-api-003**: Add `GET /api/portfolio/nav/live` returning the latest intraday NAV snapshot from `nav_history` with `source: "tws"` tag.
 
 - [x] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
-    - [x] **ibkr-tws-ui-001**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
+    - [x] **ibkr-tws-ui-navstat**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
+    - [x] **ibkr-tws-ui-navstat**: FIX. Current NAV location takes too much vertical realestate, move that to be inside with Sync All Widget button, why is the real time data not showing as working? Reviewed 2026-03-30: compacted Current NAV into the Sync All card and fixed missing TWS `reqAccountUpdates()` subscription so live NAV/account freshness can populate.
+    - [x] **ibkr-tws-ui-current**: Can realtime get the current NAV and/or update the 1 day NAV with tws realtime? Reviewed 2026-03-30: yes. `current_nav` now prefers latest TWS NAV snapshot and `1 Day` is recalculated from the Flex 1D start value plus live TWS current NAV.
+    - [/] **ibkr-tws-trades**: TWS api Are current trades supported can we add that to Sync All and when user clicks the ?view=TRADES 1D time? Reviewed 2026-03-30: feasible via TWS execution callbacks (`reqExecutions` / `execDetails` / commission handling), but not yet implemented in the current service or UI flow.
     - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
@@ -127,7 +130,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Research standard IBC-based containers (e.g., `mvberg/ib-gateway-docker`).
     - [ ] Test reliability of headless TWS vs IB Gateway. 
     - [ ] IBApi The official API for Interactive Brokers provides access to all the data available through IB. Replaces IBPy. interactivebrokers.github.io/tws-api/
-    
+    - [ ] IB 2nd user for gateway or tws: https://ndcdyn.interactivebrokers.com/AccountManagement/AmAuthentication
+        
 
 
 ### Observability & Logging
