@@ -18,6 +18,7 @@ from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import fetch_and_store_nav_report
 from app.database import get_db
 from app.services.signal_service import SignalService
+from app.services.ibkr_tws_service import get_ibkr_tws_service
 from app.utils.logging_config import log_endpoint
 
 router = APIRouter()
@@ -477,6 +478,40 @@ async def get_portfolio_stats(
         
     from app.services.portfolio_analysis import get_nav_history_stats
     return get_nav_history_stats()
+
+
+@router.get("/portfolio/live-status")
+@log_endpoint
+async def get_portfolio_live_status(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+
+    tws_service = get_ibkr_tws_service()
+    return tws_service.get_live_status()
+
+
+@router.get("/portfolio/nav/live")
+@log_endpoint
+async def get_portfolio_live_nav(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+
+    from app.services.portfolio_analysis import get_latest_live_nav_snapshot
+
+    snapshot = get_latest_live_nav_snapshot()
+    return snapshot or {
+        "timestamp": None,
+        "total_nav": 0,
+        "unrealized_pnl": 0,
+        "realized_pnl": 0,
+        "accounts": [],
+        "source": "tws",
+        "last_tws_update": None,
+    }
 
 @router.get("/nav/report/{report_type}")
 @log_endpoint

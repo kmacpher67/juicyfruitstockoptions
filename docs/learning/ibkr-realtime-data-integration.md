@@ -246,6 +246,42 @@ scheduler.add_job(
 - `run_tws_nav_snapshot()` should append intraday points into `ibkr_nav_history`
 - both jobs should no-op when `IBKR_TWS_ENABLED=false` or TWS is disconnected
 
+### Step 7: API surface for frontend freshness and live health
+
+These endpoints now expose the live-vs-EOD distinction without replacing the existing Flex-backed portfolio views:
+
+```http
+GET /api/portfolio/live-status
+→ {
+  "connected": true,
+  "last_position_update": "2026-03-30T18:22:00+00:00",
+  "position_count": 5,
+  "tws_enabled": true
+}
+
+GET /api/portfolio/stats
+→ existing NAV stats payload plus:
+  "data_source": "tws_live" | "flex_eod",
+  "last_updated": "<ISO timestamp or report date>"
+
+GET /api/portfolio/nav/live
+→ {
+  "timestamp": "<latest tws snapshot timestamp>",
+  "total_nav": 123456.78,
+  "unrealized_pnl": 321.45,
+  "realized_pnl": 12.34,
+  "accounts": ["U1234567"],
+  "source": "tws",
+  "last_tws_update": "<ISO timestamp>"
+}
+```
+
+Frontend behavior tied to this contract:
+
+- `Dashboard.jsx` polls `/api/portfolio/live-status` every 60 seconds while the portfolio view is open
+- `NAVStats.jsx` shows green/yellow/grey status for live, fallback EOD, or disabled
+- if TWS drops mid-session, the UI shows a warning toast and keeps the last known portfolio stats visible
+
 ---
 
 ## 5. Client Portal REST API Setup (Alternative)

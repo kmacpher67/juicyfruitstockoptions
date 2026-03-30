@@ -234,22 +234,86 @@ const Dashboard = () => {
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
     const [filterTicker, setFilterTicker] = useState(null);
+    const [liveStatus, setLiveStatus] = useState(null);
+    const [toast, setToast] = useState(null);
 
     const loadPortfolioData = async () => {
         setLoading(true);
         try {
-            const [statsRes, holdingsRes] = await Promise.all([
+            const [statsRes, holdingsRes, liveStatusRes] = await Promise.all([
                 api.get('/portfolio/stats'),
-                api.get('/portfolio/holdings')
+                api.get('/portfolio/holdings'),
+                api.get('/portfolio/live-status')
             ]);
-            setPortfolioStats(statsRes.data);
+            setPortfolioStats({
+                ...statsRes.data,
+                live_connected: liveStatusRes.data.connected,
+                live_position_count: liveStatusRes.data.position_count,
+                tws_enabled: liveStatusRes.data.tws_enabled,
+                last_position_update: liveStatusRes.data.last_position_update,
+                last_updated: statsRes.data.last_updated || liveStatusRes.data.last_position_update,
+            });
             setPortfolioHoldings(holdingsRes.data);
+            setLiveStatus(liveStatusRes.data);
         } catch (error) {
             console.error("Failed to load portfolio:", error);
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (viewMode !== 'PORTFOLIO') return undefined;
+
+        let cancelled = false;
+        const pollLiveStatus = async () => {
+            try {
+                const res = await api.get('/portfolio/live-status');
+                if (cancelled) return;
+
+                setLiveStatus((prev) => {
+                    if (prev?.connected && !res.data.connected) {
+                        setToast({
+                            message: 'TWS live connection dropped. Portfolio data has fallen back to the latest available snapshot.',
+                            type: 'warning',
+                        });
+                    }
+                    return res.data;
+                });
+
+                setPortfolioStats((prev) => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        live_connected: res.data.connected,
+                        live_position_count: res.data.position_count,
+                        tws_enabled: res.data.tws_enabled,
+                        last_position_update: res.data.last_position_update,
+                        last_updated:
+                            res.data.connected && res.data.last_position_update
+                                ? res.data.last_position_update
+                                : prev.last_updated || res.data.last_position_update,
+                    };
+                });
+            } catch (error) {
+                console.error('Failed to poll live status:', error);
+            }
+        };
+
+        const intervalId = window.setInterval(pollLiveStatus, 60000);
+        pollLiveStatus();
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (!toast) return undefined;
+        const timeoutId = window.setTimeout(() => setToast(null), 5000);
+        return () => window.clearTimeout(timeoutId);
+    }, [toast]);
 
     const triggerAutoSync = async () => {
         try {
@@ -499,8 +563,13 @@ const Dashboard = () => {
             {/* Render Based on Mode */}
             {viewMode === 'PORTFOLIO' ? (
                 <>
+                    {toast && (
+                        <div className="mb-4 rounded border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-lg">
+                            {toast.message}
+                        </div>
+                    )}
                     <div className="flex justify-between items-center mb-4">
-                        <NAVStats stats={portfolioStats} onRefreshRequest={loadPortfolioData} />
+                        <NAVStats stats={portfolioStats} />
                     </div>
 
 

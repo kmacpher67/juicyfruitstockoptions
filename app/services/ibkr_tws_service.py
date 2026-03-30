@@ -257,6 +257,29 @@ class IBKRTWSService:
         with self._lock:
             return self._app
 
+    def get_live_status(self) -> dict[str, Any]:
+        with self._lock:
+            app = self._app
+            positions = list(app.positions.values()) if app is not None else []
+            last_position_update = None
+            if positions:
+                timestamps = [
+                    position.get("last_update")
+                    for position in positions
+                    if position.get("last_update")
+                ]
+                if timestamps:
+                    last_position_update = max(timestamps)
+            elif app is not None:
+                last_position_update = getattr(app, "last_position_update", None)
+
+            return {
+                "connected": self.is_connected(),
+                "last_position_update": last_position_update,
+                "position_count": len(positions),
+                "tws_enabled": bool(self.enabled and IBAPI_IMPORT_ERROR is None),
+            }
+
 
 _service_singleton: IBKRTWSService | None = None
 _service_singleton_lock = threading.RLock()

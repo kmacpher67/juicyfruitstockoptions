@@ -1,9 +1,15 @@
+import asyncio
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
 from app.models import NavReportType, IBKRConfig
 from app.services.ibkr_service import fetch_and_store_nav_report, get_nav_query_id
-from app.api.routes import get_nav_report_endpoint
+from app.api.routes import (
+    get_nav_report_endpoint,
+    get_portfolio_live_nav,
+    get_portfolio_live_status,
+    get_portfolio_stats,
+)
 
 # --- Fixtures ---
 
@@ -122,3 +128,56 @@ def test_get_nav_report_endpoint_returns_data(mock_mongo_analysis, mock_mongo_ro
     
     assert response["status"] == "available"
     bg_tasks.add_task.assert_not_called()
+
+
+@patch("app.api.routes.get_ibkr_tws_service")
+def test_get_portfolio_live_status_returns_tws_snapshot(mock_get_service):
+    mock_get_service.return_value.get_live_status.return_value = {
+        "connected": True,
+        "last_position_update": "2026-03-30T18:22:00+00:00",
+        "position_count": 3,
+        "tws_enabled": True,
+    }
+    user = MagicMock(role="portfolio")
+
+    response = asyncio.run(get_portfolio_live_status(user))
+
+    assert response["connected"] is True
+    assert response["position_count"] == 3
+    assert response["tws_enabled"] is True
+
+
+@patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
+def test_get_portfolio_live_nav_returns_latest_snapshot(mock_get_snapshot):
+    mock_get_snapshot.return_value = {
+        "timestamp": datetime(2026, 3, 30, 18, 25),
+        "total_nav": 25000.5,
+        "unrealized_pnl": 125.0,
+        "realized_pnl": 10.0,
+        "accounts": ["DU123456"],
+        "source": "tws",
+        "last_tws_update": datetime(2026, 3, 30, 18, 25),
+    }
+    user = MagicMock(role="portfolio")
+
+    response = asyncio.run(get_portfolio_live_nav(user))
+
+    assert response["total_nav"] == 25000.5
+    assert response["accounts"] == ["DU123456"]
+    assert response["source"] == "tws"
+
+
+@patch("app.services.portfolio_analysis.get_nav_history_stats")
+def test_get_portfolio_stats_exposes_data_source_and_last_updated(mock_get_stats):
+    mock_get_stats.return_value = {
+        "current_nav": 1000,
+        "history": [],
+        "data_source": "tws_live",
+        "last_updated": "2026-03-30T18:25:00+00:00",
+    }
+    user = MagicMock(role="portfolio")
+
+    response = asyncio.run(get_portfolio_stats(user))
+
+    assert response["data_source"] == "tws_live"
+    assert response["last_updated"] == "2026-03-30T18:25:00+00:00"

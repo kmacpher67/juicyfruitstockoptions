@@ -4,6 +4,47 @@ from pymongo import MongoClient
 from app.config import settings
 from app.models import NavReportType
 
+
+def get_latest_live_nav_snapshot():
+    """Return the latest intraday TWS NAV snapshot if available."""
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+
+    pipeline = [
+        {"$match": {"source": "tws"}},
+        {"$sort": {"timestamp": -1}},
+        {
+            "$group": {
+                "_id": "$timestamp",
+                "total_nav": {"$sum": {"$ifNull": ["$total_nav", "$ending_value"]}},
+                "unrealized_pnl": {"$sum": {"$ifNull": ["$unrealized_pnl", 0]}},
+                "realized_pnl": {"$sum": {"$ifNull": ["$realized_pnl", 0]}},
+                "accounts": {"$addToSet": "$account_id"},
+                "last_tws_update": {"$max": "$last_tws_update"},
+            }
+        },
+        {"$sort": {"_id": -1}},
+        {"$limit": 1},
+    ]
+
+    results = list(db.ibkr_nav_history.aggregate(pipeline))
+    if not results:
+        return None
+
+    snapshot = results[0]
+    if "total_nav" not in snapshot and "_id" not in snapshot:
+        return None
+
+    return {
+        "timestamp": snapshot.get("_id"),
+        "total_nav": snapshot.get("total_nav", 0),
+        "unrealized_pnl": snapshot.get("unrealized_pnl", 0),
+        "realized_pnl": snapshot.get("realized_pnl", 0),
+        "accounts": sorted(account for account in snapshot.get("accounts", []) if account),
+        "source": "tws",
+        "last_tws_update": snapshot.get("last_tws_update") or snapshot.get("_id"),
+    }
+
 def get_report_stats(rtype: NavReportType):
     """
     Get stats for a single report type.
@@ -67,7 +108,9 @@ def get_nav_history_stats():
         "change_mtd": None, "change_ytd": None, "change_yoy": None, # 1Y
         "start_1d": None, "start_7d": None, "start_30d": None,
         "start_mtd": None, "start_ytd": None, "start_yoy": None,
-        "history": []
+        "history": [],
+        "data_source": "flex_eod",
+        "last_updated": None,
     }
     
     # helper to aggregate across accounts for the latest available date
@@ -141,6 +184,14 @@ def get_nav_history_stats():
     extract_stats(s_mtd, "mtd")
     extract_stats(s_ytd, "ytd")
     extract_stats(s_1y, "yoy")
+
+    live_snapshot = get_latest_live_nav_snapshot()
+    if live_snapshot:
+        stats["current_nav"] = live_snapshot.get("total_nav", stats["current_nav"])
+        stats["data_source"] = "tws_live"
+        stats["last_updated"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
+    elif s_1d:
+        stats["last_updated"] = s_1d.get("_report_date")
 
     # 3. History Graph
     # For the graph, we need a time seriesSum of all accounts per day.

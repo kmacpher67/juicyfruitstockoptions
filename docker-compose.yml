@@ -29,10 +29,12 @@ services:
       - IBKR_PORTAL_VERIFY_SSL=${IBKR_PORTAL_VERIFY_SSL:-false}
       - IBKR_PORTAL_TIMEOUT_SECONDS=${IBKR_PORTAL_TIMEOUT_SECONDS:-10}
       - IBKR_TWS_ENABLED=true
-      - IBKR_TWS_HOST=127.0.0.1
+      - IBKR_TWS_HOST=host.docker.internal
       - IBKR_TWS_PORT=7496
       - IBKR_TWS_CLIENT_ID=1
 
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - mongo
       - ibkr-portal

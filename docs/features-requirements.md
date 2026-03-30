@@ -106,15 +106,15 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-jobs-002**: Add `run_tws_nav_snapshot()` job. Pull account values (NetLiquidation, UnrealizedPnL, RealizedPnL) and append to `nav_history` with `source: "tws"`. Schedule every 3 min. **Fixes the 1D NAV showing 0 bug** — intraday data points will now exist.
     - [x] **ibkr-tws-jobs-003**: Tag existing Flex sync documents with `source: "flex"` so consumers can distinguish data freshness. Flex = authoritative for history; TWS = authoritative for current intraday state. Non-breaking additive field.
 
-- [ ] **IBKR Real-Time Data — API Endpoints**: Expose live connection status and data freshness to the frontend.
-    - [ ] **ibkr-tws-api-001**: Add `GET /api/portfolio/live-status` → returns `{ connected, last_position_update, position_count, tws_enabled }`. Used by frontend health indicator.
-    - [ ] **ibkr-tws-api-002**: Update `GET /api/portfolio/stats` to include `data_source` (`"tws_live"` or `"flex_eod"`) and `last_updated` timestamp. Frontend uses this to show data staleness.
-    - [ ] **ibkr-tws-api-003**: Add `GET /api/portfolio/nav/live` returning the latest intraday NAV snapshot from `nav_history` with `source: "tws"` tag.
+- [x] **IBKR Real-Time Data — API Endpoints**: Expose live connection status and data freshness to the frontend.
+    - [x] **ibkr-tws-api-001**: Add `GET /api/portfolio/live-status` → returns `{ connected, last_position_update, position_count, tws_enabled }`. Used by frontend health indicator.
+    - [x] **ibkr-tws-api-002**: Update `GET /api/portfolio/stats` to include `data_source` (`"tws_live"` or `"flex_eod"`) and `last_updated` timestamp. Frontend uses this to show data staleness.
+    - [x] **ibkr-tws-api-003**: Add `GET /api/portfolio/nav/live` returning the latest intraday NAV snapshot from `nav_history` with `source: "tws"` tag.
 
-- [ ] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
-    - [ ] **ibkr-tws-ui-001**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
-    - [ ] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
-    - [ ] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
+- [x] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
+    - [x] **ibkr-tws-ui-001**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
+    - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
+    - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
 - [x] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
     - [x] **ibkr-portal-001**: Downloaded clientportal.gw and running from command line, put this into a docker-compose service. Add `IBKR_PORTAL_ENABLED` feature flag. clientportal.gw$ ./bin/run.sh root/conf.yaml

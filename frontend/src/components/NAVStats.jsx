@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import api from '../api/axios';
 
 const REPORT_MAP = {
@@ -57,7 +57,27 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
     );
 };
 
-const NAVStats = ({ stats, onRefreshRequest }) => {
+const formatRelativeTime = (value) => {
+    if (!value) return 'update pending';
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'update pending';
+
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+    if (diffSeconds < 5) return 'updated just now';
+    if (diffSeconds < 60) return `updated ${diffSeconds}s ago`;
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `updated ${diffMinutes}m ago`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `updated ${diffHours}h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `updated ${diffDays}d ago`;
+};
+
+const NAVStats = ({ stats }) => {
     const [loadingStates, setLoadingStates] = useState({});
     const [localStats, setLocalStats] = useState({});
 
@@ -127,8 +147,35 @@ const NAVStats = ({ stats, onRefreshRequest }) => {
 
     if (!mergedStats) return null;
 
+    const statusConfig = mergedStats.tws_enabled
+        ? mergedStats.live_connected
+            ? {
+                dotClass: 'bg-green-400',
+                label: 'TWS live',
+            }
+            : {
+                dotClass: 'bg-yellow-400',
+                label: 'EOD only',
+            }
+        : {
+            dotClass: 'bg-gray-500',
+            label: 'Live disabled',
+        };
+
+    const freshnessText = formatRelativeTime(mergedStats.last_updated);
+
     return (
         <div className="mb-4">
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-gray-700 bg-gray-800/70 px-3 py-2">
+                <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${statusConfig.dotClass}`}></span>
+                    <span className="text-sm font-semibold text-gray-100">{statusConfig.label}</span>
+                </div>
+                <span className="text-sm text-gray-400">{freshnessText}</span>
+                <span className="text-xs uppercase tracking-wide text-gray-500">
+                    Source: {mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD'}
+                </span>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 items-center w-full">
                 {/* Current NAV */}
                 <div className="w-full">
