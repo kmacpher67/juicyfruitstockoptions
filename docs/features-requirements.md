@@ -92,7 +92,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **ibkr-tws-gateway-004**: Create `ibgateway-config/` directory at workspace root for IB Gateway settings persistence (volume mount). Add to `.gitignore`. Document setup steps in README.
 
 - [ ] **IBKR Trader Workstation**: Running localhost on this device. Should be able to handle everything in the docker container stuff. Evaluate running IB Gateway. https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cpp-static-linking what happens to other logins while gateway is running? Can I still run desktop, TWS, or mobile versions simulaneously? 
-- [ ] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
+
+- [x] **IBKR TWS API**: Document the data ingest, api, end points for tws  in `docs/learning/ibkr-realtime-data-integration.md`. 
+
+- [x] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
     - [x] **ibkr-tws-service-001**: Add `ibapi` to `requirements.txt`. Verified local installation works with `ibapi==9.81.1.post1` on Dockerfile Python 3.12. Note: `ibapi>=10.19` is not currently available on PyPI.
     - [x] **ibkr-tws-service-CLI**: CLI command line to schedule and test or manually run portfolio or trades sync.
     - [ ] **ibkr-tws-service-CLI2**: CLI command to get latest trades or portfolio positions and display them and ideponent upsert into the db. 
@@ -101,11 +104,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-service-004**: Register as singleton in `app/main.py` FastAPI lifespan. Connect on startup if `IBKR_TWS_ENABLED=true`, disconnect on shutdown.
     - [x] **ibkr-tws-service-005**: Write unit tests `tests/test_ibkr_tws_service.py`. Mock `EClient`/`EWrapper`. Cover: connect, position callback, account value callback, error handling, graceful degradation when flag is off.
     - [x] **ibkr-tws-service-live-verify**: Verified local CLI connection against live TWS on localhost using port `7496`. `2104`, `2106`, and `2158` startup messages were informational farm-status messages, and `connect-test` returned `"connected": true`.
+- [ ] **ibkr-tws-
+
 
 - [ ] **IBKR Real-Time Data — Scheduler Sync Jobs**: Add APScheduler jobs to sync live TWS positions and NAV snapshots into MongoDB on a continuous intraday basis.
     - [x] **ibkr-tws-jobs-001**: Add `run_tws_position_sync()` to `app/scheduler/jobs.py`. Pull from `IBKRTWSService.get_positions()`, upsert `ibkr_holdings` with `source: "tws"` and `last_tws_update` timestamp. Guard with `IBKR_TWS_ENABLED` flag. Schedule every 30s.
     - [x] **ibkr-tws-jobs-002**: Add `run_tws_nav_snapshot()` job. Pull account values (NetLiquidation, UnrealizedPnL, RealizedPnL) and append to `nav_history` with `source: "tws"`. Schedule every 3 min. **Fixes the 1D NAV showing 0 bug** — intraday data points will now exist.
     - [x] **ibkr-tws-jobs-003**: Tag existing Flex sync documents with `source: "flex"` so consumers can distinguish data freshness. Flex = authoritative for history; TWS = authoritative for current intraday state. Non-breaking additive field.
+    - [x] **ibkr-tws-data-source-rule**: Use TWS real-time ingest for current intraday freshness, especially same-day / `1D` portfolio state when Flex reports are stale. Flex remains authoritative for historical and EOD reporting; TWS supplements it for live positions, NAV, and freshness indicators.
 
 - [x] **IBKR Real-Time Data — API Endpoints**: Expose live connection status and data freshness to the frontend.
     - [x] **ibkr-tws-api-001**: Add `GET /api/portfolio/live-status` → returns `{ connected, last_position_update, position_count, tws_enabled }`. Used by frontend health indicator.
