@@ -86,6 +86,26 @@ def _extract_option_fields(row: dict) -> tuple[str | None, str | None, float | N
     return expiry, right, strike
 
 
+def _extract_option_underlying(row: dict) -> str | None:
+    explicit = row.get("underlying_symbol") or row.get("underlying")
+    if explicit:
+        return str(explicit).strip()
+
+    local_symbol = str(row.get("local_symbol") or row.get("localSymbol") or "").strip()
+    if local_symbol:
+        root = local_symbol[:6].strip()
+        if root:
+            return root
+
+    symbol = str(row.get("symbol") or "").strip()
+    if symbol:
+        occ_match = re.match(r"^([A-Z]{1,6})\s+\d{6}[CP]\d+", symbol)
+        if occ_match:
+            return occ_match.group(1).strip()
+
+    return symbol or None
+
+
 def _format_option_expiry(expiry: str | None) -> str | None:
     if not expiry:
         return None
@@ -102,7 +122,7 @@ def _format_option_expiry(expiry: str | None) -> str | None:
 
 def _build_display_symbol(row: dict, security_type: str) -> str:
     symbol = str(row.get("symbol") or "").strip()
-    underlying = str(row.get("underlying_symbol") or row.get("underlying") or symbol).strip()
+    underlying = str(_extract_option_underlying(row) or symbol).strip()
 
     if security_type not in {"OPT", "FOP"}:
         return symbol or underlying
@@ -118,9 +138,34 @@ def _build_display_symbol(row: dict, security_type: str) -> str:
     return symbol or underlying
 
 
+def _portfolio_row_key(row: dict) -> tuple:
+    security_type = _canonical_security_type(row)
+    account_id = row.get("account_id") or row.get("account") or "UNKNOWN"
+
+    if security_type in {"OPT", "FOP"}:
+        expiry, right, strike = _extract_option_fields(row)
+        underlying = str(_extract_option_underlying(row) or row.get("symbol") or "").strip().upper()
+        if underlying or expiry or right or strike is not None:
+            return (
+                account_id,
+                security_type,
+                underlying,
+                _format_option_expiry(expiry),
+                str(right or "").upper(),
+                strike,
+            )
+
+    symbol = str(row.get("symbol") or row.get("local_symbol") or "").strip().upper()
+    underlying = str(row.get("underlying_symbol") or row.get("underlying") or "").strip().upper()
+    return (account_id, security_type, underlying or symbol, symbol)
+
+
 def _normalize_portfolio_row(row: dict) -> dict:
     normalized = dict(row)
     security_type = _canonical_security_type(normalized)
+    underlying_symbol = _extract_option_underlying(normalized) if security_type in {"OPT", "FOP"} else (
+        normalized.get("underlying_symbol") or normalized.get("underlying") or normalized.get("symbol")
+    )
     quantity = _safe_float(normalized.get("quantity"))
     if quantity is None:
         quantity = _safe_float(normalized.get("position"))
@@ -162,11 +207,111 @@ def _normalize_portfolio_row(row: dict) -> dict:
             "security_type": security_type,
             "asset_class": security_type,
             "secType": security_type,
-            "underlying_symbol": normalized.get("underlying_symbol") or normalized.get("underlying") or normalized.get("symbol"),
+            "underlying_symbol": underlying_symbol,
             "display_symbol": _build_display_symbol(normalized, security_type),
         }
     )
     return normalized
+
+
+def _latest_holdings_query_for_source(db, source: str | None) -> dict | None:
+    if source == "tws":
+        latest = db.ibkr_holdings.find_one({"source": "tws"}, sort=[("date", -1)])
+    elif source == "flex":
+        latest = db.ibkr_holdings.find_one({"source": "flex"}, sort=[("date", -1)])
+        if not latest:
+            latest = db.ibkr_holdings.find_one({"source": {"$exists": False}}, sort=[("date", -1)])
+    else:
+        latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+
+    if not latest:
+        return None
+
+    snapshot_id = latest.get("snapshot_id")
+    if snapshot_id:
+        query = {"snapshot_id": snapshot_id}
+    else:
+        query = {"report_date": latest.get("report_date")}
+
+    if source == "tws":
+        query["source"] = "tws"
+    elif source == "flex":
+        if latest.get("source") == "flex":
+            query["source"] = "flex"
+        else:
+            query["source"] = {"$exists": False}
+
+    return query
+
+
+def _merge_portfolio_rows(base_row: dict, incoming_row: dict) -> dict:
+    merged = dict(base_row)
+    incoming_source = incoming_row.get("source")
+    merged_sources = set(merged.get("merged_sources") or [])
+    if merged.get("source"):
+        merged_sources.add(merged["source"])
+    if incoming_source:
+        merged_sources.add(incoming_source)
+
+    if incoming_source == "tws":
+        preferred_fields = [
+            "quantity",
+            "market_price",
+            "market_value",
+            "unrealized_pnl",
+            "percent_of_nav",
+            "last_tws_update",
+            "date",
+            "source",
+        ]
+        for field in preferred_fields:
+            value = incoming_row.get(field)
+            if value is not None:
+                merged[field] = value
+
+    for field, value in incoming_row.items():
+        if field == "merged_sources":
+            continue
+        if merged.get(field) is None and value is not None:
+            merged[field] = value
+
+    if merged_sources:
+        merged["merged_sources"] = sorted(merged_sources)
+    return merged
+
+
+def _load_portfolio_holdings_rows(db) -> list[dict]:
+    live_query = _latest_holdings_query_for_source(db, "tws")
+    flex_query = _latest_holdings_query_for_source(db, "flex")
+
+    row_groups: list[list[dict]] = []
+    seen_queries: set[tuple] = set()
+    for query in [live_query, flex_query]:
+        if not query:
+            continue
+        key = tuple(sorted((k, str(v)) for k, v in query.items()))
+        if key in seen_queries:
+            continue
+        seen_queries.add(key)
+        row_groups.append(list(db.ibkr_holdings.find(query, {"_id": 0})))
+
+    if not row_groups:
+        fallback_query = _latest_holdings_query_for_source(db, None)
+        if not fallback_query:
+            return []
+        row_groups.append(list(db.ibkr_holdings.find(fallback_query, {"_id": 0})))
+
+    merged_rows: dict[tuple, dict] = {}
+    for rows in row_groups:
+        for raw_row in rows:
+            normalized = _normalize_portfolio_row(raw_row)
+            key = _portfolio_row_key(normalized)
+            if key in merged_rows:
+                merged_rows[key] = _merge_portfolio_rows(merged_rows[key], normalized)
+            else:
+                merged_rows[key] = normalized
+
+    return list(merged_rows.values())
 
 @router.post("/token", response_model=Token)
 @log_endpoint
@@ -710,21 +855,9 @@ async def get_portfolio_holdings(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
-    # Find latest date
-    # Find latest snapshot
-    latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-    if not latest:
+    data = _load_portfolio_holdings_rows(db)
+    if not data:
         return []
-        
-    # Use unique snapshot_id to avoid duplicates from multiple syncs in one day
-    snapshot_id = latest.get("snapshot_id")
-    if snapshot_id:
-        query = {"snapshot_id": snapshot_id}
-    else:
-        # Fallback for legacy data
-        query = {"report_date": latest.get("report_date")}
-        
-    data = [_normalize_portfolio_row(row) for row in db.ibkr_holdings.find(query, {"_id": 0})]
     
     # Enrich with Dividend History
     symbols = list(set([h["symbol"] for h in data if "symbol" in h]))

@@ -356,6 +356,80 @@ def test_get_portfolio_holdings_percent_of_nav_remains_fraction_and_missing_valu
         assert row["unrealized_pnl"] is None
 
 
+def test_get_portfolio_holdings_merges_flex_and_tws_rows_into_one_visible_position(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls, \
+         patch("app.services.options_analysis.OptionsAnalyzer") as mock_analyzer_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        live_rows = [
+            {
+                "symbol": "AMD",
+                "local_symbol": "AMD   260402C00202500",
+                "secType": "OPT",
+                "account": "U110638",
+                "position": -1,
+                "market_price": 2.95,
+                "market_value": -295.0,
+                "unrealized_pnl": 180.0,
+                "last_trade_date": "20260402",
+                "right": "C",
+                "strike": 202.5,
+                "source": "tws",
+            }
+        ]
+        flex_rows = [
+            {
+                "symbol": "AMD  260402C00202500",
+                "asset_class": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "cost_basis": 4.75,
+                "expiry": "2026-04-02",
+                "right": "C",
+                "strike": 202.5,
+                "source": "flex",
+            }
+        ]
+
+        def find_one_side_effect(query=None, sort=None):
+            if query == {"source": "tws"}:
+                return {"snapshot_id": "tws_snap", "source": "tws"}
+            if query == {"source": "flex"}:
+                return {"snapshot_id": "flex_snap", "source": "flex"}
+            return None
+
+        def find_side_effect(query, projection):
+            if query == {"snapshot_id": "tws_snap", "source": "tws"}:
+                return live_rows
+            if query == {"snapshot_id": "flex_snap", "source": "flex"}:
+                return flex_rows
+            return []
+
+        mock_db.ibkr_holdings.find_one.side_effect = find_one_side_effect
+        mock_db.ibkr_holdings.find.side_effect = find_side_effect
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        mock_analyzer = MagicMock()
+        mock_analyzer_cls.return_value = mock_analyzer
+        mock_analyzer.grouped = {"AMD": {"shares": 0, "short_calls": 100, "options": []}}
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert len(data) == 1
+        row = data[0]
+        assert row["display_symbol"] == "AMD 2026-04-02 202.5 Call"
+        assert row["market_price"] == 2.95
+        assert row["market_value"] == -295.0
+        assert row["unrealized_pnl"] == 180.0
+        assert row["cost_basis"] == 4.75
+        assert row["merged_sources"] == ["flex", "tws"]
+
+
 def test_get_portfolio_holdings_coverage_with_ibkr_pascal_case_asset_class(client):
     """Regression test: IBKR CSV stores field as 'AssetClass' (PascalCase), not 'asset_class'.
 
