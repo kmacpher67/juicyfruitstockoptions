@@ -342,6 +342,20 @@ Frontend behavior tied to this contract:
 - `NAVStats.jsx` shows green/yellow/grey status for live, fallback EOD, or disabled
 - if TWS drops mid-session, the UI shows a warning toast and keeps the last known portfolio stats visible
 
+### Web app troubleshooting contract
+
+For the web app, `/api/portfolio/live-status` should be treated as the source of truth, not a best-effort hint.
+
+The frontend should render these states distinctly:
+
+- `disabled`: realtime feature flag off in backend runtime
+- `disconnected`: no active session has been established yet
+- `socket_unreachable`: backend cannot open the socket path at all
+- `handshake_failed`: backend can open the socket, but the IB API handshake did not complete
+- `connected`: handshake succeeded and callbacks are flowing
+
+When the UI only shows a generic "not working" state, diagnosis becomes guesswork and operators cannot tell whether the problem is config, network path, trusted-client settings, or frontend rendering.
+
 ### Implementation review update - 2026-03-30
 
 - Verified root cause for "real-time not showing as working": the TWS client was requesting `reqPositions()` but was not subscribing to `reqAccountUpdates()`, so live NAV/account values were not being populated for the scheduler.
@@ -351,6 +365,22 @@ Frontend behavior tied to this contract:
 - Verified UI/UX update: `NAVStats.jsx` now folds status, freshness, and current NAV into the same compact card as the `Sync All` control so the portfolio header uses less vertical space.
 - Current limitation: the existing `Sync All` control refreshes NAV widgets plus live TWS status/current NAV visibility, but it does not yet trigger a dedicated current-trades sync flow.
 - Current trades support answer: yes, TWS can support current-day trade/execution ingestion, but that requires adding execution callbacks such as `reqExecutions`, `execDetails`, and likely `commissionReport` handling. That path is not yet implemented in `app/services/ibkr_tws_service.py`, so `?view=TRADES` still relies on stored trade history rather than live TWS executions.
+
+### Implementation review update - 2026-03-31
+
+- The remaining user-visible problem is best described as "web app realtime diagnosis is incomplete", not simply "TWS integration missing".
+- The backend service already models handshake-failed state and the tests cover it.
+- The most likely failing production path is:
+  - host CLI proves localhost TWS works
+  - backend runtime reaches `host.docker.internal:7496`
+  - TWS rejects or never fully handshakes that runtime because of trusted-client / localhost-only API rules
+  - scheduler writes no fresh `source: "tws"` documents
+  - the web app falls back to Flex/EOD and looks broken
+- The next fix should therefore prioritize:
+  - backend-runtime verification
+  - surfacing precise `connection_state` / `diagnosis`
+  - reconnect/warmup failure handling
+  - explicit fallback behavior when TWS is not viable from the deployed runtime
 
 ---
 

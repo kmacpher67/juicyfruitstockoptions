@@ -11,6 +11,28 @@
 
 **Approach**: Layer TWS API on top of Flex. TWS = intraday source of truth. Flex = historical/EOD source of truth.
 
+## Current Focus Update - 2026-03-31
+
+This plan is now the selected task set for the active web-app issue: "IBKR real-time TWS integration is still not working in the web app."
+
+Critical-path interpretation:
+
+1. The first thing to prove is not frontend rendering but backend-runtime handshake success.
+2. The next thing to prove is scheduler persistence into Mongo from that same runtime.
+3. Only after that should the UI be considered broken.
+
+Selected tasks for the current fix:
+
+- `ibkr-tws-webapp-fix-001`
+- `ibkr-tws-webapp-fix-002`
+- `ibkr-tws-webapp-fix-003`
+- `ibkr-tws-webapp-fix-004`
+- `ibkr-tws-logging-004`
+- `ibkr-tws-logging-007`
+- `ibkr-tws-reliability-001`
+- `ibkr-tws-reliability-004`
+- `ibkr-tws-reliability-005`
+
 ---
 
 ## Pre-Implementation Checklist
@@ -248,6 +270,11 @@ async def get_live_status():
     }
 ```
 
+Current expectation for the web app:
+- this endpoint is the source of truth for live state
+- the payload must keep `connection_state`, `diagnosis`, `socket_connectable`, `last_error`, `managed_accounts`, and `last_account_value_update`
+- the frontend should not collapse all non-connected states into one generic fallback label
+
 #### Task 4.2 — Update `GET /api/portfolio/stats` data source tagging
 **File**: `app/api/routes.py`  
 **Effort**: 30 min  
@@ -268,6 +295,20 @@ Add `data_source` and `last_updated` fields to existing response. Query `ibkr_ho
 - Grey dot: `tws_enabled: false` → "Flex Only"
 - Show `last_updated` as relative time: "updated 12s ago"
 - This fixes the **1D NAV showing 0 bug** — the nav_history will have intraday entries from TWS
+
+#### Task 5.1A — Replace generic "not working" UI state with diagnostic state
+**Effort**: 30–60 min  
+**Depends on**: Task 4.1
+
+- Show `connection_state` and short `diagnosis` text in the live-status area
+- Distinguish:
+  - `disabled`
+  - `disconnected`
+  - `socket_unreachable`
+  - `handshake_failed`
+  - `connected`
+- For `handshake_failed`, explicitly hint that the backend runtime can reach the socket but the IB API session did not complete
+- Keep current NAV visible when falling back so the UI is informative, not blank
 
 ---
 
@@ -355,6 +396,12 @@ docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli connect-test
 docker exec stock_portal_backend python -c "from pymongo import MongoClient; from app.config import settings; db=MongoClient(settings.MONGO_URI).get_default_database('stock_analysis'); print(db.ibkr_nav_history.find_one({'source':'tws'}, sort=[('timestamp',-1)]))"
 ```
 
+Interpretation:
+
+- `raw-connect-test=true` and `connect-test=false` means the web app is blocked by handshake/runtime trust, not by React rendering
+- no recent `source: "tws"` docs means scheduler persistence is still not working
+- once both handshake and persistence work, the remaining issue is genuinely frontend-specific
+
 ---
 
 ## Definition of Done
@@ -366,6 +413,7 @@ docker exec stock_portal_backend python -c "from pymongo import MongoClient; fro
 - [ ] `nav_history` gets intraday entries every 3 minutes
 - [ ] `GET /api/portfolio/live-status` returns correct connection state
 - [ ] `GET /api/portfolio/live-status` returns enough failure context to distinguish disabled vs disconnected vs handshake failure
+- [ ] NAVStats shows diagnostic live state instead of a generic broken/fallback state
 - [ ] NAVStats badge shows green "Live" dot when connected
 - [ ] **1D NAV widget no longer shows 0** (has intraday data points)
 - [ ] All 5 unit tests pass (`pytest tests/test_ibkr_tws_service.py`)

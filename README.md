@@ -80,6 +80,26 @@ python -m app.scripts.ibkr_portal_cli keepalive --force-enable --base-url https:
 python -m app.scripts.ibkr_portal_cli positions --force-enable --account-id YOUR_ACCOUNT_ID
 ```
 
+### IBKR TWS Realtime Notes
+
+Juicy Fruit currently prefers Trader Workstation on localhost for realtime portfolio state. The important troubleshooting rule is: verify from the same runtime as the FastAPI backend, not only from the host shell.
+
+Useful docs:
+
+- `docs/features/ibkr_tws_realtime.md`
+- `docs/plans/implementation_plan-20260330-ibkr_tws_realtime.md`
+- `docs/learning/ibkr-realtime-data-integration.md`
+
+Typical backend-runtime verification flow:
+
+```bash
+python -m app.scripts.ibkr_tws_cli status --show-env
+python -m app.scripts.ibkr_tws_cli raw-connect-test --force-enable
+python -m app.scripts.ibkr_tws_cli connect-test --force-enable
+```
+
+If the backend is running in Docker, run the same checks inside that container. A passing raw socket test does not prove the IB API handshake succeeded.
+
 ---
 
 ## Legacy Script Usage
