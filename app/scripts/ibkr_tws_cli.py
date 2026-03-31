@@ -85,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
             "raw-connect-test",
             "positions",
             "account-values",
+            "executions",
+            "sync-executions",
         ],
         help="TWS action to run.",
     )
@@ -146,6 +148,17 @@ def main() -> None:
                 }
             elif args.command == "positions":
                 payload = service.get_positions()
+            elif args.command == "executions":
+                service.refresh_executions(account=args.account)
+                payload = service.get_executions(account=args.account)
+            elif args.command == "sync-executions":
+                service.refresh_executions(account=args.account)
+                payload = {
+                    "requested": True,
+                    "account": args.account,
+                    "upserted": service.upsert_executions_to_db(account=args.account),
+                    "execution_count": len(service.get_executions(account=args.account)),
+                }
             else:
                 payload = service.get_account_values(args.account or "")
         finally:

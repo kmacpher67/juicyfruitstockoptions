@@ -11,16 +11,20 @@ class FakeApp:
         self._lock = threading.RLock()
         self.positions = {}
         self.account_values = {}
+        self.executions = {}
         self.connected = False
         self.connect_calls: list[tuple[str, int, int]] = []
         self.req_positions_called = False
         self.req_account_updates_calls: list[tuple[bool, str]] = []
+        self.req_executions_calls: list[tuple[int, object]] = []
         self.disconnect_called = False
         self.managed_accounts = []
         self.next_valid_order_id = 1
         self.position_snapshot_complete = False
+        self.execution_snapshot_complete = False
         self.last_position_update = None
         self.last_account_value_update = None
+        self.last_execution_update = None
         self.last_error = None
 
     def connect(self, host: str, port: int, client_id: int) -> None:
@@ -35,6 +39,9 @@ class FakeApp:
 
     def reqAccountUpdates(self, subscribe: bool, account_code: str) -> None:
         self.req_account_updates_calls.append((subscribe, account_code))
+
+    def reqExecutions(self, req_id: int, execution_filter: object) -> None:
+        self.req_executions_calls.append((req_id, execution_filter))
 
     def disconnect(self) -> None:
         self.disconnect_called = True
@@ -132,6 +139,119 @@ def test_get_account_values_filters_by_account(monkeypatch):
         "NetLiquidation": {"value": "25000.50"},
         "AvailableFunds": {"value": "5000.00"},
     }
+
+
+def test_execution_and_commission_callbacks_capture_state():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="AAPL",
+        localSymbol="AAPL",
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+    )
+    execution = SimpleNamespace(
+        execId="0001",
+        acctNumber="DU123456",
+        side="BOT",
+        shares=10,
+        price=200.5,
+        avgPrice=200.5,
+        cumQty=10,
+        orderId=77,
+        permId=88,
+        clientId=1,
+        time="20260330 15:45:00 US/Eastern",
+        lastLiquidity=1,
+    )
+    commission_report = SimpleNamespace(
+        execId="0001",
+        commission=1.25,
+        currency="USD",
+        realizedPNL=12.5,
+        yield_=0.0,
+        yieldRedemptionDate=0,
+    )
+
+    app.execDetails(9001, contract, execution)
+    app.commissionReport(commission_report)
+    app.execDetailsEnd(9001)
+
+    stored = app.executions["0001"]
+    assert stored["symbol"] == "AAPL"
+    assert stored["account"] == "DU123456"
+    assert stored["buy_sell"] == "BOT"
+    assert stored["commission"] == 1.25
+    assert stored["realized_pnl"] == 12.5
+    assert app.execution_snapshot_complete is True
+
+
+def test_refresh_executions_requests_tws_snapshot(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    service = IBKRTWSService(
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+
+    requested = service.refresh_executions(account="DU123456", req_id=9002)
+
+    assert requested is True
+    assert len(fake_app.req_executions_calls) == 1
+    req_id, execution_filter = fake_app.req_executions_calls[0]
+    assert req_id == 9002
+    assert getattr(execution_filter, "acctCode") == "DU123456"
+
+
+def test_upsert_executions_to_db_maps_trade_fields(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.executions = {
+        "0001": {
+            "exec_id": "0001",
+            "account": "DU123456",
+            "symbol": "AAPL",
+            "underlying_symbol": "AAPL",
+            "date_time": "20260330 15:45:00 US/Eastern",
+            "quantity": 10,
+            "price": 200.5,
+            "commission": 1.25,
+            "realized_pnl": 12.5,
+            "buy_sell": "BOT",
+            "sec_type": "STK",
+            "exchange": "SMART",
+            "currency": "USD",
+            "last_update": "2026-03-30T19:45:00+00:00",
+        }
+    }
+    service = IBKRTWSService(
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+    mock_db = SimpleNamespace(ibkr_trades=SimpleNamespace(update_one=lambda *args, **kwargs: None))
+
+    calls = []
+
+    def _capture_update_one(*args, **kwargs):
+        calls.append((args, kwargs))
+
+    mock_db.ibkr_trades.update_one = _capture_update_one
+
+    upserted = service.upsert_executions_to_db(db=mock_db)
+
+    assert upserted == 1
+    args, kwargs = calls[0]
+    assert args[0] == {"trade_id": "0001"}
+    stored_doc = args[1]["$set"]
+    assert stored_doc["source"] == "tws_live"
+    assert stored_doc["trade_id"] == "0001"
+    assert stored_doc["account_id"] == "DU123456"
+    assert stored_doc["asset_class"] == "STK"
+    assert kwargs["upsert"] is True
 
 
 def test_error_callback_records_last_error(caplog):

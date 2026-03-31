@@ -95,6 +95,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
     - [x] **ibkr-tws-service-001**: Add `ibapi` to `requirements.txt`. Verified local installation works with `ibapi==9.81.1.post1` on Dockerfile Python 3.12. Note: `ibapi>=10.19` is not currently available on PyPI.
     - [x] **ibkr-tws-service-CLI**: CLI command line to schedule and test or manually run portfolio or trades sync.
+    - [ ] **ibkr-tws-service-CLI2**: CLI command to get latest trades or portfolio positions and display them and ideponent upsert into the db. 
     - [x] **ibkr-tws-service-002**: Implement `IBKRTWSApp(EWrapper, EClient)` with callbacks: `position()`, `positionEnd()`, `updateAccountValue()`, `connectAck()`, `error()`. Follow logging standard: `{datetime} - {filename-class-method} - {LEVEL} - {message}`.
     - [x] **ibkr-tws-service-003**: Implement `IBKRTWSService` wrapper with `connect()`, `disconnect()`, `get_positions()`, `get_account_values(account)`, `is_connected()`. Use `threading.Thread(daemon=True)` for socket loop. Graceful no-op when `IBKR_TWS_ENABLED=false`.
     - [x] **ibkr-tws-service-004**: Register as singleton in `app/main.py` FastAPI lifespan. Connect on startup if `IBKR_TWS_ENABLED=true`, disconnect on shutdown.
@@ -115,7 +116,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-ui-navstat**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
     - [x] **ibkr-tws-ui-navstat**: FIX. Current NAV location takes too much vertical realestate, move that to be inside with Sync All Widget button, why is the real time data not showing as working? Reviewed 2026-03-30: compacted Current NAV into the Sync All card and fixed missing TWS `reqAccountUpdates()` subscription so live NAV/account freshness can populate.
     - [x] **ibkr-tws-ui-current**: Can realtime get the current NAV and/or update the 1 day NAV with tws realtime? Reviewed 2026-03-30: yes. `current_nav` now prefers latest TWS NAV snapshot and `1 Day` is recalculated from the Flex 1D start value plus live TWS current NAV.
-    - [/] **ibkr-tws-trades**: TWS api Are current trades supported can we add that to Sync All and when user clicks the ?view=TRADES 1D time? Reviewed 2026-03-30: feasible via TWS execution callbacks (`reqExecutions` / `execDetails` / commission handling), but not yet implemented in the current service or UI flow.
+    - [/] **ibkr-tws-trades**: TWS api Are current trades supported can we add that to Sync All and when user clicks the ?view=TRADES 1D time? Reviewed 2026-03-30: live execution capture is now partially implemented in the backend service/CLI via TWS execution callbacks (`reqExecutions` / `execDetails` / `commissionReport`), but it is not yet wired into scheduled sync, API endpoints, or the Trade History UI flow.
+        - [x] **ibkr-tws-trades-001**: Extend `app/services/ibkr_tws_service.py` to capture live executions and commissions in-memory, expose `get_executions()`, and support idempotent upsert into `ibkr_trades` with `source: "tws_live"`.
+        - [x] **ibkr-tws-trades-002**: Extend `app/scripts/ibkr_tws_cli.py` with manual `executions` and `sync-executions` commands for local verification against localhost TWS.
+        - [ ] **ibkr-tws-trades-003**: Add scheduler job `run_tws_execution_sync()` to request executions and upsert them into `ibkr_trades` on a short intraday interval. Guard with `IBKR_TWS_ENABLED` and make it safe when TWS is disconnected.
+        - [ ] **ibkr-tws-trades-004**: Add backend API endpoint for live/current-day TWS executions so `?view=TRADES` can explicitly request intraday data freshness without waiting for the next Flex report.
+        - [ ] **ibkr-tws-trades-005**: Update Trade History UI and Sync All behavior so the trades view can surface current-day TWS executions, show live-vs-Flex source/freshness, and avoid duplicate rows when Flex history later lands.
     - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
@@ -131,7 +137,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Test reliability of headless TWS vs IB Gateway. 
     - [ ] IBApi The official API for Interactive Brokers provides access to all the data available through IB. Replaces IBPy. interactivebrokers.github.io/tws-api/
     - [ ] IB 2nd user for gateway or tws: https://ndcdyn.interactivebrokers.com/AccountManagement/AmAuthentication
-        
+
 
 
 ### Observability & Logging

@@ -8,7 +8,9 @@ from app.config import settings
 
 try:
     from ibapi.client import EClient
+    from ibapi.commission_report import CommissionReport
     from ibapi.contract import Contract
+    from ibapi.execution import Execution, ExecutionFilter
     from ibapi.wrapper import EWrapper
 
     IBAPI_IMPORT_ERROR: Exception | None = None
@@ -36,6 +38,9 @@ except ImportError as exc:  # pragma: no cover - exercised indirectly in runtime
         def reqAccountUpdates(self, subscribe: bool, account_code: str) -> None:
             return None
 
+        def reqExecutions(self, req_id: int, execution_filter: Any) -> None:
+            return None
+
         def isConnected(self) -> bool:
             return self._connected
 
@@ -44,6 +49,34 @@ except ImportError as exc:  # pragma: no cover - exercised indirectly in runtime
         secType: str = ""
         exchange: str = ""
         currency: str = ""
+
+    class Execution:  # type: ignore[no-redef]
+        execId: str = ""
+        acctNumber: str = ""
+        side: str = ""
+        shares: float = 0.0
+        price: float = 0.0
+        time: str = ""
+        orderId: int = 0
+        permId: int = 0
+        clientId: int = 0
+        avgPrice: float = 0.0
+        cumQty: float = 0.0
+        evRule: str = ""
+        evMultiplier: float = 0.0
+        modelCode: str = ""
+        lastLiquidity: int = 0
+
+    class ExecutionFilter:  # type: ignore[no-redef]
+        acctCode: str = ""
+
+    class CommissionReport:  # type: ignore[no-redef]
+        execId: str = ""
+        commission: float = 0.0
+        currency: str = ""
+        realizedPNL: float = 0.0
+        yield_: float = 0.0
+        yieldRedemptionDate: int = 0
 
     IBAPI_IMPORT_ERROR = exc
 
@@ -73,6 +106,9 @@ class IBKRTWSApp(EWrapper, EClient):
         self.managed_accounts: list[str] = []
         self.last_position_update: str | None = None
         self.last_account_value_update: str | None = None
+        self.executions: dict[str, dict[str, Any]] = {}
+        self.execution_snapshot_complete = False
+        self.last_execution_update: str | None = None
         self.last_error: dict[str, Any] | None = None
         self.account_update_subscriptions: set[str] = set()
 
@@ -179,6 +215,77 @@ class IBKRTWSApp(EWrapper, EClient):
             self.account_values[(accountName, key)] = payload
             self.last_account_value_update = payload["last_update"]
         self.logger.debug("Received account value update for %s/%s.", accountName, key)
+
+    def execDetails(
+        self,
+        reqId: int,
+        contract: Contract,
+        execution: Execution,
+    ) -> None:
+        exec_id = getattr(execution, "execId", "")
+        if not exec_id:
+            self.logger.warning("Received execution update without execId for reqId=%s.", reqId)
+            return
+
+        timestamp = self._mark_callback()
+        payload = {
+            "exec_id": exec_id,
+            "req_id": reqId,
+            "account": getattr(execution, "acctNumber", ""),
+            "symbol": getattr(contract, "symbol", ""),
+            "underlying_symbol": getattr(contract, "localSymbol", "") or getattr(contract, "symbol", ""),
+            "sec_type": getattr(contract, "secType", ""),
+            "exchange": getattr(contract, "exchange", ""),
+            "currency": getattr(contract, "currency", ""),
+            "buy_sell": getattr(execution, "side", ""),
+            "quantity": getattr(execution, "shares", 0),
+            "price": getattr(execution, "price", 0),
+            "avg_price": getattr(execution, "avgPrice", 0),
+            "cum_qty": getattr(execution, "cumQty", 0),
+            "order_id": getattr(execution, "orderId", None),
+            "perm_id": getattr(execution, "permId", None),
+            "client_id": getattr(execution, "clientId", None),
+            "date_time": getattr(execution, "time", ""),
+            "last_liquidity": getattr(execution, "lastLiquidity", None),
+            "last_update": timestamp,
+            "source": "tws_live",
+        }
+        with self._lock:
+            existing = self.executions.get(exec_id, {})
+            merged = {**existing, **payload}
+            self.executions[exec_id] = merged
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+            self.last_execution_update = timestamp
+        self.logger.debug("Received execution update for execId=%s.", exec_id)
+
+    def execDetailsEnd(self, reqId: int) -> None:
+        timestamp = self._mark_callback()
+        with self._lock:
+            self.execution_snapshot_complete = True
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+        self.logger.info("Completed execution snapshot for reqId=%s with %s executions.", reqId, len(self.executions))
+
+    def commissionReport(self, commissionReport: CommissionReport) -> None:
+        exec_id = getattr(commissionReport, "execId", "")
+        if not exec_id:
+            self.logger.warning("Received commission report without execId.")
+            return
+
+        payload = {
+            "commission": getattr(commissionReport, "commission", 0),
+            "commission_currency": getattr(commissionReport, "currency", ""),
+            "realized_pnl": getattr(commissionReport, "realizedPNL", 0),
+            "yield": getattr(commissionReport, "yield_", 0),
+            "yield_redemption_date": getattr(commissionReport, "yieldRedemptionDate", 0),
+            "last_update": self._mark_callback(),
+        }
+        with self._lock:
+            existing = self.executions.get(exec_id, {})
+            self.executions[exec_id] = {**existing, **payload, "exec_id": exec_id}
+            self.last_execution_update = payload["last_update"]
+        self.logger.debug("Received commission report for execId=%s.", exec_id)
 
     def error(
         self,
@@ -316,6 +423,26 @@ class IBKRTWSService:
             app.connected = False
         self.logger.info("Disconnected from IBKR TWS.")
 
+    def refresh_executions(self, account: str | None = None, req_id: int = 9001) -> bool:
+        if self._is_disabled():
+            return False
+
+        with self._lock:
+            app = self._app
+        if app is None or not self.is_connected():
+            self.logger.warning("Cannot request executions because TWS is not connected.")
+            return False
+
+        execution_filter = ExecutionFilter()
+        if account:
+            setattr(execution_filter, "acctCode", account)
+
+        with app._lock:
+            app.execution_snapshot_complete = False
+        app.reqExecutions(req_id, execution_filter)
+        self.logger.info("Requested TWS executions for account=%s reqId=%s.", account or "*", req_id)
+        return True
+
     def get_positions(self) -> list[dict[str, Any]]:
         if self._is_disabled():
             return []
@@ -337,6 +464,68 @@ class IBKRTWSService:
                 for (account_name, key_name), payload in self._app.account_values.items()
                 if account_name == account
             }
+
+    def get_executions(self, account: str | None = None) -> list[dict[str, Any]]:
+        if self._is_disabled():
+            return []
+
+        with self._lock:
+            if self._app is None:
+                return []
+            executions = list(self._app.executions.values())
+
+        if not account:
+            return executions
+        return [execution for execution in executions if execution.get("account") == account]
+
+    def upsert_executions_to_db(self, db: Any | None = None, account: str | None = None) -> int:
+        executions = self.get_executions(account=account)
+        if not executions:
+            return 0
+
+        if db is None:
+            from pymongo import MongoClient
+
+            client = MongoClient(settings.MONGO_URI)
+            db = client.get_default_database("stock_analysis")
+
+        upserted = 0
+        for execution in executions:
+            exec_id = execution.get("exec_id")
+            symbol = execution.get("symbol")
+            if not exec_id or not symbol:
+                continue
+
+            trade_doc = {
+                "trade_id": exec_id,
+                "account_id": execution.get("account"),
+                "symbol": symbol,
+                "underlying_symbol": execution.get("underlying_symbol") or symbol,
+                "date_time": execution.get("date_time"),
+                "quantity": float(execution.get("quantity") or 0),
+                "price": float(execution.get("price") or 0),
+                "commission": float(execution.get("commission") or 0),
+                "realized_pnl": float(execution.get("realized_pnl") or 0),
+                "buy_sell": execution.get("buy_sell"),
+                "order_id": execution.get("order_id"),
+                "perm_id": execution.get("perm_id"),
+                "client_id": execution.get("client_id"),
+                "asset_class": execution.get("sec_type"),
+                "secType": execution.get("sec_type"),
+                "exchange": execution.get("exchange"),
+                "currency": execution.get("currency"),
+                "source": "tws_live",
+                "last_tws_update": execution.get("last_update"),
+            }
+            db.ibkr_trades.update_one(
+                {"trade_id": exec_id},
+                {"$set": {**execution, **trade_doc}},
+                upsert=True,
+            )
+            upserted += 1
+
+        self.logger.info("Upserted %s TWS execution(s) into ibkr_trades.", upserted)
+        return upserted
 
     def is_connected(self) -> bool:
         with self._lock:
@@ -391,8 +580,11 @@ class IBKRTWSService:
                 "position_snapshot_complete": getattr(app, "position_snapshot_complete", False) if app is not None else False,
                 "last_position_update": last_position_update,
                 "last_account_value_update": getattr(app, "last_account_value_update", None) if app is not None else None,
+                "last_execution_update": getattr(app, "last_execution_update", None) if app is not None else None,
                 "last_error": getattr(app, "last_error", None) if app is not None else None,
                 "position_count": len(positions),
+                "execution_count": len(getattr(app, "executions", {})) if app is not None else 0,
+                "execution_snapshot_complete": getattr(app, "execution_snapshot_complete", False) if app is not None else False,
                 "tws_enabled": bool(self.enabled and IBAPI_IMPORT_ERROR is None),
             }
 
