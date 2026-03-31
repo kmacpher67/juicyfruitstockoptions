@@ -93,9 +93,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 - [ ] **IBKR Trader Workstation**: Running localhost on this device. Should be able to handle everything in the docker container stuff. Evaluate running IB Gateway. https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cpp-static-linking what happens to other logins while gateway is running? Can I still run desktop, TWS, or mobile versions simulaneously? 
 
-- [x] **IBKR TWS API**: Document the data ingest, api, end points for tws  in `docs/learning/ibkr-realtime-data-integration.md`. 
+- [x] **IBKR TWS API**: Document the data ingest, api, end points for tws  in `docs/learning/ibkr-realtime-data-    .md`. 
 
-- [x] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
+- [/] **IBKR Real-Time Data — TWS API Python Service**: Create `app/services/ibkr_tws_service.py` — a thread-safe singleton wrapping `ibapi` for real-time position and account data. Supplements (does NOT replace) `ibkr_service.py` Flex pipeline.
     - [x] **ibkr-tws-service-001**: Add `ibapi` to `requirements.txt`. Verified local installation works with `ibapi==9.81.1.post1` on Dockerfile Python 3.12. Note: `ibapi>=10.19` is not currently available on PyPI.
     - [x] **ibkr-tws-service-CLI**: CLI command line to schedule and test or manually run portfolio or trades sync.
     - [ ] **ibkr-tws-service-CLI2**: CLI command to get latest trades or portfolio positions and display them and ideponent upsert into the db. 
@@ -104,7 +104,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-service-004**: Register as singleton in `app/main.py` FastAPI lifespan. Connect on startup if `IBKR_TWS_ENABLED=true`, disconnect on shutdown.
     - [x] **ibkr-tws-service-005**: Write unit tests `tests/test_ibkr_tws_service.py`. Mock `EClient`/`EWrapper`. Cover: connect, position callback, account value callback, error handling, graceful degradation when flag is off.
     - [x] **ibkr-tws-service-live-verify**: Verified local CLI connection against live TWS on localhost using port `7496`. `2104`, `2106`, and `2158` startup messages were informational farm-status messages, and `connect-test` returned `"connected": true`.
-- [ ] **ibkr-tws-
+    - [ ] **ibkr-tws-service-ports**: IBGateway uses a different ports configuration than TWS. 
+
+- [ ] **ibkr-tws-data**: Document the tws api and endpoints output, update docs/learning/ibkr-realtime-data-integration.md
 
 
 - [ ] **IBKR Real-Time Data — Scheduler Sync Jobs**: Add APScheduler jobs to sync live TWS positions and NAV snapshots into MongoDB on a continuous intraday basis.
@@ -130,6 +132,23 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **ibkr-tws-trades-005**: Update Trade History UI and Sync All behavior so the trades view can surface current-day TWS executions, show live-vs-Flex source/freshness, and avoid duplicate rows when Flex history later lands.
     - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
+
+- [ ] **IBKR Real-Time Data Logging & Diagnostics**: Clean up logging so that meaningful and clear auditing, debug and info occurs for success connections, data ingest and errors.
+    - [ ] **ibkr-tws-logging-001**: Distinguish raw socket reachability from a real IB API session handshake. Log both states explicitly so "`tcp_connectable: true` but `connected: false`" is obvious in backend logs and CLI output.
+    - [ ] **ibkr-tws-logging-002**: Reclassify routine IBKR informational callbacks (`2104`, `2106`, `2158`) so they do not read like hard errors in logs. Keep true failures such as `504 Not connected` at `ERROR`.
+    - [ ] **ibkr-tws-logging-003**: Add a single structured "live status snapshot" log line after connect attempts and on scheduler skips. Include `host`, `port`, `client_id`, `connected`, `managed_accounts`, `position_count`, `last_account_value_update`, and `last_error`.
+    - [ ] **ibkr-tws-logging-004**: Log why realtime persistence does not occur. When `/portfolio/live-status` is false or scheduler jobs no-op, emit the specific cause: disabled flag, no handshake, no managed accounts, no positions, or no account values.
+    - [ ] **ibkr-tws-logging-005**: Add an operator-facing diagnostic path for the current failure mode: container can open `host.docker.internal:7496` but TWS only trusts localhost/approved clients, so the IB API handshake never completes.
+    - [ ] **ibkr-tws-logging-006**: Add clear reconnect lifecycle logs: initial connect attempt, successful handshake, disconnect detected, reconnect backoff, reconnect success, and permanent failure after retries.
+    - [ ] **ibkr-tws-logging-007**: Surface the most recent backend TWS failure to the UI/API so the frontend can show a precise state such as "Socket reachable, IBKR handshake failed" instead of a generic "not working".
+
+- [ ] **IBKR Real-Time Data — Connection Reliability & Runtime Diagnostics**: Make TWS connectivity repeatable across localhost and Docker-backed runs.
+    - [ ] **ibkr-tws-reliability-001**: Add automatic reconnect with bounded backoff to `IBKRTWSService` so a dropped session does not remain disconnected until process restart.
+    - [ ] **ibkr-tws-reliability-002**: Add a backend/admin verification command or endpoint that runs both `raw-connect-test` and `connect-test` from the same runtime as the API service.
+    - [ ] **ibkr-tws-reliability-003**: Document and validate the "trusted client origin" requirement for local TWS. Explicitly cover host CLI success vs Docker container failure when TWS only allows localhost or approved IPs.
+    - [ ] **ibkr-tws-reliability-004**: Add startup diagnostics that fail loudly when `IBKR_TWS_ENABLED=true` but no successful handshake occurs within the configured warmup window.
+    - [ ] **ibkr-tws-reliability-005**: Add a repeatable runbook for checking live status in order: container env, raw socket reachability, IB API handshake, managed accounts received, account updates received, scheduler persistence, Mongo live snapshot presence, UI status.
+
 
 - [x] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
     - [x] **ibkr-portal-001**: Downloaded clientportal.gw and running from command line, put this into a docker-compose service. Add `IBKR_PORTAL_ENABLED` feature flag. clientportal.gw$ ./bin/run.sh root/conf.yaml

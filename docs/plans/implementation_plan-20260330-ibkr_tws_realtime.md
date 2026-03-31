@@ -20,6 +20,7 @@
 - [ ] `IBKR_TWS_ENABLED=false` feature flag set (safe default — no impact until explicitly enabled)
 - [ ] Review `docs/learning/ibkr-realtime-data-integration.md` (required context)
 - [ ] Decision: paper trading port (4002) for dev, live port (4001/7497) for prod?
+- [ ] Decision: local-host-only TWS or Docker-to-host TWS path, with trusted client behavior explicitly verified
 
 ---
 
@@ -31,6 +32,7 @@
 ✅ Two new API endpoints (`/live-status`, `/nav/live`)  
 ✅ Frontend data freshness badge (NAVStats)  
 ✅ Unit tests  
+✅ Runtime diagnostics for "socket reachable but IB API handshake failed"  
 
 ❌ Out of scope: Order placement, options chain streaming, Client Portal REST fallback (tracked separately as epic-001-infra-tws-006)
 
@@ -149,6 +151,23 @@ Key methods to implement:
 - All logs follow: `{datetime} - ibkr_tws_service-{ClassName}.{method} - {LEVEL} - {message}`
 - Graceful degradation: if `settings.ibkr_tws_enabled is False`, all methods return empty structures without error
 
+Diagnostics requirements to add while implementing:
+- Log raw TCP reachability separately from handshake success so operators can distinguish an open port from a live IB API session.
+- Treat `2104`, `2106`, and `2158` as informational health callbacks, not hard errors.
+- Preserve and expose `last_error` for true failures such as `504 Not connected`.
+- Emit a compact live-status snapshot after connect attempts and before scheduler skips: `host`, `port`, `client_id`, `connected`, `managed_accounts`, `position_count`, `last_account_value_update`, `last_error`.
+
+#### Task 2.1A — Add reconnect and handshake diagnostics
+**Effort**: ~1–2 hours  
+**Depends on**: Task 2.1
+
+- Add bounded reconnect/backoff logic after disconnect or failed warmup handshake.
+- Add a warmup timeout that logs a precise failure when the service can open a socket but never reaches `nextValidId`, `managedAccounts`, positions, or account values.
+- Add an internal diagnostic helper path that makes the following state explicit:
+  - socket reachable
+  - IB API handshake complete
+  - live data callbacks flowing
+
 #### Task 2.2 — Register singleton in `app/main.py`
 **Effort**: 30 min  
 **Depends on**: Task 2.1  
@@ -205,6 +224,10 @@ Scheduler registration:
 scheduler.add_job(run_tws_position_sync, 'interval', seconds=30, id='tws_position_sync')
 scheduler.add_job(run_tws_nav_snapshot, 'interval', seconds=180, id='tws_nav_snapshot')
 ```
+
+Operational logging requirement:
+- When jobs skip, log the specific reason with the current live-status snapshot rather than only "TWS is not connected".
+- This is required for the observed failure mode where the backend has `IBKR_TWS_ENABLED=true` and TCP reachability, but no completed IB API handshake and therefore no persisted `source: "tws"` records.
 
 ---
 
@@ -270,6 +293,12 @@ def test_error_callback_logs_not_raises():
 
 def test_connect_calls_reqpositions(mock_eclient):
     """IBKRTWSService.connect() calls reqPositions() after handshake."""
+
+def test_socket_reachable_but_handshake_failed_status():
+    """Service preserves useful diagnostics when raw reachability exists but IB API handshake fails."""
+
+def test_scheduler_skip_logs_specific_reason():
+    """Scheduler skip logs explain why no TWS persistence occurred."""
 ```
 
 ---
@@ -284,6 +313,19 @@ def test_connect_calls_reqpositions(mock_eclient):
   "last_flex_update": "2026-03-29T20:00:00Z"
 }
 ```
+
+Expand response shape to include richer diagnostics when available:
+- `managed_accounts`
+- `last_account_value_update`
+- `last_error`
+- `connection_attempted_at`
+- `connected_at`
+
+This lets the frontend and operators distinguish:
+- live and healthy
+- disabled
+- fallback/EOD only
+- handshake failed after socket reachability
 
 ### `nav_history` collection — new field:
 ```json
@@ -304,15 +346,26 @@ No migrations required — additive fields only.
 2. **Test with paper account**: Set `IBKR_TRADING_MODE=paper`, `IBKR_TWS_ENABLED=true`. Verify positions match IBKR paper account.
 3. **Production**: Set `IBKR_TRADING_MODE=live`, `IBKR_TWS_ENABLED=true`. Monitor logs for 24h.
 
+Before calling a rollout successful, verify from the same runtime as the API service:
+
+```bash
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli status --show-env
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli raw-connect-test --host host.docker.internal --port 7496 --timeout 3
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli connect-test --host host.docker.internal --port 7496 --timeout 3
+docker exec stock_portal_backend python -c "from pymongo import MongoClient; from app.config import settings; db=MongoClient(settings.MONGO_URI).get_default_database('stock_analysis'); print(db.ibkr_nav_history.find_one({'source':'tws'}, sort=[('timestamp',-1)]))"
+```
+
 ---
 
 ## Definition of Done
 
 - [ ] `docker-compose up` starts IB Gateway service without errors
 - [ ] `IBKRTWSService` connects to gateway and populates positions within 5 seconds
+- [ ] Raw socket reachability and IB API handshake success are reported separately in CLI/logs
 - [ ] `ibkr_holdings` updates every 30s with `source: "tws"` when gateway is running
 - [ ] `nav_history` gets intraday entries every 3 minutes
 - [ ] `GET /api/portfolio/live-status` returns correct connection state
+- [ ] `GET /api/portfolio/live-status` returns enough failure context to distinguish disabled vs disconnected vs handshake failure
 - [ ] NAVStats badge shows green "Live" dot when connected
 - [ ] **1D NAV widget no longer shows 0** (has intraday data points)
 - [ ] All 5 unit tests pass (`pytest tests/test_ibkr_tws_service.py`)
@@ -331,6 +384,7 @@ No migrations required — additive fields only.
 | Client ID conflict (multiple app instances) | Use unique `IBKR_TWS_CLIENT_ID` per instance; document in README |
 | IBKR session timeout overnight | IB Gateway handles re-auth; gateway config `auto-restart: true` |
 | Paper vs live port confusion | Enforce via `IBKR_TRADING_MODE` env var, validate in `config.py` |
+| Socket reachable but backend handshake fails | Verify from backend runtime, not host shell; document trusted-client / localhost-only TWS behavior |
 
 ---
 

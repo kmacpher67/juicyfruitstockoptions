@@ -103,6 +103,14 @@ In TWS:
 - Allow connections from: `127.0.0.1`
 - Disable "Read-Only API" if you want order placement later
 
+Important nuance for Juicy Fruit:
+- A successful raw TCP connect to the TWS socket does **not** prove the IB API session is usable.
+- `raw-connect-test` only proves the port is open.
+- `connect-test` proves the full IB API handshake completed and callbacks such as `nextValidId`, `managedAccounts`, positions, or account values are actually flowing.
+- If you run Juicy Fruit in Docker, the backend connects from a container bridge IP, not true localhost. For example, `host.docker.internal` may resolve to something like `172.17.0.1`, and the backend socket may originate from `172.18.x.x`.
+- This creates a common failure mode: host-side CLI succeeds, container raw socket succeeds, but backend `connect-test` fails with `504 Not connected` because TWS trusts localhost-only or otherwise rejects the Docker-origin client.
+- For that reason, always verify TWS from the **same runtime** as the FastAPI backend, not only from the host shell.
+
 ### Step 3: Install Python library
 ```bash
 pip install ibapi
@@ -218,6 +226,58 @@ python -m app.scripts.ibkr_tws_cli connect-test --force-enable
 Typical startup output may include:
 
 - `2104`: market data farm connection is OK
+- `2106`: HMDS data farm connection is OK
+- `2158`: sec-def data farm connection is OK
+
+These are informational IBKR status messages, not connectivity failures. They should be logged as health/info, not treated as the reason realtime is broken.
+
+What actually proves success:
+- `connected: true`
+- a received `nextValidId`
+- one or more `managed_accounts`
+- position snapshot completion and/or account value updates
+
+What indicates a false positive socket check:
+- `raw-connect-test` returns `tcp_connectable: true`
+- but `connect-test` returns `connected: false`
+- and `last_error` shows `504 Not connected`
+
+That combination means:
+- the network path to the port exists
+- but the IB API session did not finish handshaking
+- so Juicy Fruit will not ingest live positions/NAV, scheduler jobs will skip, and the UI will correctly remain in EOD/fallback state
+
+### Step 5B: Verify from the same runtime as the backend
+
+If the backend is running in Docker, validate from inside that container:
+
+```bash
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli status --show-env
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli raw-connect-test --host host.docker.internal --port 7496 --timeout 3
+docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli connect-test --host host.docker.internal --port 7496 --timeout 3
+```
+
+Expected interpretation:
+- `status --show-env`: confirms the backend process is actually configured with the host/port you expect
+- `raw-connect-test`: confirms only TCP reachability
+- `connect-test`: confirms the real IB API handshake
+
+If `raw-connect-test` succeeds but `connect-test` fails:
+- inspect TWS API trust / localhost-only settings
+- verify the containerized backend is an allowed client origin
+- do not expect `/api/portfolio/live-status` or `/api/portfolio/nav/live` to become live until `connect-test` succeeds from that same runtime
+
+### Step 5C: Repeatable diagnosis order
+
+Use this order every time realtime looks broken:
+
+1. Confirm backend env: `IBKR_TWS_ENABLED`, host, port, client id.
+2. Run `raw-connect-test` from the backend runtime.
+3. Run `connect-test` from the backend runtime.
+4. Check `managed_accounts`, `position_count`, and `last_account_value_update`.
+5. Check backend logs for scheduler skips and the most recent `last_error`.
+6. Check Mongo for recent `source: "tws"` docs in `ibkr_holdings` and `ibkr_nav_history`.
+7. Only then evaluate the frontend badge/state.
 - `2106`: HMDS data farm connection is OK
 - `2158`: sec-def data farm connection is OK
 

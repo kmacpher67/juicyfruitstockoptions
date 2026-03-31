@@ -36,6 +36,18 @@
     - [ ] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [ ] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
+- [ ] **IBKR Real-Time Data — Logging & Diagnostics**: Make TWS failures understandable in logs, CLI output, and the UI.
+    - [ ] **ibkr-tws-logging-001**: Distinguish raw socket reachability from a real IB API handshake. A passing TCP check must not be presented as equivalent to a live TWS session.
+    - [ ] **ibkr-tws-logging-002**: Reclassify routine IBKR status callbacks (`2104`, `2106`, `2158`) as informational health signals rather than hard errors.
+    - [ ] **ibkr-tws-logging-003**: Include richer live-status diagnostics in logs/API: `managed_accounts`, `last_account_value_update`, `last_error`, `connection_attempted_at`, `connected_at`.
+    - [ ] **ibkr-tws-logging-004**: Log specific scheduler skip reasons so operators can tell whether the issue is disabled flag, failed handshake, missing positions, or missing account values.
+    - [ ] **ibkr-tws-logging-005**: Document and surface the localhost-vs-Docker failure mode where host CLI succeeds, container raw socket succeeds, but backend `connect-test` still fails with `504 Not connected`.
+
+- [ ] **IBKR Real-Time Data — Connection Reliability**: Keep the backend from silently remaining disconnected after startup failure or session drop.
+    - [ ] **ibkr-tws-reliability-001**: Add reconnect/backoff behavior to `IBKRTWSService`.
+    - [ ] **ibkr-tws-reliability-002**: Add a repeatable backend-runtime verification path that runs both raw socket and handshake checks from the same environment as FastAPI.
+    - [ ] **ibkr-tws-reliability-003**: Add startup diagnostics that fail loudly when `IBKR_TWS_ENABLED=true` but no successful handshake occurs within warmup timeout.
+
 - [ ] **IBKR Real-Time Data — Client Portal REST API** `[!] Lower priority — fallback only if TWS socket is not viable.` See [IBKR Real-Time Data Integration](learning/ibkr-realtime-data-integration.md) for decision matrix.
     - [ ] **ibkr-portal-001**: Research Client Portal gateway Docker setup. Document session keepalive requirement (POST `/tickle` every 60s).
     - [ ] **ibkr-portal-002**: Create `app/services/ibkr_portal_service.py` with session-aware polling: `get_positions()`, `get_summary()`, `keepalive()`. Add `IBKR_PORTAL_ENABLED` feature flag.
