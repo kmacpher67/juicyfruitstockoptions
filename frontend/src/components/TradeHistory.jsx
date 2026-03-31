@@ -186,6 +186,9 @@ const TradeHistory = () => {
             width: 100,
             valueGetter: p => {
                 if (p.data.buy_sell === "DIVIDEND") return "DIVIDEND";
+                const side = (p.data.buy_sell || '').toUpperCase();
+                if (side === 'BUY' || side === 'BOT') return 'BUY';
+                if (side === 'SELL' || side === 'SLD') return 'SELL';
                 const qty = p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity;
                 if (!qty) return "-";
                 return qty > 0 ? "BUY" : "SELL";
@@ -205,13 +208,21 @@ const TradeHistory = () => {
         {
             field: "trade_price",
             headerName: "Price",
-            valueGetter: p => p.data.trade_price !== undefined ? p.data.trade_price : p.data.TradePrice,
+            valueGetter: p => {
+                if (p.data.price !== undefined && p.data.price !== null) return p.data.price;
+                if (p.data.trade_price !== undefined) return p.data.trade_price;
+                return p.data.TradePrice;
+            },
             valueFormatter: p => p.value ? `$${parseFloat(p.value).toFixed(2)}` : ''
         },
         {
             field: "ib_commission",
             headerName: "Comm",
-            valueGetter: p => p.data.ib_commission !== undefined ? p.data.ib_commission : p.data.IBCommission,
+            valueGetter: p => {
+                if (p.data.commission !== undefined && p.data.commission !== null) return p.data.commission;
+                if (p.data.ib_commission !== undefined) return p.data.ib_commission;
+                return p.data.IBCommission;
+            },
             valueFormatter: p => p.value ? `$${Math.abs(parseFloat(p.value)).toFixed(2)}` : ''
         },
         {

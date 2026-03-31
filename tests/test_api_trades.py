@@ -65,6 +65,7 @@ def test_get_trade_live_status_endpoint():
         mock_db.ibkr_trades.find_one.return_value = {
             "trade_id": "abc123",
             "source": "tws_live",
+            "trade_date": "20260331",
             "date_time": "20260331 12:14:59",
             "last_tws_update": "2026-03-31T12:15:00",
         }
@@ -82,6 +83,7 @@ def test_get_live_trades_endpoint():
             "trade_id": "exec_2",
             "symbol": "AAPL",
             "account_id": "DU123456",
+            "trade_date": "20260331",
             "date_time": "20260331 12:15:00",
             "quantity": 5,
             "price": 201.0,
@@ -92,6 +94,7 @@ def test_get_live_trades_endpoint():
             "trade_id": "exec_1",
             "symbol": "MSFT",
             "account_id": "DU123456",
+            "trade_date": "20260331",
             "date_time": "20260331 09:35:00",
             "quantity": 2,
             "price": 410.5,
@@ -109,3 +112,11 @@ def test_get_live_trades_endpoint():
     assert len(data) == 2
     assert data[0].trade_id == "exec_2"
     assert data[0].source == "tws_live"
+
+
+def test_today_live_trade_query_prefers_trade_date():
+    query = trades._today_live_trade_query("20260331")
+
+    assert query["source"] == "tws_live"
+    assert {"trade_date": "20260331"} in query["$or"]
+    assert {"date_time": {"$regex": "^20260331"}} in query["$or"]

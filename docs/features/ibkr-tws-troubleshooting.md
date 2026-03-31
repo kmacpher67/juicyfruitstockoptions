@@ -1,13 +1,106 @@
-# IBKR TWS API
+# IBKR TWS Troubleshooting
 
-Key Troubleshooting Steps:
-Enable API Settings: Ensure "Enable ActiveX and Socket Clients" is checked.
-Disable Read-Only: Uncheck "Read-Only API" to allow orders.
-Check Socket Port: Verify the port matches your application:
-Live: 7496 (TWS) or 4001 (Gateway).
-Paper: 7497 (TWS) or 4002 (Gateway).
-Trusted IPs: If not using localhost, add your IP to the "Trusted IPs" list.
-Locahost Bug: If connecting from the same machine, try checking "Allow connections from localhost only," or if that fails, try unchecking it and ensuring 127.0.0.1 is in Trusted IPs.
-Restart/Relogin: If usin
+## Purpose
 
-If issues persist, check the TWS log file (found in C:\Jts) after setting the logging level to "Detail" under API settings.
+Use this runbook when Juicy Fruit shows TWS live data as unavailable, stale, or partially working.
+
+## What "Working" Means
+
+For Juicy Fruit, TWS is only healthy when all of these are true from the same runtime that serves FastAPI:
+
+- raw TCP can reach the configured TWS socket
+- the IBKR API handshake completes
+- managed accounts and/or account updates arrive
+- scheduler jobs persist fresh `source: "tws"` and `source: "tws_live"` documents
+- `/api/portfolio/live-status` and `/api/trades/live-status` report the real backend state
+
+Raw socket reachability by itself is not enough.
+
+## Common Failure Modes
+
+- `disabled`: `IBKR_TWS_ENABLED` is false in the backend runtime.
+- `socket_unreachable`: the configured host or port cannot be opened.
+- `handshake_failed`: the TCP socket opened, but TWS did not complete the IB API session. This is the most common Docker-to-host failure.
+- `disconnected`: the runtime is enabled and can probe the socket, but no successful handshake or callback evidence exists yet.
+- `connected`: TWS callbacks have been received and the backend has a real IB API session.
+
+## Required TWS Settings
+
+In TWS:
+
+- Enable `API` -> `Settings` -> `Enable ActiveX and Socket Clients`
+- Use the correct port for the runtime you are connecting to:
+  - TWS live: `7496`
+  - TWS paper: `7497`
+  - IB Gateway live: `4001`
+  - IB Gateway paper: `4002`
+- If Juicy Fruit runs outside the TWS host process namespace, do not rely on `localhost only` unless that runtime is truly local to TWS.
+- If needed, add the backend runtime origin to the TWS trusted client list.
+- Leave `Read-Only API` enabled or disabled based on whether you only need data or intend to place orders. It does not fix handshake failures.
+
+## Verification Order
+
+Run these in order from the same runtime as the backend:
+
+```bash
+python -m app.scripts.ibkr_tws_cli status --show-env
+python -m app.scripts.ibkr_tws_cli raw-connect-test --force-enable
+python -m app.scripts.ibkr_tws_cli connect-test --force-enable
+python -m app.scripts.ibkr_tws_cli executions --force-enable
+```
+
+Interpretation:
+
+- `raw-connect-test` success means only that the TCP socket is reachable.
+- `connect-test` success means the IB API handshake completed.
+- `executions` should return normalized rows with:
+  - `date_time` formatted like `YYYYMMDD HH:MM:SS`
+  - `trade_date` formatted like `YYYYMMDD`
+  - `buy_sell` preserved from IBKR (`BOT` / `SLD`) with a normalized side available for downstream logic
+  - signed `quantity` once persisted into `ibkr_trades`
+
+If `raw-connect-test` succeeds but `connect-test` reports `handshake_failed`, focus on TWS trust and client-origin settings first.
+
+## Trade-Specific Checks
+
+Juicy Fruit `RT` trades mode depends on current-day `tws_live` execution rows being queryable as "today." The backend now normalizes TWS execution timestamps into:
+
+- `date_time`: `YYYYMMDD HH:MM:SS`
+- `trade_date`: `YYYYMMDD`
+
+If you can see executions in TWS but the web app shows zero current-day live rows:
+
+1. Run `python -m app.scripts.ibkr_tws_cli executions --force-enable`
+2. Confirm returned executions have the normalized `trade_date`
+3. Confirm the scheduler or manual sync has upserted those rows into `ibkr_trades`
+4. Confirm `/api/trades/live-status` reports `today_live_trade_count > 0`
+
+Use [`executions.txt`](/home/kenmac/personal/juicyfruitstockoptions/executions.txt) as a sanity fixture for what same-day trades should roughly resemble across multiple accounts.
+
+## When the UI Looks Wrong Even Though Data Exists
+
+Known symptoms that are not handshake failures:
+
+- RT trades rows exist, but the Action column is wrong because the data is using `buy_sell` rather than quantity sign.
+- RT trades rows exist, but Price or Comm appears blank because the UI is reading Flex-era fields instead of live `price` / `commission`.
+- Historical views appear fine while RT is empty because only current-day `tws_live` rows are shown in RT mode.
+
+## When To Grab TWS Logs
+
+Only collect TWS logs after the same-runtime checks above show a handshake or callback problem that is still unexplained.
+
+Helpful cases for logs:
+
+- `raw-connect-test` succeeds
+- `connect-test` fails or stays `disconnected`
+- TWS displays an API prompt, reject dialog, or trusted-client warning
+- callbacks stop arriving after a previously healthy session
+
+If you want to provide logs, grab the TWS API logs from the current failing session after setting TWS API logging to `Detail`, then copy over the relevant files from the TWS log directory. On Windows this is commonly under `C:\Jts`.
+
+## Operator Notes
+
+- Host-shell success does not prove Docker or another backend runtime can handshake.
+- If TWS trust cannot be made reliable for the deployed runtime, prefer an explicit fallback path over a misleading live badge.
+- For portfolio debugging, use `/api/portfolio/live-status`.
+- For trade debugging, use `/api/trades/live-status` plus a direct `executions` CLI run.

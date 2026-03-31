@@ -86,6 +86,81 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _normalize_execution_time(raw_value: Any) -> tuple[str, str | None]:
+    """Return a stable trade timestamp string and YYYYMMDD trade-date key."""
+    if raw_value is None:
+        return "", None
+
+    value = str(raw_value).strip()
+    if not value:
+        return "", None
+
+    compact_value = " ".join(value.split())
+    parse_candidates = [
+        ("%Y%m%d %H:%M:%S", compact_value),
+        ("%Y%m%d-%H:%M:%S", compact_value),
+        ("%Y-%m-%d %H:%M:%S", compact_value),
+    ]
+
+    if "T" in compact_value:
+        iso_candidate = compact_value.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(iso_candidate)
+            normalized = parsed.strftime("%Y%m%d %H:%M:%S")
+            return normalized, normalized[:8]
+        except ValueError:
+            pass
+
+    if len(compact_value) >= 19:
+        first_nineteen = compact_value[:19]
+        parse_candidates.extend(
+            [
+                ("%Y-%m-%d %H:%M:%S", first_nineteen),
+                ("%Y/%m/%d %H:%M:%S", first_nineteen),
+            ]
+        )
+
+    for fmt, candidate in parse_candidates:
+        try:
+            parsed = datetime.strptime(candidate, fmt)
+            normalized = parsed.strftime("%Y%m%d %H:%M:%S")
+            return normalized, normalized[:8]
+        except ValueError:
+            continue
+
+    digits_only = "".join(ch for ch in compact_value if ch.isdigit())
+    if len(digits_only) >= 14:
+        normalized = f"{digits_only[:8]} {digits_only[8:10]}:{digits_only[10:12]}:{digits_only[12:14]}"
+        return normalized, normalized[:8]
+    if len(digits_only) >= 8:
+        return compact_value, digits_only[:8]
+
+    return compact_value, None
+
+
+def _normalize_execution_side(raw_value: Any) -> str:
+    value = str(raw_value or "").strip().upper()
+    if value in {"BOT", "BUY"}:
+        return "BUY"
+    if value in {"SLD", "SELL"}:
+        return "SELL"
+    return value
+
+
+def _signed_execution_quantity(raw_quantity: Any, raw_side: Any) -> float:
+    try:
+        quantity = float(raw_quantity or 0)
+    except (TypeError, ValueError):
+        quantity = 0.0
+
+    side = _normalize_execution_side(raw_side)
+    if side == "SELL":
+        return -abs(quantity)
+    if side == "BUY":
+        return abs(quantity)
+    return quantity
+
+
 INFO_ERROR_CODES = {2104, 2106, 2158}
 
 
@@ -233,6 +308,8 @@ class IBKRTWSApp(EWrapper, EClient):
             return
 
         timestamp = self._mark_callback()
+        normalized_time, trade_date = _normalize_execution_time(getattr(execution, "time", ""))
+        raw_side = getattr(execution, "side", "")
         payload = {
             "exec_id": exec_id,
             "req_id": reqId,
@@ -242,15 +319,22 @@ class IBKRTWSApp(EWrapper, EClient):
             "sec_type": getattr(contract, "secType", ""),
             "exchange": getattr(contract, "exchange", ""),
             "currency": getattr(contract, "currency", ""),
-            "buy_sell": getattr(execution, "side", ""),
+            "buy_sell": raw_side,
+            "normalized_buy_sell": _normalize_execution_side(raw_side),
             "quantity": getattr(execution, "shares", 0),
+            "signed_quantity": _signed_execution_quantity(
+                getattr(execution, "shares", 0),
+                getattr(execution, "side", ""),
+            ),
             "price": getattr(execution, "price", 0),
             "avg_price": getattr(execution, "avgPrice", 0),
             "cum_qty": getattr(execution, "cumQty", 0),
             "order_id": getattr(execution, "orderId", None),
             "perm_id": getattr(execution, "permId", None),
             "client_id": getattr(execution, "clientId", None),
-            "date_time": getattr(execution, "time", ""),
+            "date_time": normalized_time,
+            "raw_execution_time": getattr(execution, "time", ""),
+            "trade_date": trade_date,
             "last_liquidity": getattr(execution, "lastLiquidity", None),
             "last_update": timestamp,
             "source": "tws_live",
@@ -564,18 +648,34 @@ class IBKRTWSService:
             symbol = execution.get("symbol")
             if not exec_id or not symbol:
                 continue
+            normalized_time, derived_trade_date = _normalize_execution_time(
+                execution.get("date_time") or execution.get("raw_execution_time")
+            )
+            trade_date = execution.get("trade_date") or derived_trade_date
+            normalized_side = execution.get("normalized_buy_sell") or _normalize_execution_side(
+                execution.get("buy_sell")
+            )
 
             trade_doc = {
                 "trade_id": exec_id,
                 "account_id": execution.get("account"),
                 "symbol": symbol,
                 "underlying_symbol": execution.get("underlying_symbol") or symbol,
-                "date_time": execution.get("date_time"),
-                "quantity": float(execution.get("quantity") or 0),
+                "date_time": execution.get("date_time") or normalized_time,
+                "trade_date": trade_date,
+                "quantity": float(
+                    execution.get("signed_quantity")
+                    if execution.get("signed_quantity") is not None
+                    else _signed_execution_quantity(
+                        execution.get("quantity") or 0,
+                        execution.get("buy_sell"),
+                    )
+                ),
                 "price": float(execution.get("price") or 0),
                 "commission": float(execution.get("commission") or 0),
                 "realized_pnl": float(execution.get("realized_pnl") or 0),
                 "buy_sell": execution.get("buy_sell"),
+                "normalized_buy_sell": normalized_side,
                 "order_id": execution.get("order_id"),
                 "perm_id": execution.get("perm_id"),
                 "client_id": execution.get("client_id"),

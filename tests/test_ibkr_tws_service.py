@@ -5,7 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 import app.services.ibkr_tws_service as tws_module
-from app.services.ibkr_tws_service import IBKRTWSApp, IBKRTWSService
+from app.services.ibkr_tws_service import (
+    IBKRTWSApp,
+    IBKRTWSService,
+    _normalize_execution_time,
+)
 
 
 class FakeApp:
@@ -345,7 +349,50 @@ def test_upsert_executions_to_db_maps_trade_fields(monkeypatch):
     assert stored_doc["trade_id"] == "0001"
     assert stored_doc["account_id"] == "DU123456"
     assert stored_doc["asset_class"] == "STK"
+    assert stored_doc["trade_date"] == "20260330"
+    assert stored_doc["quantity"] == 10
     assert kwargs["upsert"] is True
+
+
+def test_normalize_execution_time_handles_tz_suffix():
+    normalized, trade_date = _normalize_execution_time("2026-03-31 14:04:16 US/Eastern")
+
+    assert normalized == "20260331 14:04:16"
+    assert trade_date == "20260331"
+
+
+def test_exec_details_normalizes_sell_side_and_trade_date():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="AMD",
+        localSymbol="AMD   260402C00202500",
+        secType="OPT",
+        exchange="PHLX",
+        currency="USD",
+    )
+    execution = SimpleNamespace(
+        execId="abc123",
+        acctNumber="U280132",
+        side="SLD",
+        shares=1,
+        price=3.10,
+        avgPrice=3.10,
+        cumQty=1,
+        orderId=77,
+        permId=99,
+        clientId=5,
+        time="2026-03-31 14:04:16 US/Eastern",
+        lastLiquidity=2,
+    )
+
+    app.execDetails(9001, contract, execution)
+
+    stored = app.executions["abc123"]
+    assert stored["buy_sell"] == "SLD"
+    assert stored["normalized_buy_sell"] == "SELL"
+    assert stored["date_time"] == "20260331 14:04:16"
+    assert stored["trade_date"] == "20260331"
+    assert stored["signed_quantity"] == -1
 
 
 def test_error_callback_records_last_error(caplog):

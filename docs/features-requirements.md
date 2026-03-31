@@ -119,6 +119,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **ibkr-tws-webapp-fix-003**: Update the frontend portfolio/NAV live status UX to surface `connection_state`, `diagnosis`, and most recent backend failure reason instead of showing a generic "not working" state.
         - [ ] **ibkr-tws-webapp-fix-004**: Confirm live persistence end to end: successful handshake -> scheduler writes `source: "tws"` docs -> `/api/portfolio/nav/live` returns current NAV -> NAVStats shows intraday freshness.
         - [ ] **ibkr-tws-webapp-fix-005**: If Docker-to-host TWS remains blocked by trusted-client / localhost-only behavior, explicitly route the web app to the existing Client Portal fallback path rather than leaving the badge ambiguous.
+        - [ ] **ibkr-tws-webapp-fix-TCP-handshake**: ERROR Still displaying Handshake failed RT mode TCP socket is reachable, but the IBKR API handshake did not complete. Last IBKR error: Not connected. Verify TWS trusted-client / localhost-only API settings for this runtime.
 
 - [ ] **ibkr-tws-data**: Document the tws api and endpoints output, update docs/learning/ibkr-realtime-data-integration.md
 
@@ -162,6 +163,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **ibkr-tws-trades-003**: Add scheduler job `run_tws_execution_sync()` to request executions and upsert them into `ibkr_trades` on a short intraday interval. Guard with `IBKR_TWS_ENABLED` and make it safe when TWS is disconnected.
         - [ ] **ibkr-tws-trades-004**: Add backend API endpoint for live/current-day TWS executions so `?view=TRADES` can explicitly request intraday data freshness without waiting for the next Flex report.
         - [ ] **ibkr-tws-trades-005**: Update Trade History UI and Sync All behavior so the trades view can surface current-day TWS executions, show live-vs-Flex source/freshness, and avoid duplicate rows when Flex history later lands.
+        - [x] **ibkr-tws-trades-rt-query-normalization**: Reviewed 2026-03-31. Normalize TWS execution `date_time` into `YYYYMMDD HH:MM:SS`, persist `trade_date`, and store signed quantities so current-day `tws_live` queries and RT trade rendering work consistently.
     - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 

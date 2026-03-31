@@ -23,6 +23,16 @@ def fix_oid(doc):
     return doc
 
 
+def _today_live_trade_query(today_prefix: str) -> dict:
+    return {
+        "source": "tws_live",
+        "$or": [
+            {"trade_date": today_prefix},
+            {"date_time": {"$regex": f"^{today_prefix}"}},
+        ],
+    }
+
+
 @router.get("/live-status", response_model=dict)
 async def get_trade_live_status(
     current_user: User = Depends(get_current_active_user)
@@ -35,15 +45,10 @@ async def get_trade_live_status(
     live_status = tws_service.get_live_status()
 
     today_prefix = datetime.now().strftime("%Y%m%d")
-    today_live_trade_count = db.ibkr_trades.count_documents({
-        "source": "tws_live",
-        "date_time": {"$regex": f"^{today_prefix}"},
-    })
+    live_query = _today_live_trade_query(today_prefix)
+    today_live_trade_count = db.ibkr_trades.count_documents(live_query)
     latest_live_trade = db.ibkr_trades.find_one(
-        {
-            "source": "tws_live",
-            "date_time": {"$regex": f"^{today_prefix}"},
-        },
+        live_query,
         sort=[("date_time", -1), ("last_tws_update", -1)],
     )
 
@@ -68,12 +73,7 @@ async def get_live_trades(
     """
     db = get_db()
     today_prefix = datetime.now().strftime("%Y%m%d")
-    cursor = db.ibkr_trades.find(
-        {
-            "source": "tws_live",
-            "date_time": {"$regex": f"^{today_prefix}"},
-        }
-    ).sort("date_time", -1)
+    cursor = db.ibkr_trades.find(_today_live_trade_query(today_prefix)).sort("date_time", -1)
 
     return [TradeRecord(**fix_oid(doc)) for doc in cursor]
 
