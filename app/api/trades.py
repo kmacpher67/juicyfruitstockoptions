@@ -51,6 +51,10 @@ async def get_trade_live_status(
         live_query,
         sort=[("date_time", -1), ("last_tws_update", -1)],
     )
+    last_error = live_status.get("last_error") or {}
+    last_status = live_status.get("last_status") or {}
+    last_failure_reason = last_error.get("error") or live_status.get("diagnosis")
+    last_failure_at = last_error.get("timestamp") or last_status.get("timestamp")
 
     return {
         **live_status,
@@ -61,6 +65,8 @@ async def get_trade_live_status(
             if latest_live_trade
             else None
         ),
+        "last_failure_reason": last_failure_reason,
+        "last_failure_at": last_failure_at,
     }
 
 

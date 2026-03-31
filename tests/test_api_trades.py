@@ -75,6 +75,37 @@ def test_get_trade_live_status_endpoint():
     assert data["connection_state"] == "connected"
     assert data["today_live_trade_count"] == 3
     assert data["latest_live_trade_at"] == "2026-03-31T12:15:00"
+    assert data["last_failure_reason"] == "IBKR TWS API session connected."
+    assert data["last_failure_at"] is None
+
+
+def test_get_trade_live_status_exposes_last_failure_details():
+    fake_tws_service = MagicMock()
+    fake_tws_service.get_live_status.return_value = {
+        "connected": False,
+        "connection_state": "handshake_failed",
+        "diagnosis": "TCP socket is reachable, but the IBKR API handshake did not complete.",
+        "last_error": {
+            "error_code": 504,
+            "error": "Not connected",
+            "timestamp": "2026-03-31T12:19:00",
+        },
+        "last_execution_update": None,
+        "tws_enabled": True,
+    }
+
+    with patch("app.api.trades.MongoClient") as mock_client, patch(
+        "app.api.trades.get_ibkr_tws_service", return_value=fake_tws_service
+    ):
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.count_documents.return_value = 0
+        mock_db.ibkr_trades.find_one.return_value = None
+
+        data = asyncio.run(trades.get_trade_live_status(current_user=_admin_user()))
+
+    assert data["connection_state"] == "handshake_failed"
+    assert data["last_failure_reason"] == "Not connected"
+    assert data["last_failure_at"] == "2026-03-31T12:19:00"
 
 
 def test_get_live_trades_endpoint():

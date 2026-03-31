@@ -41,6 +41,15 @@ const formatRelativeTime = (value) => {
     return `updated ${diffDays}d ago`;
 };
 
+const formatStatusTimestamp = (value) => {
+    if (!value) return 'timestamp unavailable';
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return `${parsed.toLocaleString()} (${formatRelativeTime(value)})`;
+};
+
 const getLiveStatusTone = (state) => {
     switch (state) {
         case 'connected':
@@ -323,6 +332,7 @@ const TradeHistory = () => {
                 ? `${liveStatus.today_live_trade_count} live trade${liveStatus.today_live_trade_count === 1 ? '' : 's'} today, ${liveFreshness}.`
                 : `Connected to TWS. No current-day live executions have been captured yet.`
             : liveStatus.diagnosis || 'Live trades are currently unavailable.';
+    const failureTimestamp = formatStatusTimestamp(liveStatus?.last_failure_at);
 
     return (
         <div className="flex flex-col gap-6">
@@ -372,6 +382,12 @@ const TradeHistory = () => {
                 {rtUnavailable && (
                     <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                         RT trades are unavailable. {liveStatus?.diagnosis}
+                        <div className="mt-2 text-xs text-amber-200/90">
+                            Latest backend failure: {liveStatus?.last_failure_reason || liveStatus?.diagnosis || 'Unknown failure'}.
+                        </div>
+                        <div className="mt-1 text-xs text-amber-200/75">
+                            Failure time: {failureTimestamp}
+                        </div>
                     </div>
                 )}
             </div>
