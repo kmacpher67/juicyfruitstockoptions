@@ -267,7 +267,36 @@ def test_live_status_reports_handshake_failure_when_socket_is_reachable(monkeypa
     assert status["socket_connectable"] is True
     assert status["connection_state"] == "handshake_failed"
     assert "handshake did not complete" in status["diagnosis"]
+    assert "Last IBKR error: Not connected" in status["diagnosis"]
     assert status["last_error"]["error_code"] == 504
+
+
+def test_live_status_reports_disconnected_when_socket_is_reachable_but_no_attempt(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    service = IBKRTWSService(
+        host="host.docker.internal",
+        port=7496,
+        enabled=True,
+        app_factory=FakeApp,
+        sleep_fn=lambda _: None,
+    )
+    monkeypatch.setattr(
+        service,
+        "_probe_socket",
+        lambda timeout_seconds=1.0: {
+            "host": "host.docker.internal",
+            "port": 7496,
+            "timeout_seconds": timeout_seconds,
+            "tcp_connectable": True,
+            "error": None,
+            "local_address": "172.18.0.4:40506",
+        },
+    )
+
+    status = service.get_live_status()
+
+    assert status["connection_state"] == "disconnected"
+    assert status["handshake_attempted"] is False
 
 
 def test_upsert_executions_to_db_maps_trade_fields(monkeypatch):

@@ -353,6 +353,17 @@ class IBKRTWSService:
         self._app: IBKRTWSApp | None = None
         self._thread: threading.Thread | None = None
 
+    def _has_handshake_evidence(self, app: IBKRTWSApp | None) -> bool:
+        if app is None:
+            return False
+        return bool(
+            getattr(app, "connection_attempted_at", None)
+            or getattr(app, "last_callback_at", None)
+            or getattr(app, "last_error", None)
+            or getattr(app, "last_status", None)
+            or getattr(app, "next_valid_order_id", None) is not None
+        )
+
     def _default_app_factory(self) -> IBKRTWSApp:
         return IBKRTWSApp()
 
@@ -431,6 +442,13 @@ class IBKRTWSService:
                 self.get_live_status().get("last_error"),
             )
         return connected
+
+    def ensure_connected(self) -> bool:
+        if self._is_disabled():
+            return False
+        if self.is_connected():
+            return True
+        return self.connect()
 
     def _wait_for_connection_signal(
         self,
@@ -624,6 +642,12 @@ class IBKRTWSService:
             last_error = getattr(app, "last_error", None) if app is not None else None
             last_status = getattr(app, "last_status", None) if app is not None else None
             last_account_value_update = getattr(app, "last_account_value_update", None) if app is not None else None
+            handshake_attempted = self._has_handshake_evidence(app)
+            handshake_error = (
+                last_error
+                if last_error is not None and int(last_error.get("error_code", 0)) == 504
+                else None
+            )
 
             if not self.enabled:
                 connection_state = "disabled"
@@ -634,12 +658,19 @@ class IBKRTWSService:
             elif connected:
                 connection_state = "connected"
                 diagnosis = "IBKR TWS API session connected."
-            elif socket_probe["tcp_connectable"]:
+            elif socket_probe["tcp_connectable"] and handshake_attempted:
                 connection_state = "handshake_failed"
-                diagnosis = (
-                    "TCP socket is reachable, but the IBKR API handshake did not complete. "
-                    "Verify TWS trusted-client / localhost-only API settings for this runtime."
-                )
+                if handshake_error and handshake_error.get("error"):
+                    diagnosis = (
+                        "TCP socket is reachable, but the IBKR API handshake did not complete. "
+                        f"Last IBKR error: {handshake_error.get('error')}. "
+                        "Verify TWS trusted-client / localhost-only API settings for this runtime."
+                    )
+                else:
+                    diagnosis = (
+                        "TCP socket is reachable, but the IBKR API handshake did not complete. "
+                        "Verify TWS trusted-client / localhost-only API settings for this runtime."
+                    )
             elif last_error:
                 connection_state = "socket_unreachable"
                 diagnosis = f"TWS connection failed: {last_error.get('error')}"
@@ -663,6 +694,7 @@ class IBKRTWSService:
                 "last_execution_update": getattr(app, "last_execution_update", None) if app is not None else None,
                 "last_error": last_error,
                 "last_status": last_status,
+                "handshake_attempted": handshake_attempted,
                 "position_count": len(positions),
                 "execution_count": len(getattr(app, "executions", {})) if app is not None else 0,
                 "execution_snapshot_complete": getattr(app, "execution_snapshot_complete", False) if app is not None else False,

@@ -260,31 +260,34 @@ const TradeHistory = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const { start, end } = calculateDateRange(timeRange);
-            const params = {};
-            if (start) params.start_date = start;
-            if (end) params.end_date = end;
+            if (timeRange === 'RT') {
+                const [liveTradesRes, liveStatusRes] = await Promise.all([
+                    api.get('/trades/live'),
+                    api.get('/trades/live-status'),
+                ]);
+                setRowData(liveTradesRes.data || []);
+                setMetrics(null);
+                setLiveStatus(liveStatusRes.data);
+            } else {
+                const { start, end } = calculateDateRange(timeRange);
+                const params = {};
+                if (start) params.start_date = start;
+                if (end) params.end_date = end;
 
-            const [analysisRes, liveStatusRes] = await Promise.all([
-                api.get('/trades/analysis', { params }),
-                api.get('/trades/live-status'),
-            ]);
+                const [analysisRes, liveStatusRes] = await Promise.all([
+                    api.get('/trades/analysis', { params }),
+                    api.get('/trades/live-status'),
+                ]);
 
-            const trades = timeRange === 'RT'
-                ? (analysisRes.data.trades || []).filter((trade) => {
-                    const tradeDate = String(trade.date_time || trade.DateTime || '').slice(0, 8);
-                    const source = trade.source || 'flex_history';
-                    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-                    return tradeDate === today && source === 'tws_live';
-                })
-                : (analysisRes.data.trades || []);
-
-            setRowData(trades);
-            setMetrics(analysisRes.data.metrics);
-            setLiveStatus(liveStatusRes.data);
+                setRowData(analysisRes.data.trades || []);
+                setMetrics(analysisRes.data.metrics);
+                setLiveStatus(liveStatusRes.data);
+            }
         } catch (error) {
             console.error("Failed to load trade history:", error);
             setLiveStatus(null);
+            setRowData([]);
+            setMetrics(null);
         } finally {
             setLoading(false);
         }

@@ -58,6 +58,25 @@ async def get_trade_live_status(
         ),
     }
 
+
+@router.get("/live", response_model=List[TradeRecord])
+async def get_live_trades(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get current-day TWS live executions only.
+    """
+    db = get_db()
+    today_prefix = datetime.now().strftime("%Y%m%d")
+    cursor = db.ibkr_trades.find(
+        {
+            "source": "tws_live",
+            "date_time": {"$regex": f"^{today_prefix}"},
+        }
+    ).sort("date_time", -1)
+
+    return [TradeRecord(**fix_oid(doc)) for doc in cursor]
+
 @router.get("/", response_model=List[TradeRecord])
 async def get_trades(
     skip: int = 0,

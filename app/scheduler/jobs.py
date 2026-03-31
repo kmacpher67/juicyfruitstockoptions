@@ -51,13 +51,14 @@ def run_tws_position_sync():
         return
 
     tws_service = get_ibkr_tws_service()
-    if not tws_service.is_connected():
+    if not tws_service.ensure_connected():
         live_status = tws_service.get_live_status()
         logging.warning(
             "Scheduler: Skipping TWS position sync because TWS is not connected. "
-            "state=%s socket_connectable=%s managed_accounts=%s last_error=%s",
+            "state=%s socket_connectable=%s handshake_attempted=%s managed_accounts=%s last_error=%s",
             live_status.get("connection_state"),
             live_status.get("socket_connectable"),
+            live_status.get("handshake_attempted"),
             live_status.get("managed_accounts"),
             live_status.get("last_error"),
         )
@@ -129,13 +130,14 @@ def run_tws_nav_snapshot():
         return
 
     tws_service = get_ibkr_tws_service()
-    if not tws_service.is_connected():
+    if not tws_service.ensure_connected():
         live_status = tws_service.get_live_status()
         logging.warning(
             "Scheduler: Skipping TWS NAV snapshot because TWS is not connected. "
-            "state=%s socket_connectable=%s managed_accounts=%s last_error=%s",
+            "state=%s socket_connectable=%s handshake_attempted=%s managed_accounts=%s last_error=%s",
             live_status.get("connection_state"),
             live_status.get("socket_connectable"),
+            live_status.get("handshake_attempted"),
             live_status.get("managed_accounts"),
             live_status.get("last_error"),
         )
@@ -186,6 +188,49 @@ def run_tws_nav_snapshot():
         inserted += 1
 
     logging.info("Scheduler: TWS NAV snapshot stored %s account snapshots.", inserted)
+
+
+def run_tws_execution_sync():
+    """Persist current-day TWS executions into ibkr_trades."""
+    if not settings.IBKR_TWS_ENABLED:
+        logging.info("Scheduler: Skipping TWS execution sync because IBKR_TWS_ENABLED is false.")
+        return
+
+    tws_service = get_ibkr_tws_service()
+    if not tws_service.ensure_connected():
+        live_status = tws_service.get_live_status()
+        logging.warning(
+            "Scheduler: Skipping TWS execution sync because TWS is not connected. "
+            "state=%s socket_connectable=%s handshake_attempted=%s last_error=%s",
+            live_status.get("connection_state"),
+            live_status.get("socket_connectable"),
+            live_status.get("handshake_attempted"),
+            live_status.get("last_error"),
+        )
+        return
+
+    accounts = _get_tws_accounts(tws_service)
+    requested = False
+    if accounts:
+        for index, account in enumerate(accounts):
+            requested = tws_service.refresh_executions(account=account, req_id=9100 + index) or requested
+    else:
+        requested = tws_service.refresh_executions() or requested
+
+    if not requested:
+        logging.info("Scheduler: TWS execution sync request was not issued.")
+        return
+
+    db = _get_db()
+    upserted = tws_service.upsert_executions_to_db(db=db)
+    live_status = tws_service.get_live_status()
+    logging.info(
+        "Scheduler: TWS execution sync upserted %s live execution(s). "
+        "execution_count=%s last_execution_update=%s",
+        upserted,
+        live_status.get("execution_count"),
+        live_status.get("last_execution_update"),
+    )
 
 
 def tag_existing_flex_sync_sources():
@@ -313,6 +358,15 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info("Scheduled TWS NAV Snapshot every 3 minutes.")
+
+    scheduler.add_job(
+        run_tws_execution_sync,
+        trigger="interval",
+        seconds=30,
+        id="tws_execution_sync",
+        replace_existing=True
+    )
+    logging.info("Scheduled TWS Execution Sync every 30 seconds.")
 
     # Portfolio Fixer (Keep existing 3am logic)
     scheduler.add_job(
