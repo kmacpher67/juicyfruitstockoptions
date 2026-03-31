@@ -60,6 +60,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Develop Document Ingestion Pipeline (Markdown -> Embeddings).
     - [ ] Create Chat Interface for querying docs.
 
+### Dependencies & Package Management
+- [x] **IBKR TWS API — Vendored Local Install**: PyPI `ibapi` frozen at 9.81.1 (2020). Resolved by vendoring IBKR source into `vendor/ibapi/` and referencing via local path in `requirements.txt`.
+    - [x] Write `ibkr-ibapi-update.sh` — curl + unzip latest `twsapi_macunix.zip` into `vendor/ibapi/`
+    - [x] Update `requirements.txt`: replace `ibapi>=9.81.1.post1` with `./vendor/ibapi`
+    - [x] Document in `docs/learning/ibkr-ibapi-vendor-install.md`
+    - [ ] Commit `vendor/ibapi/` after running the update script for the first time
+    - [ ] Add `vendor/ibapi/` commit step to onboarding / new-dev setup notes
+
 ### Deployment & Security
 - [ ] **Local vs Cloud Analysis**:
     - [ ] Analyze cost/benefit of running Docker on Home PC vs Cloud (AWS/GCP/DigitalOcean).

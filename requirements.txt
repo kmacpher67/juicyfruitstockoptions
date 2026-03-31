@@ -22,4 +22,7 @@ mongomock
 argon2-cffi
 google-generativeai
 python-dotenv
-ibapi>=9.81.1.post1
+# ibapi is NOT maintained on PyPI (frozen at 9.81.1 circa 2020).
+# Run ./ibkr-ibapi-update.sh to download the latest IBKR TWS API source
+# into vendor/ibapi/, then Docker + local pip will install from here.
+./vendor/ibapi
