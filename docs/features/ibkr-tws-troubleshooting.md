@@ -80,18 +80,25 @@ Run these in order from the same runtime as the backend:
 python -m app.scripts.ibkr_tws_cli status --show-env
 python -m app.scripts.ibkr_tws_cli raw-connect-test --force-enable
 python -m app.scripts.ibkr_tws_cli connect-test --force-enable
+python -m app.scripts.ibkr_tws_cli sync-nav --force-enable
+python -m app.scripts.ibkr_tws_cli sync-positions --force-enable --snapshot-id manual_verify_YYYYMMDD
 python -m app.scripts.ibkr_tws_cli executions --force-enable
+python -m app.scripts.ibkr_tws_cli sync-executions --force-enable
 ```
 
 Interpretation:
 
 - `raw-connect-test` success means only that the TCP socket is reachable.
 - `connect-test` success means the IB API handshake completed.
+- If `connect-test` fails with `326 Unable to connect as the client id is already in use`, retry immediately with `--client-id <unique number>` before classifying the runtime as broken.
+- `sync-nav` success means the backend runtime can persist a fresh `source: "tws"` NAV snapshot.
+- `sync-positions` success means the backend runtime can persist a fresh `source: "tws"` holdings snapshot.
 - `executions` should return normalized rows with:
   - `date_time` formatted like `YYYYMMDD HH:MM:SS`
   - `trade_date` formatted like `YYYYMMDD`
   - `buy_sell` preserved from IBKR (`BOT` / `SLD`) with a normalized side available for downstream logic
   - signed `quantity` once persisted into `ibkr_trades`
+- `sync-executions` success means current-day `tws_live` trade rows can be upserted into Mongo from the same runtime as FastAPI.
 
 If `raw-connect-test` succeeds but `connect-test` reports `handshake_failed`, focus on TWS trust and client-origin settings first.
 
@@ -106,7 +113,7 @@ If you can see executions in TWS but the web app shows zero current-day live row
 
 1. Run `python -m app.scripts.ibkr_tws_cli executions --force-enable`
 2. Confirm returned executions have the normalized `trade_date`
-3. Confirm the scheduler or manual sync has upserted those rows into `ibkr_trades`
+3. Run `python -m app.scripts.ibkr_tws_cli sync-executions --force-enable` if you want an immediate manual upsert
 4. Confirm `/api/trades/live-status` reports `today_live_trade_count > 0`
 
 Use [`executions.txt`](/home/kenmac/personal/juicyfruitstockoptions/executions.txt) as a sanity fixture for what same-day trades should roughly resemble across multiple accounts.

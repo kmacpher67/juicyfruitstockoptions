@@ -25,14 +25,16 @@ Implemented already:
 - `frontend/src/components/NAVStats.jsx` shows TWS live vs EOD/disabled state.
 - `frontend/src/components/NAVStats.jsx` now also surfaces backend unavailable states such as handshake failure, socket unreachable, and disconnected using `connection_state` and `diagnosis`.
 - `frontend/src/components/TradeHistory.jsx` now reads live execution `price` / `commission` fields and uses `buy_sell` for RT action labels instead of assuming quantity sign alone.
+- `frontend/src/components/TradeHistory.jsx` now surfaces `connection_state`, `diagnosis`, `last_failure_reason`, and `last_failure_at` for RT trades mode.
+- `app/scripts/ibkr_tws_cli.py` now supports same-runtime `sync-nav`, `sync-positions`, and `sync-executions` verification and persistence.
 - `tests/test_ibkr_tws_service.py` covers handshake-failed status behavior.
+- `tests/test_ibkr_tws_service.py` now also covers the false-positive raw-socket case so a transport-level connect does not get reported as a real IBKR session.
 
 Still open:
 
-- the UI does not yet clearly surface the backend `connection_state` and `diagnosis`
 - reconnect and warmup failure behavior are still incomplete
-- the Docker-to-host TWS trust/localhost requirement remains a likely blocker in the failing web-app path
-- the realtime UI requirement for `PORTFOLIO` and `TRADES` is still too broad unless it is broken into repeatable implementation steps
+- Docker-to-host TWS trust and account-subscription conflicts can still block parts of the live flow even when the handshake succeeds
+- the end-to-end portfolio persistence path should still be rechecked through the actual authenticated web app after backend/runtime changes
 
 ## Data Source Rules
 

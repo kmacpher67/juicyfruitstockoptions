@@ -44,36 +44,48 @@ def _get_tws_accounts(tws_service) -> list[str]:
     return sorted(accounts)
 
 
+def _log_tws_skip(job_name: str, cause: str, live_status: dict | None = None) -> None:
+    live_status = live_status or {}
+    logging.warning(
+        "Scheduler: Skipping %s cause=%s state=%s socket_connectable=%s handshake_attempted=%s "
+        "managed_accounts=%s position_count=%s last_account_value_update=%s last_error=%s",
+        job_name,
+        cause,
+        live_status.get("connection_state"),
+        live_status.get("socket_connectable"),
+        live_status.get("handshake_attempted"),
+        live_status.get("managed_accounts"),
+        live_status.get("position_count"),
+        live_status.get("last_account_value_update"),
+        live_status.get("last_error"),
+    )
+
+
 def run_tws_position_sync():
     """Persist the latest TWS positions into ibkr_holdings as a live snapshot."""
     if not settings.IBKR_TWS_ENABLED:
-        logging.info("Scheduler: Skipping TWS position sync because IBKR_TWS_ENABLED is false.")
+        _log_tws_skip("TWS position sync", "disabled_flag")
         return
 
     tws_service = get_ibkr_tws_service()
     if not tws_service.ensure_connected():
         live_status = tws_service.get_live_status()
-        logging.warning(
-            "Scheduler: Skipping TWS position sync because TWS is not connected. "
-            "state=%s socket_connectable=%s handshake_attempted=%s managed_accounts=%s last_error=%s",
-            live_status.get("connection_state"),
-            live_status.get("socket_connectable"),
-            live_status.get("handshake_attempted"),
-            live_status.get("managed_accounts"),
-            live_status.get("last_error"),
-        )
+        cause = {
+            "disabled": "disabled_flag",
+            "handshake_failed": "no_handshake",
+            "socket_unreachable": "socket_unreachable",
+            "disconnected": "disconnected",
+        }.get(live_status.get("connection_state"), "not_connected")
+        _log_tws_skip("TWS position sync", cause, live_status)
         return
 
     positions = tws_service.get_positions()
     if not positions:
         live_status = tws_service.get_live_status()
-        logging.info(
-            "Scheduler: No TWS positions available to sync. "
-            "managed_accounts=%s last_account_value_update=%s last_status=%s",
-            live_status.get("managed_accounts"),
-            live_status.get("last_account_value_update"),
-            live_status.get("last_status"),
-        )
+        cause = "no_positions"
+        if not live_status.get("managed_accounts"):
+            cause = "no_managed_accounts"
+        _log_tws_skip("TWS position sync", cause, live_status)
         return
 
     db = _get_db()
@@ -126,33 +138,25 @@ def run_tws_position_sync():
 def run_tws_nav_snapshot():
     """Append live account NAV snapshots from TWS into ibkr_nav_history."""
     if not settings.IBKR_TWS_ENABLED:
-        logging.info("Scheduler: Skipping TWS NAV snapshot because IBKR_TWS_ENABLED is false.")
+        _log_tws_skip("TWS NAV snapshot", "disabled_flag")
         return
 
     tws_service = get_ibkr_tws_service()
     if not tws_service.ensure_connected():
         live_status = tws_service.get_live_status()
-        logging.warning(
-            "Scheduler: Skipping TWS NAV snapshot because TWS is not connected. "
-            "state=%s socket_connectable=%s handshake_attempted=%s managed_accounts=%s last_error=%s",
-            live_status.get("connection_state"),
-            live_status.get("socket_connectable"),
-            live_status.get("handshake_attempted"),
-            live_status.get("managed_accounts"),
-            live_status.get("last_error"),
-        )
+        cause = {
+            "disabled": "disabled_flag",
+            "handshake_failed": "no_handshake",
+            "socket_unreachable": "socket_unreachable",
+            "disconnected": "disconnected",
+        }.get(live_status.get("connection_state"), "not_connected")
+        _log_tws_skip("TWS NAV snapshot", cause, live_status)
         return
 
     accounts = _get_tws_accounts(tws_service)
     if not accounts:
         live_status = tws_service.get_live_status()
-        logging.info(
-            "Scheduler: No TWS accounts available for NAV snapshot. "
-            "managed_accounts=%s position_count=%s last_account_value_update=%s",
-            live_status.get("managed_accounts"),
-            live_status.get("position_count"),
-            live_status.get("last_account_value_update"),
-        )
+        _log_tws_skip("TWS NAV snapshot", "no_managed_accounts", live_status)
         return
 
     db = _get_db()
@@ -163,6 +167,10 @@ def run_tws_nav_snapshot():
     for account in accounts:
         values = tws_service.get_account_values(account)
         if not values:
+            logging.warning(
+                "Scheduler: Skipping TWS NAV snapshot for account=%s cause=no_account_values",
+                account,
+            )
             continue
 
         def _float_value(key: str) -> float:
@@ -193,20 +201,19 @@ def run_tws_nav_snapshot():
 def run_tws_execution_sync():
     """Persist current-day TWS executions into ibkr_trades."""
     if not settings.IBKR_TWS_ENABLED:
-        logging.info("Scheduler: Skipping TWS execution sync because IBKR_TWS_ENABLED is false.")
+        _log_tws_skip("TWS execution sync", "disabled_flag")
         return
 
     tws_service = get_ibkr_tws_service()
     if not tws_service.ensure_connected():
         live_status = tws_service.get_live_status()
-        logging.warning(
-            "Scheduler: Skipping TWS execution sync because TWS is not connected. "
-            "state=%s socket_connectable=%s handshake_attempted=%s last_error=%s",
-            live_status.get("connection_state"),
-            live_status.get("socket_connectable"),
-            live_status.get("handshake_attempted"),
-            live_status.get("last_error"),
-        )
+        cause = {
+            "disabled": "disabled_flag",
+            "handshake_failed": "no_handshake",
+            "socket_unreachable": "socket_unreachable",
+            "disconnected": "disconnected",
+        }.get(live_status.get("connection_state"), "not_connected")
+        _log_tws_skip("TWS execution sync", cause, live_status)
         return
 
     accounts = _get_tws_accounts(tws_service)
@@ -218,7 +225,8 @@ def run_tws_execution_sync():
         requested = tws_service.refresh_executions() or requested
 
     if not requested:
-        logging.info("Scheduler: TWS execution sync request was not issued.")
+        live_status = tws_service.get_live_status()
+        _log_tws_skip("TWS execution sync", "request_not_issued", live_status)
         return
 
     db = _get_db()

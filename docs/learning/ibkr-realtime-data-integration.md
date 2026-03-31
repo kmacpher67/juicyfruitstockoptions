@@ -261,6 +261,9 @@ Expected interpretation:
 - `status --show-env`: confirms the backend process is actually configured with the host/port you expect
 - `raw-connect-test`: confirms only TCP reachability
 - `connect-test`: confirms the real IB API handshake
+- `sync-positions`: captures the current TWS positions, prints them, and upserts a `source: "tws"` holdings snapshot
+- `sync-nav`: captures current TWS account values, prints them, and inserts a `source: "tws"` NAV snapshot
+- `sync-executions`: captures current executions, prints summary counts, and upserts `source: "tws_live"` trade rows
 
 If `raw-connect-test` succeeds but `connect-test` fails:
 - inspect TWS API trust / localhost-only settings
@@ -274,10 +277,11 @@ Use this order every time realtime looks broken:
 1. Confirm backend env: `IBKR_TWS_ENABLED`, host, port, client id.
 2. Run `raw-connect-test` from the backend runtime.
 3. Run `connect-test` from the backend runtime.
-4. Check `managed_accounts`, `position_count`, and `last_account_value_update`.
-5. Check backend logs for scheduler skips and the most recent `last_error`.
-6. Check Mongo for recent `source: "tws"` docs in `ibkr_holdings` and `ibkr_nav_history`.
-7. Only then evaluate the frontend badge/state.
+4. If `connect-test` reports client-id collisions such as `326 Unable to connect as the client id is already in use`, retry with a unique client id before calling the runtime disconnected.
+5. Check `managed_accounts`, `position_count`, and `last_account_value_update`.
+6. Run `sync-nav` and `sync-positions` or wait for the scheduler, then confirm fresh `source: "tws"` docs exist.
+7. Check backend logs for scheduler skips and the most recent `last_error`.
+8. Only then evaluate the frontend badge/state.
 - `2106`: HMDS data farm connection is OK
 - `2158`: sec-def data farm connection is OK
 
@@ -314,7 +318,13 @@ These endpoints now expose the live-vs-EOD distinction without replacing the exi
 GET /api/portfolio/live-status
 → {
   "connected": true,
+  "connection_state": "connected",
+  "diagnosis": "IBKR TWS API session connected.",
+  "socket_connectable": true,
+  "managed_accounts": ["U1234567"],
+  "last_error": null,
   "last_position_update": "2026-03-30T18:22:00+00:00",
+  "last_account_value_update": "2026-03-30T18:24:00+00:00",
   "position_count": 5,
   "tws_enabled": true
 }
@@ -334,6 +344,34 @@ GET /api/portfolio/nav/live
   "source": "tws",
   "last_tws_update": "<ISO timestamp>"
 }
+
+GET /api/trades/live-status
+→ {
+  "connected": true,
+  "connection_state": "connected" | "disabled" | "disconnected" | "socket_unreachable" | "handshake_failed",
+  "diagnosis": "<backend diagnosis>",
+  "today_live_trade_count": 3,
+  "latest_live_trade_at": "<ISO timestamp>",
+  "last_failure_reason": "<most recent backend failure>",
+  "last_failure_at": "<ISO timestamp>"
+}
+
+GET /api/trades/live
+→ [
+  {
+    "trade_id": "0001",
+    "account_id": "DU123456",
+    "symbol": "AAPL",
+    "date_time": "20260331 14:04:16",
+    "trade_date": "20260331",
+    "quantity": -1.0,
+    "price": 3.1,
+    "commission": 1.25,
+    "buy_sell": "SLD",
+    "normalized_buy_sell": "SELL",
+    "source": "tws_live"
+  }
+]
 ```
 
 Frontend behavior tied to this contract:
@@ -370,6 +408,12 @@ When the UI only shows a generic "not working" state, diagnosis becomes guesswor
 
 - The remaining user-visible problem is best described as "web app realtime diagnosis is incomplete", not simply "TWS integration missing".
 - The backend service already models handshake-failed state and the tests cover it.
+- The backend service now also prevents a false-positive `connected` state when the raw socket opens but the IBKR API handshake never actually proves itself.
+- Current-day TWS execution ingestion is now wired through the service, scheduler, API, and trade UI path:
+  - `reqExecutions` / `execDetails` / `commissionReport` callbacks are implemented
+  - `run_tws_execution_sync()` is scheduled every 30 seconds
+  - `/api/trades/live` and `/api/trades/live-status` expose the current-day `tws_live` path
+  - `TradeHistory.jsx` surfaces live-vs-Flex source labels plus explicit unavailable-state diagnostics
 - Current `?view=TRADES` user-facing failure text is: `RT trades are unavailable. TCP socket is reachable, but the IBKR API handshake did not complete. Verify TWS trusted-client / localhost-only API settings for this runtime.` This is the correct direction of diagnosis and should be preserved as a first-class unavailable state.
 - The most likely failing production path is:
   - host CLI proves localhost TWS works
@@ -383,6 +427,23 @@ When the UI only shows a generic "not working" state, diagnosis becomes guesswor
   - surfacing precise `connection_state` / `diagnosis`
   - reconnect/warmup failure handling
   - explicit fallback behavior when TWS is not viable from the deployed runtime
+
+### Verification update - 2026-03-31
+
+Verified from the backend container runtime, not just the host shell:
+
+- `docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli status --show-env`
+  - confirmed backend runtime uses `IBKR_TWS_ENABLED=true`, `IBKR_TWS_HOST=host.docker.internal`, `IBKR_TWS_PORT=7496`
+- `docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli raw-connect-test --force-enable`
+  - returned `tcp_connectable: true`
+- `docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli connect-test --force-enable --client-id 99`
+  - returned `connected: true`
+  - returned managed accounts `["U110638", "U280132", "U2842030"]`
+  - returned `last_account_value_update`
+- `docker exec stock_portal_backend python -m app.scripts.ibkr_tws_cli sync-nav --force-enable --client-id 101`
+  - inserted a fresh `source: "tws"` NAV snapshot for account `U2842030`
+- `docker exec stock_portal_backend python -c "from app.services.portfolio_analysis import get_latest_live_nav_snapshot; print(get_latest_live_nav_snapshot())"`
+  - returned the latest live NAV snapshot that backs `/api/portfolio/nav/live`
 
 ---
 

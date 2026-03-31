@@ -448,6 +448,35 @@ class IBKRTWSService:
             or getattr(app, "next_valid_order_id", None) is not None
         )
 
+    def _has_confirmed_session(self, app: IBKRTWSApp | None) -> bool:
+        if app is None:
+            return False
+        return bool(
+            getattr(app, "connected", False)
+            or getattr(app, "next_valid_order_id", None) is not None
+            or getattr(app, "managed_accounts", [])
+            or getattr(app, "positions", {})
+            or getattr(app, "account_values", {})
+            or getattr(app, "position_snapshot_complete", False)
+        )
+
+    def _log_live_status_snapshot(self, context: str) -> None:
+        live_status = self.get_live_status()
+        self.logger.info(
+            "TWS live status snapshot context=%s host=%s port=%s client_id=%s connected=%s "
+            "state=%s managed_accounts=%s position_count=%s last_account_value_update=%s last_error=%s",
+            context,
+            live_status.get("host"),
+            live_status.get("port"),
+            live_status.get("client_id"),
+            live_status.get("connected"),
+            live_status.get("connection_state"),
+            live_status.get("managed_accounts"),
+            live_status.get("position_count"),
+            live_status.get("last_account_value_update"),
+            live_status.get("last_error"),
+        )
+
     def _default_app_factory(self) -> IBKRTWSApp:
         return IBKRTWSApp()
 
@@ -525,6 +554,7 @@ class IBKRTWSService:
                 socket_probe.get("tcp_connectable"),
                 self.get_live_status().get("last_error"),
             )
+        self._log_live_status_snapshot("post_connect")
         return connected
 
     def ensure_connected(self) -> bool:
@@ -700,20 +730,7 @@ class IBKRTWSService:
         with self._lock:
             if self._app is None:
                 return False
-            app_connected = getattr(self._app, "connected", False)
-            callback_connected = bool(
-                getattr(self._app, "next_valid_order_id", None) is not None
-                or getattr(self._app, "managed_accounts", [])
-                or getattr(self._app, "positions", {})
-                or getattr(self._app, "position_snapshot_complete", False)
-            )
-            client_connected = getattr(self._app, "isConnected", None)
-            if callable(client_connected):
-                try:
-                    return bool(client_connected() or app_connected or callback_connected)
-                except Exception:
-                    return bool(app_connected or callback_connected)
-            return bool(app_connected or callback_connected)
+            return self._has_confirmed_session(self._app)
 
     @property
     def app(self) -> IBKRTWSApp | None:
@@ -737,7 +754,7 @@ class IBKRTWSService:
             elif app is not None:
                 last_position_update = getattr(app, "last_position_update", None)
 
-            connected = self.is_connected()
+            connected = self._has_confirmed_session(app)
             managed_accounts = list(getattr(app, "managed_accounts", [])) if app is not None else []
             last_error = getattr(app, "last_error", None) if app is not None else None
             last_status = getattr(app, "last_status", None) if app is not None else None
