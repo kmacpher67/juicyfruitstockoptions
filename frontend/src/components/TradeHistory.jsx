@@ -326,18 +326,39 @@ const TradeHistory = () => {
     const rtUnavailable = isRtMode && liveStatus && liveStatus.connection_state !== 'connected';
     const displayMetrics = isRtMode ? null : metrics;
     const rtSummary = !liveStatus
-        ? 'Loading live trade status...'
+        ? 'Loading live status...'
         : liveStatus.connection_state === 'connected'
             ? liveStatus.today_live_trade_count > 0
-                ? `${liveStatus.today_live_trade_count} live trade${liveStatus.today_live_trade_count === 1 ? '' : 's'} today, ${liveFreshness}.`
-                : `Connected to TWS. No current-day live executions have been captured yet.`
-            : liveStatus.diagnosis || 'Live trades are currently unavailable.';
+                ? `${liveStatus.today_live_trade_count} live trade${liveStatus.today_live_trade_count === 1 ? '' : 's'} today`
+                : 'Connected. No live executions yet today'
+            : liveStatus.diagnosis || 'Live trades unavailable';
     const failureTimestamp = formatStatusTimestamp(liveStatus?.last_failure_at);
+    const statusSummary = isRtMode ? rtSummary : 'Historical mode uses stored trade history';
 
     return (
         <div className="flex flex-col gap-6">
             {/* Controls */}
-            <div className="flex justify-end items-center gap-2">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-lg border border-gray-700 bg-gray-800/90 px-3 py-2">
+                    <span className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[11px] font-semibold uppercase tracking-wide ${liveTone.pillClass}`}>
+                        <span className={`h-2.5 w-2.5 rounded-full ${liveTone.dotClass}`}></span>
+                        {liveTone.label}
+                    </span>
+                    <span className="text-sm text-gray-200">
+                        {statusSummary}
+                    </span>
+                    {liveStatus && (
+                        <>
+                            <span className="hidden text-gray-600 md:inline">|</span>
+                            <span className="text-xs text-gray-400">
+                                Last execution: {liveStatus.last_execution_update ? liveFreshness : 'update pending'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                                Live rows today: {liveStatus.today_live_trade_count ?? 0}
+                            </span>
+                        </>
+                    )}
+                </div>
                 <div className="flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700 flex-wrap justify-end">
                     <Calendar className="w-4 h-4 text-gray-400 ml-2" />
                     {['ALL', 'MTD', 'RT', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map(range => (
@@ -354,43 +375,17 @@ const TradeHistory = () => {
                 </div>
             </div>
 
-            <div className="rounded-lg border border-gray-700 bg-gray-800/90 px-4 py-3">
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${liveTone.pillClass}`}>
-                                <span className={`h-2.5 w-2.5 rounded-full ${liveTone.dotClass}`}></span>
-                                {liveTone.label}
-                            </span>
-                            <span className="text-[11px] uppercase tracking-wide text-gray-500">
-                                {isRtMode ? 'RT mode' : 'Historical mode'}
-                            </span>
-                        </div>
-                        <div className="mt-2 text-sm text-gray-200">
-                            {isRtMode
-                                ? rtSummary
-                                : 'Historical ranges use stored trade history. RT is reserved for current-day TWS executions.'}
-                        </div>
+            {rtUnavailable && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                    RT trades are unavailable. {liveStatus?.diagnosis}
+                    <div className="mt-2 text-xs text-amber-200/90">
+                        Latest backend failure: {liveStatus?.last_failure_reason || liveStatus?.diagnosis || 'Unknown failure'}.
                     </div>
-                    {liveStatus && (
-                        <div className="text-right text-xs text-gray-400">
-                            <div>Last execution: {liveStatus.last_execution_update ? liveFreshness : 'update pending'}</div>
-                            <div>Today live rows: {liveStatus.today_live_trade_count ?? 0}</div>
-                        </div>
-                    )}
+                    <div className="mt-1 text-xs text-amber-200/75">
+                        Failure time: {failureTimestamp}
+                    </div>
                 </div>
-                {rtUnavailable && (
-                    <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                        RT trades are unavailable. {liveStatus?.diagnosis}
-                        <div className="mt-2 text-xs text-amber-200/90">
-                            Latest backend failure: {liveStatus?.last_failure_reason || liveStatus?.diagnosis || 'Unknown failure'}.
-                        </div>
-                        <div className="mt-1 text-xs text-amber-200/75">
-                            Failure time: {failureTimestamp}
-                        </div>
-                    </div>
-                )}
-            </div>
+            )}
 
             {/* Metrics Section */}
             {displayMetrics && (
