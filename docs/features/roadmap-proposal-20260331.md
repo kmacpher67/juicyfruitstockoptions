@@ -40,7 +40,13 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
     - [ ] **Near the Money (OTM/ITM)**: Filter options that are within a certain percentage of the strike price.
 - [x] **Export to CSV**: Export the current filtered view of the portfolio to a CSV file.
 - [x] **Link to Ticker Analysis**: Add a link next to each ticker to open the shared `TickerModal` for in-depth analysis.
-- [ ] **UI Layout**: Increase the width of the portfolio view to prevent horizontal scrolling and optimize column widths.
+- [x] **UI Layout**: Increase the width of the portfolio view to prevent horizontal scrolling and optimize column widths.
+- [ ] **Portfolio TWS Live Grid Regression Fixes**: As of 2026-03-31 the `?view=PORTFOLIO` grid shows multiple realtime rendering regressions after the TWS integration work. See `docs/features/portfolio_tws_live_grid_regressions_20260331.md`.
+    - [ ] **portfolio-live-grid-001**: Price, Value, Basis, and Unrealized PnL must never render the literal text `undefined`; when live data is unavailable the UI should show a deliberate fallback value and keep numeric formatting stable.
+    - [ ] **portfolio-live-grid-002**: Restore correct security type classification and display for `STK` vs `OPT`, including option-specific description details and any Type-driven links/actions.
+    - [ ] **portfolio-live-grid-003**: `% NAV` must not render `NaN%`; row-level percent calculations must guard against missing denominators and unavailable live values.
+    - [ ] **portfolio-live-grid-004**: Re-verify the pre-TWS Type-column fallback logic that was previously documented as fixed so the same regression is not reintroduced.
+
 
 #### Trade History (`?view=TRADES`)
 - [x] **Trade History Management**: Ingest, process, and display the entire history of trades with correct cost basis and metrics.
@@ -213,3 +219,4 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
 | 2026-02-17 | **FIXED** | Fixed Dividend Scanner bug (method typo + expanded lookahead 0-30 days + UTC fix). |
 | 2026-02-01 | **VARIOUS** | Initial refactoring, refinement, and feature additions by AI Agent. |
 | 2026-03-31 | **UPDATED** | Added roadmap coverage for IBKR RT Trades handshake/runtime diagnostics and TWS trusted-client requirements. |
+| 2026-03-31 | **UPDATED** | Added concrete `?view=PORTFOLIO` live-grid regression items for `undefined` values, missing option details, `STK`/`OPT` typing, and `NaN%` rendering. |

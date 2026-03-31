@@ -125,6 +125,16 @@ Known symptoms that are not handshake failures:
 - RT trades rows exist, but the Action column is wrong because the data is using `buy_sell` rather than quantity sign.
 - RT trades rows exist, but Price or Comm appears blank because the UI is reading Flex-era fields instead of live `price` / `commission`.
 - Historical views appear fine while RT is empty because only current-day `tws_live` rows are shown in RT mode.
+- `?view=PORTFOLIO` rows show `$undefined`, `NaN%`, blank option descriptions, or wrong `STK` / `OPT` typing because the frontend grid is reading the wrong field names from TWS/live or merged holdings rows. Treat this as a portfolio row-schema / formatter bug, not a socket-handshake bug.
+
+For the portfolio-grid case above, compare the actual holdings payload fields used for:
+
+- price / market value / basis / unrealized PnL
+- `% NAV` denominator and numerator inputs
+- `secType` / `sec_type` / `asset_class`
+- option description fields used to build the contract label
+
+Reference: [`portfolio_tws_live_grid_regressions_20260331.md`](/home/kenmac/personal/juicyfruitstockoptions/docs/features/portfolio_tws_live_grid_regressions_20260331.md)
 
 ## When To Grab TWS Logs
 

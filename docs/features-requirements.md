@@ -318,6 +318,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
     - [x] **LINK to Stock Analysis Detail**: Portfolio Page Add small link next to ticker and existing  Google, Yahoo finance, D to modal detail window shared logic same pop up window used from the ticker analysis list. 
+- [ ] **Portfolio View — TWS Live Grid Regression Fixes**: Review and fix the 2026-03-31 `?view=PORTFOLIO` regressions introduced or exposed during TWS realtime integration. Reference: `docs/features/portfolio_tws_live_grid_regressions_20260331.md`.
+    - [ ] **portfolio-live-grid-001**: Price, Value, Basis, and Unrealized PnL must not render the JavaScript literal `undefined`. If live fields are absent, use explicit fallback/null rendering rather than broken currency text.
+    - [ ] **portfolio-live-grid-002**: `% NAV` must not render `NaN%`. Guard row-level percentage math when NAV, market value, or live fields are missing or zero.
+    - [ ] **portfolio-live-grid-003**: Restore correct `Type` detection and display for `STK` vs `OPT` in the portfolio grid when records come from Flex, TWS, or merged sources.
+    - [ ] **portfolio-live-grid-004**: Restore option contract description details in the portfolio grid so option rows show meaningful contract metadata instead of partial or blank identifiers.
+    - [ ] **portfolio-live-grid-005**: Normalize the portfolio row view-model so TWS/live records and Flex/EOD records expose the same field names for price, market value, cost basis, unrealized PnL, `% NAV`, `secType`, and description before rendering.
+    - [ ] **portfolio-live-grid-006**: Add regression coverage for merged-source portfolio rows so previous fixes like the older Type-column fallback do not silently break when realtime data is present.
 
 
 ### Analysis & Signals
@@ -339,7 +346,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Auto-Roll Fixes**: After clicking on a roll there is spinner as it's thinking. Do these Smart Roll Analysis get saved somewhere?  
         - [x] **Auto-Roll Fixes**: No suitable rolls found for this position. Misses the point, WAIT, HOLD, or CLOSE. Are options also? If there are no suitable rolls found for this position, is the XDTE only offer a roll? 
         - [/] **Smart Roll Analysis**: analysis misses UP value for the roll. Add info regarding UP Return/Yield and Tot: yield. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
-        - [/] **UI fixes**: My portfolio is missing Type column data for each row. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
+        - [/] **UI fixes**: My portfolio is missing Type column data for each row. Originally covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md). Regressed again in the 2026-03-31 TWS live portfolio grid path; also tracked under `portfolio-live-grid-003` / `portfolio-live-grid-006`.
         - [/] **UI fixes**: Trades view is shows an obvious OPT trade as STK trade? It should show open or close, BUY or SELL, if close show the profit yield. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
         - [/] **UI fixes**: My Portfolio the XDTE boxes only use 1/2 the width of the available space. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
         - [/] **UI fixes**: The XDTE still shows 2D as the i assume the number of days to expiration even though it's 4D. Debug why this is happening. ref docs/learning/dte-calculation-standards.md. Covered in [Smart Roll & Markov Integration Plan](plans/implementation_plan-20260203-smart_roll_markov.md).
