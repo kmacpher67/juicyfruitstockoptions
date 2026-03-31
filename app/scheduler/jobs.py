@@ -52,12 +52,27 @@ def run_tws_position_sync():
 
     tws_service = get_ibkr_tws_service()
     if not tws_service.is_connected():
-        logging.warning("Scheduler: Skipping TWS position sync because TWS is not connected.")
+        live_status = tws_service.get_live_status()
+        logging.warning(
+            "Scheduler: Skipping TWS position sync because TWS is not connected. "
+            "state=%s socket_connectable=%s managed_accounts=%s last_error=%s",
+            live_status.get("connection_state"),
+            live_status.get("socket_connectable"),
+            live_status.get("managed_accounts"),
+            live_status.get("last_error"),
+        )
         return
 
     positions = tws_service.get_positions()
     if not positions:
-        logging.info("Scheduler: No TWS positions available to sync.")
+        live_status = tws_service.get_live_status()
+        logging.info(
+            "Scheduler: No TWS positions available to sync. "
+            "managed_accounts=%s last_account_value_update=%s last_status=%s",
+            live_status.get("managed_accounts"),
+            live_status.get("last_account_value_update"),
+            live_status.get("last_status"),
+        )
         return
 
     db = _get_db()
@@ -115,12 +130,27 @@ def run_tws_nav_snapshot():
 
     tws_service = get_ibkr_tws_service()
     if not tws_service.is_connected():
-        logging.warning("Scheduler: Skipping TWS NAV snapshot because TWS is not connected.")
+        live_status = tws_service.get_live_status()
+        logging.warning(
+            "Scheduler: Skipping TWS NAV snapshot because TWS is not connected. "
+            "state=%s socket_connectable=%s managed_accounts=%s last_error=%s",
+            live_status.get("connection_state"),
+            live_status.get("socket_connectable"),
+            live_status.get("managed_accounts"),
+            live_status.get("last_error"),
+        )
         return
 
     accounts = _get_tws_accounts(tws_service)
     if not accounts:
-        logging.info("Scheduler: No TWS accounts available for NAV snapshot.")
+        live_status = tws_service.get_live_status()
+        logging.info(
+            "Scheduler: No TWS accounts available for NAV snapshot. "
+            "managed_accounts=%s position_count=%s last_account_value_update=%s",
+            live_status.get("managed_accounts"),
+            live_status.get("position_count"),
+            live_status.get("last_account_value_update"),
+        )
         return
 
     db = _get_db()

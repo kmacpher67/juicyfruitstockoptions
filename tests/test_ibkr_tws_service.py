@@ -2,6 +2,8 @@ import logging
 import threading
 from types import SimpleNamespace
 
+import pytest
+
 import app.services.ibkr_tws_service as tws_module
 from app.services.ibkr_tws_service import IBKRTWSApp, IBKRTWSService
 
@@ -26,6 +28,7 @@ class FakeApp:
         self.last_account_value_update = None
         self.last_execution_update = None
         self.last_error = None
+        self.last_status = None
 
     def connect(self, host: str, port: int, client_id: int) -> None:
         self.connect_calls.append((host, port, client_id))
@@ -60,6 +63,18 @@ def test_connect_starts_app_and_requests_positions(monkeypatch):
         enabled=True,
         app_factory=FakeApp,
         sleep_fn=lambda _: None,
+    )
+    monkeypatch.setattr(
+        service,
+        "_probe_socket",
+        lambda timeout_seconds=1.0: {
+            "host": "ib-gateway",
+            "port": 4002,
+            "timeout_seconds": timeout_seconds,
+            "tcp_connectable": True,
+            "error": None,
+            "local_address": "172.18.0.4:45000",
+        },
     )
 
     connected = service.connect()
@@ -104,6 +119,16 @@ def test_managed_accounts_subscribe_to_account_updates():
     app.managedAccounts("DU123456,DU999999")
 
     assert calls == [(True, "DU123456"), (True, "DU999999")]
+
+
+def test_informational_tws_status_does_not_set_last_error():
+    app = IBKRTWSApp()
+
+    app.error(-1, 2104, "Market data farm connection is OK:usfarm")
+
+    assert app.last_error is None
+    assert app.last_status is not None
+    assert app.last_status["error_code"] == 2104
 
 
 def test_position_callback_subscribes_account_updates_once():
@@ -203,6 +228,46 @@ def test_refresh_executions_requests_tws_snapshot(monkeypatch):
     req_id, execution_filter = fake_app.req_executions_calls[0]
     assert req_id == 9002
     assert getattr(execution_filter, "acctCode") == "DU123456"
+
+
+def test_live_status_reports_handshake_failure_when_socket_is_reachable(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.connected = False
+    fake_app.next_valid_order_id = None
+    fake_app.last_error = {
+        "error_code": 504,
+        "error": "Not connected",
+        "timestamp": "2026-03-31T12:45:22+00:00",
+    }
+    service = IBKRTWSService(
+        host="host.docker.internal",
+        port=7496,
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+    monkeypatch.setattr(
+        service,
+        "_probe_socket",
+        lambda timeout_seconds=1.0: {
+            "host": "host.docker.internal",
+            "port": 7496,
+            "timeout_seconds": timeout_seconds,
+            "tcp_connectable": True,
+            "error": None,
+            "local_address": "172.18.0.4:40506",
+        },
+    )
+
+    status = service.get_live_status()
+
+    assert status["connected"] is False
+    assert status["socket_connectable"] is True
+    assert status["connection_state"] == "handshake_failed"
+    assert "handshake did not complete" in status["diagnosis"]
+    assert status["last_error"]["error_code"] == 504
 
 
 def test_upsert_executions_to_db_maps_trade_fields(monkeypatch):

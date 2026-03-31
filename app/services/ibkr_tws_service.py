@@ -1,4 +1,5 @@
 import logging
+import socket
 import threading
 import time
 from datetime import datetime, timezone
@@ -85,6 +86,9 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+INFO_ERROR_CODES = {2104, 2106, 2158}
+
+
 class IBKRTWSApp(EWrapper, EClient):
     """IBKR TWS socket client that captures portfolio and account callbacks."""
 
@@ -110,6 +114,7 @@ class IBKRTWSApp(EWrapper, EClient):
         self.execution_snapshot_complete = False
         self.last_execution_update: str | None = None
         self.last_error: dict[str, Any] | None = None
+        self.last_status: dict[str, Any] | None = None
         self.account_update_subscriptions: set[str] = set()
 
     def _mark_callback(self) -> str:
@@ -301,6 +306,17 @@ class IBKRTWSApp(EWrapper, EClient):
             "advanced_order_reject_json": advancedOrderRejectJson,
             "timestamp": self._mark_callback(),
         }
+        if int(errorCode) in INFO_ERROR_CODES:
+            with self._lock:
+                self.last_status = payload
+            self.logger.info(
+                "TWS API status reqId=%s code=%s message=%s",
+                reqId,
+                errorCode,
+                errorString,
+            )
+            return
+
         with self._lock:
             self.last_error = payload
         self.logger.error(
@@ -340,6 +356,24 @@ class IBKRTWSService:
     def _default_app_factory(self) -> IBKRTWSApp:
         return IBKRTWSApp()
 
+    def _probe_socket(self, timeout_seconds: float = 1.0) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "host": self.host,
+            "port": self.port,
+            "timeout_seconds": timeout_seconds,
+            "tcp_connectable": False,
+            "error": None,
+            "local_address": None,
+        }
+        try:
+            with socket.create_connection((self.host, self.port), timeout=timeout_seconds) as sock:
+                payload["tcp_connectable"] = True
+                local_host, local_port = sock.getsockname()[:2]
+                payload["local_address"] = f"{local_host}:{local_port}"
+        except OSError as exc:
+            payload["error"] = str(exc)
+        return payload
+
     def _is_disabled(self) -> bool:
         if not self.enabled:
             self.logger.info("IBKR TWS service is disabled by feature flag.")
@@ -361,6 +395,21 @@ class IBKRTWSService:
             app = self._app_factory()
             app.connection_attempted_at = _utc_now_iso()
             self._app = app
+            socket_probe = self._probe_socket()
+            if socket_probe["tcp_connectable"]:
+                self.logger.info(
+                    "TWS socket probe succeeded for %s:%s from %s.",
+                    self.host,
+                    self.port,
+                    socket_probe.get("local_address"),
+                )
+            else:
+                self.logger.warning(
+                    "TWS socket probe failed for %s:%s: %s",
+                    self.host,
+                    self.port,
+                    socket_probe.get("error"),
+                )
             app.connect(self.host, self.port, self.client_id)
             thread = threading.Thread(target=app.run, daemon=True)
             thread.start()
@@ -375,9 +424,11 @@ class IBKRTWSService:
             self.logger.info("Connected to IBKR TWS at %s:%s.", self.host, self.port)
         else:
             self.logger.warning(
-                "TWS connect attempt did not reach a confirmed connected state for %s:%s.",
+                "TWS connect attempt did not reach a confirmed connected state for %s:%s. socket_connectable=%s last_error=%s",
                 self.host,
                 self.port,
+                socket_probe.get("tcp_connectable"),
+                self.get_live_status().get("last_error"),
             )
         return connected
 
@@ -555,6 +606,7 @@ class IBKRTWSService:
         with self._lock:
             app = self._app
             positions = list(app.positions.values()) if app is not None else []
+            socket_probe = self._probe_socket()
             last_position_update = None
             if positions:
                 timestamps = [
@@ -567,24 +619,58 @@ class IBKRTWSService:
             elif app is not None:
                 last_position_update = getattr(app, "last_position_update", None)
 
+            connected = self.is_connected()
+            managed_accounts = list(getattr(app, "managed_accounts", [])) if app is not None else []
+            last_error = getattr(app, "last_error", None) if app is not None else None
+            last_status = getattr(app, "last_status", None) if app is not None else None
+            last_account_value_update = getattr(app, "last_account_value_update", None) if app is not None else None
+
+            if not self.enabled:
+                connection_state = "disabled"
+                diagnosis = "TWS feature flag disabled."
+            elif IBAPI_IMPORT_ERROR is not None:
+                connection_state = "unavailable"
+                diagnosis = "ibapi is not installed in this runtime."
+            elif connected:
+                connection_state = "connected"
+                diagnosis = "IBKR TWS API session connected."
+            elif socket_probe["tcp_connectable"]:
+                connection_state = "handshake_failed"
+                diagnosis = (
+                    "TCP socket is reachable, but the IBKR API handshake did not complete. "
+                    "Verify TWS trusted-client / localhost-only API settings for this runtime."
+                )
+            elif last_error:
+                connection_state = "socket_unreachable"
+                diagnosis = f"TWS connection failed: {last_error.get('error')}"
+            else:
+                connection_state = "disconnected"
+                diagnosis = "TWS is configured but no active session has been established."
+
             return {
-                "connected": self.is_connected(),
+                "connected": connected,
                 "host": self.host,
                 "port": self.port,
                 "client_id": self.client_id,
-                "managed_accounts": list(getattr(app, "managed_accounts", [])) if app is not None else [],
+                "managed_accounts": managed_accounts,
                 "next_valid_order_id": getattr(app, "next_valid_order_id", None) if app is not None else None,
                 "connection_attempted_at": getattr(app, "connection_attempted_at", None) if app is not None else None,
                 "connected_at": getattr(app, "connected_at", None) if app is not None else None,
                 "last_callback_at": getattr(app, "last_callback_at", None) if app is not None else None,
                 "position_snapshot_complete": getattr(app, "position_snapshot_complete", False) if app is not None else False,
                 "last_position_update": last_position_update,
-                "last_account_value_update": getattr(app, "last_account_value_update", None) if app is not None else None,
+                "last_account_value_update": last_account_value_update,
                 "last_execution_update": getattr(app, "last_execution_update", None) if app is not None else None,
-                "last_error": getattr(app, "last_error", None) if app is not None else None,
+                "last_error": last_error,
+                "last_status": last_status,
                 "position_count": len(positions),
                 "execution_count": len(getattr(app, "executions", {})) if app is not None else 0,
                 "execution_snapshot_complete": getattr(app, "execution_snapshot_complete", False) if app is not None else False,
+                "socket_connectable": socket_probe["tcp_connectable"],
+                "socket_probe_error": socket_probe["error"],
+                "socket_local_address": socket_probe["local_address"],
+                "connection_state": connection_state,
+                "diagnosis": diagnosis,
                 "tws_enabled": bool(self.enabled and IBAPI_IMPORT_ERROR is None),
             }
 
