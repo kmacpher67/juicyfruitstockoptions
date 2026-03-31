@@ -73,3 +73,33 @@ def test_get_analysis_endpoint(client):
         assert "metrics" in data
         assert data["metrics"]["total_pl"] == 100.0
         assert data["metrics"]["win_rate"] == 100.0
+
+
+def test_get_trade_live_status_endpoint(client):
+    fake_tws_service = MagicMock()
+    fake_tws_service.get_live_status.return_value = {
+        "connected": True,
+        "connection_state": "connected",
+        "diagnosis": "IBKR TWS API session connected.",
+        "last_execution_update": "2026-03-31T12:15:00",
+        "tws_enabled": True,
+    }
+
+    with patch("app.api.trades.MongoClient") as mock_client, \
+         patch("app.api.trades.get_ibkr_tws_service", return_value=fake_tws_service):
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.count_documents.return_value = 3
+        mock_db.ibkr_trades.find_one.return_value = {
+            "trade_id": "abc123",
+            "source": "tws_live",
+            "date_time": "20260331 12:14:59",
+            "last_tws_update": "2026-03-31T12:15:00",
+        }
+
+        response = client.get("/api/trades/live-status")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["connection_state"] == "connected"
+        assert data["today_live_trade_count"] == 3
+        assert data["latest_live_trade_at"] == "2026-03-31T12:15:00"

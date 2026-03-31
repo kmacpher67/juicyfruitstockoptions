@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { TrendingUp, TrendingDown, DollarSign, Activity, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, Calendar, Radio } from 'lucide-react';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
@@ -21,17 +21,104 @@ const MetricCard = ({ title, value, icon: Icon, trend, colorClass = "text-white"
     </div>
 );
 
+const formatRelativeTime = (value) => {
+    if (!value) return 'update pending';
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'update pending';
+
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+    if (diffSeconds < 5) return 'updated just now';
+    if (diffSeconds < 60) return `updated ${diffSeconds}s ago`;
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `updated ${diffMinutes}m ago`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `updated ${diffHours}h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `updated ${diffDays}d ago`;
+};
+
+const getLiveStatusTone = (state) => {
+    switch (state) {
+        case 'connected':
+            return {
+                dotClass: 'bg-green-400',
+                pillClass: 'border-green-500/40 bg-green-500/10 text-green-200',
+                label: 'TWS live',
+            };
+        case 'handshake_failed':
+            return {
+                dotClass: 'bg-amber-400',
+                pillClass: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+                label: 'Handshake failed',
+            };
+        case 'socket_unreachable':
+            return {
+                dotClass: 'bg-red-400',
+                pillClass: 'border-red-500/40 bg-red-500/10 text-red-200',
+                label: 'Socket unreachable',
+            };
+        case 'disconnected':
+            return {
+                dotClass: 'bg-yellow-400',
+                pillClass: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200',
+                label: 'Disconnected',
+            };
+        case 'disabled':
+            return {
+                dotClass: 'bg-gray-500',
+                pillClass: 'border-gray-600 bg-gray-900 text-gray-300',
+                label: 'Live disabled',
+            };
+        case 'unavailable':
+            return {
+                dotClass: 'bg-gray-500',
+                pillClass: 'border-gray-600 bg-gray-900 text-gray-300',
+                label: 'ibapi missing',
+            };
+        default:
+            return {
+                dotClass: 'bg-gray-500',
+                pillClass: 'border-gray-600 bg-gray-900 text-gray-300',
+                label: 'Status unknown',
+            };
+    }
+};
+
+const SourceBadge = ({ source }) => {
+    const normalized = source === 'tws_live' ? 'tws_live' : 'flex_history';
+    const isLive = normalized === 'tws_live';
+
+    return (
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isLive
+                ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                : 'border-gray-600 bg-gray-900 text-gray-300'
+        }`}>
+            {isLive ? 'TWS Live' : 'Flex'}
+        </span>
+    );
+};
+
 const TradeHistory = () => {
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState('YTD');
+    const [liveStatus, setLiveStatus] = useState(null);
 
     const calculateDateRange = (range) => {
         const now = new Date();
         let startDate = null;
 
         if (range === 'ALL') return { start: null, end: null };
+        if (range === 'RT') {
+            const today = now.toISOString().split('T')[0];
+            return { start: today, end: today };
+        }
 
         if (range === 'MTD') {
             startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -155,6 +242,14 @@ const TradeHistory = () => {
                 if (ac === "STK") return "Stock";
                 return ac;
             }
+        },
+        {
+            field: "source",
+            headerName: "Source",
+            width: 115,
+            sortable: true,
+            valueGetter: p => p.data.source || 'flex_history',
+            cellRenderer: p => <SourceBadge source={p.value} />
         }
     ]);
 
@@ -170,11 +265,26 @@ const TradeHistory = () => {
             if (start) params.start_date = start;
             if (end) params.end_date = end;
 
-            const res = await api.get('/trades/analysis', { params }); // Returns { trades: [], metrics: {} }
-            setRowData(res.data.trades);
-            setMetrics(res.data.metrics);
+            const [analysisRes, liveStatusRes] = await Promise.all([
+                api.get('/trades/analysis', { params }),
+                api.get('/trades/live-status'),
+            ]);
+
+            const trades = timeRange === 'RT'
+                ? (analysisRes.data.trades || []).filter((trade) => {
+                    const tradeDate = String(trade.date_time || trade.DateTime || '').slice(0, 8);
+                    const source = trade.source || 'flex_history';
+                    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                    return tradeDate === today && source === 'tws_live';
+                })
+                : (analysisRes.data.trades || []);
+
+            setRowData(trades);
+            setMetrics(analysisRes.data.metrics);
+            setLiveStatus(liveStatusRes.data);
         } catch (error) {
             console.error("Failed to load trade history:", error);
+            setLiveStatus(null);
         } finally {
             setLoading(false);
         }
@@ -187,60 +297,107 @@ const TradeHistory = () => {
         sortable: true
     }), []);
 
+    const isRtMode = timeRange === 'RT';
+    const liveTone = getLiveStatusTone(liveStatus?.connection_state);
+    const liveFreshness = formatRelativeTime(liveStatus?.latest_live_trade_at || liveStatus?.last_execution_update);
+    const rtUnavailable = isRtMode && liveStatus && liveStatus.connection_state !== 'connected';
+    const displayMetrics = isRtMode ? null : metrics;
+    const rtSummary = !liveStatus
+        ? 'Loading live trade status...'
+        : liveStatus.connection_state === 'connected'
+            ? liveStatus.today_live_trade_count > 0
+                ? `${liveStatus.today_live_trade_count} live trade${liveStatus.today_live_trade_count === 1 ? '' : 's'} today, ${liveFreshness}.`
+                : `Connected to TWS. No current-day live executions have been captured yet.`
+            : liveStatus.diagnosis || 'Live trades are currently unavailable.';
+
     return (
         <div className="flex flex-col gap-6">
             {/* Controls */}
             <div className="flex justify-end items-center gap-2">
-                <div className="flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700">
+                <div className="flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700 flex-wrap justify-end">
                     <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-                    {['ALL', 'MTD', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map(range => (
+                    {['ALL', 'MTD', 'RT', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map(range => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
-                            className={`px-3 py-1 text-sm rounded transition-colors ${timeRange === range ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                            title={range === 'RT' ? 'Current-day TWS live executions only' : undefined}
+                            className={`px-3 py-1 text-sm rounded transition-colors inline-flex items-center gap-1.5 ${timeRange === range ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
                         >
+                            {range === 'RT' && <Radio className="w-3.5 h-3.5" />}
                             {range}
                         </button>
                     ))}
                 </div>
             </div>
 
+            <div className="rounded-lg border border-gray-700 bg-gray-800/90 px-4 py-3">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${liveTone.pillClass}`}>
+                                <span className={`h-2.5 w-2.5 rounded-full ${liveTone.dotClass}`}></span>
+                                {liveTone.label}
+                            </span>
+                            <span className="text-[11px] uppercase tracking-wide text-gray-500">
+                                {isRtMode ? 'RT mode' : 'Historical mode'}
+                            </span>
+                        </div>
+                        <div className="mt-2 text-sm text-gray-200">
+                            {isRtMode
+                                ? rtSummary
+                                : 'Historical ranges use stored trade history. RT is reserved for current-day TWS executions.'}
+                        </div>
+                    </div>
+                    {liveStatus && (
+                        <div className="text-right text-xs text-gray-400">
+                            <div>Last execution: {liveStatus.last_execution_update ? liveFreshness : 'update pending'}</div>
+                            <div>Today live rows: {liveStatus.today_live_trade_count ?? 0}</div>
+                        </div>
+                    )}
+                </div>
+                {rtUnavailable && (
+                    <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                        RT trades are unavailable. {liveStatus?.diagnosis}
+                    </div>
+                )}
+            </div>
+
             {/* Metrics Section */}
-            {metrics && (
+            {displayMetrics && (
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <MetricCard
                         title="Realized P&L"
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
-                                <div>All: ${(metrics.total_pl || 0).toFixed(2)}</div>
-                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                <div>All: ${(displayMetrics.total_pl || 0).toFixed(2)}</div>
+                                {displayMetrics.account_metrics && Object.entries(displayMetrics.account_metrics).map(([acc, stats]) => (
                                     <div key={acc}>{acc}: ${(stats.total_pl || 0).toFixed(2)}</div>
                                 ))}
                             </div>
                         }
                         icon={DollarSign}
-                        colorClass={metrics.total_pl >= 0 ? "text-green-400" : "text-red-400"}
+                        colorClass={displayMetrics.total_pl >= 0 ? "text-green-400" : "text-red-400"}
                     />
                     <MetricCard
                         title="Unrealized P&L"
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
-                                <div>All: ${((metrics.unrealized_profit || 0) - (metrics.unrealized_loss || 0)).toFixed(2)}</div>
-                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => {
+                                <div>All: ${((displayMetrics.unrealized_profit || 0) - (displayMetrics.unrealized_loss || 0)).toFixed(2)}</div>
+                                {displayMetrics.account_metrics && Object.entries(displayMetrics.account_metrics).map(([acc, stats]) => {
                                     const netUPL = (stats.unrealized_profit || 0) - (stats.unrealized_loss || 0);
                                     return <div key={acc}>{acc}: ${netUPL.toFixed(2)}</div>;
                                 })}
                             </div>
                         }
                         icon={Activity}
-                        colorClass={(metrics.unrealized_profit - metrics.unrealized_loss) >= 0 ? "text-green-400" : "text-red-400"}
+                        colorClass={(displayMetrics.unrealized_profit - displayMetrics.unrealized_loss) >= 0 ? "text-green-400" : "text-red-400"}
                     />
                     <MetricCard
                         title="Win Rate"
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
-                                <div>All: {(metrics.win_rate || 0).toFixed(0)}%</div>
-                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                <div>All: {(displayMetrics.win_rate || 0).toFixed(0)}%</div>
+                                {displayMetrics.account_metrics && Object.entries(displayMetrics.account_metrics).map(([acc, stats]) => (
                                     <div key={acc}>{acc}: {(stats.win_rate || 0).toFixed(0)}%</div>
                                 ))}
                             </div>
@@ -252,8 +409,8 @@ const TradeHistory = () => {
                         title="Profit Factor"
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
-                                <div>All: {Number(metrics.profit_factor || 0).toFixed(2)}</div>
-                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                <div>All: {Number(displayMetrics.profit_factor || 0).toFixed(2)}</div>
+                                {displayMetrics.account_metrics && Object.entries(displayMetrics.account_metrics).map(([acc, stats]) => (
                                     <div key={acc}>{acc}: {Number(stats.profit_factor || 0).toFixed(2)}</div>
                                 ))}
                             </div>
@@ -265,8 +422,8 @@ const TradeHistory = () => {
                         title="Trade Count"
                         value={
                             <div className="text-xs font-normal leading-tight opacity-90 break-words max-w-[150px] md:max-w-full">
-                                <div>All T:{metrics.total_trades} O:{metrics.open_trades} C:{metrics.closed_trades}</div>
-                                {metrics.account_metrics && Object.entries(metrics.account_metrics).map(([acc, stats]) => (
+                                <div>All T:{displayMetrics.total_trades} O:{displayMetrics.open_trades} C:{displayMetrics.closed_trades}</div>
+                                {displayMetrics.account_metrics && Object.entries(displayMetrics.account_metrics).map(([acc, stats]) => (
                                     <div key={acc}>{acc} T:{stats.total || 0} O:{stats.open || 0} C:{stats.closed || 0}</div>
                                 ))}
                             </div>
@@ -274,6 +431,12 @@ const TradeHistory = () => {
                         icon={TrendingDown}
                         colorClass="text-purple-400"
                     />
+                </div>
+            )}
+
+            {isRtMode && (
+                <div className="text-sm text-gray-400">
+                    RT mode shows current-day `tws_live` execution rows only. Historical P&amp;L widgets stay on the non-RT ranges so we don’t mix live intraday data with Flex-based aggregates.
                 </div>
             )}
 

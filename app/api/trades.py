@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from app.models import TradeRecord, AnalyzedTrade, TradeMetrics, User
@@ -5,6 +7,7 @@ from app.auth.dependencies import get_current_active_user
 from app.config import settings
 from pymongo import MongoClient
 from app.services.trade_analysis import calculate_pnl, calculate_metrics
+from app.services.ibkr_tws_service import get_ibkr_tws_service
 
 router = APIRouter()
 
@@ -18,6 +21,42 @@ def fix_oid(doc):
     if doc and "_id" in doc:
         doc["_id"] = str(doc["_id"])
     return doc
+
+
+@router.get("/live-status", response_model=dict)
+async def get_trade_live_status(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get TWS live execution status for Trade History RT mode.
+    """
+    db = get_db()
+    tws_service = get_ibkr_tws_service()
+    live_status = tws_service.get_live_status()
+
+    today_prefix = datetime.now().strftime("%Y%m%d")
+    today_live_trade_count = db.ibkr_trades.count_documents({
+        "source": "tws_live",
+        "date_time": {"$regex": f"^{today_prefix}"},
+    })
+    latest_live_trade = db.ibkr_trades.find_one(
+        {
+            "source": "tws_live",
+            "date_time": {"$regex": f"^{today_prefix}"},
+        },
+        sort=[("date_time", -1), ("last_tws_update", -1)],
+    )
+
+    return {
+        **live_status,
+        "today_live_trade_count": today_live_trade_count,
+        "latest_live_trade_at": (
+            latest_live_trade.get("last_tws_update")
+            or latest_live_trade.get("date_time")
+            if latest_live_trade
+            else None
+        ),
+    }
 
 @router.get("/", response_model=List[TradeRecord])
 async def get_trades(
@@ -225,4 +264,3 @@ async def get_trade_analysis(
         error_msg = f"Analysis Failed: {str(e)}"
         logger.error(f"Critical error in trade analysis: {error_msg}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
-
