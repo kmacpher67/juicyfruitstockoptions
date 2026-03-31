@@ -38,6 +38,40 @@ In TWS:
 - If needed, add the backend runtime origin to the TWS trusted client list.
 - Leave `Read-Only API` enabled or disabled based on whether you only need data or intend to place orders. It does not fix handshake failures.
 
+## Docker Trusted IP Configuration
+
+**`127.0.0.1` alone is not sufficient when the backend runs in Docker.**
+
+TWS runs on the host machine. When the `backend` container connects to TWS via `host.docker.internal` (which resolves to the host gateway via `extra_hosts: host.docker.internal:host-gateway` in docker-compose), the connection arrives at TWS from the **Docker bridge gateway IP**, not `127.0.0.1`.
+
+### Find your Docker gateway IP
+
+```bash
+docker network inspect juicyfruitstockoptions_default \
+  --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'
+```
+
+Add that IP (typically `172.18.0.1` for a compose-managed network) to TWS → API Settings → Trusted IPs alongside `127.0.0.1`.
+
+### Lock the gateway to a stable IP (recommended)
+
+Docker can assign different gateway IPs across restarts or upgrades. Pin it in `docker-compose.yml`:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+```
+
+Then add only `172.20.0.1` and `127.0.0.1` to TWS trusted IPs — no surprises after Docker updates.
+
+### Symptom when this is the cause
+
+`raw-connect-test` succeeds (TCP port is open) but `connect-test` reports `handshake_failed`. TWS may also show a trusted-client warning or reject dialog in its API log.
+
 ## Verification Order
 
 Run these in order from the same runtime as the backend:
