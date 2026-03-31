@@ -87,6 +87,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Enforce "minimum safe settings" that users cannot override.
     - [ ] Define Configuration Schema (using Pydantic).
     - [ ] Create Frontend UI for editing allowed settings.
+    - [ ] **User Preferences**:
+        - [ ] Default time view on the `?view=TRADES` page.
+        - [ ] Grid density and column visibility preferences for data-heavy tables.
+        - [ ] Theme preference support when/if multiple themes are intentionally supported.
+    - [ ] **Operator / Admin Controls**:
+        - [ ] Manage feature flags from a controlled settings surface (for example `IBKR_TWS_ENABLED`).
+        - [ ] Configure scheduler intervals from validated settings instead of scattered constants.
+        - [ ] Securely manage external integration settings and API key references without exposing secret values in the UI.
 
 ### Data Reliability
 - [ ] **Mongo Backup Automation**:
@@ -504,6 +512,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **API**: Create endpoints for Job Control (Pause/Resume/Trigger).
     - [ ] **UI**: Websocket/SSE connection for real-time log streaming.
 
+### Debug Console / Terminal
+- [ ] **Developer Console**:
+    - [ ] Add a UI panel for developer or power-user diagnostics.
+    - [ ] View raw data from selected API endpoints for faster debugging.
+    - [ ] Display backend logs or log excerpts in near real time.
+    - [ ] Provide guarded buttons to trigger specific backend jobs manually (for example Sync Trades).
+
 ### Help & Onboarding
 - [ ] **Contextual Hints**: Hover tooltips explaining formulas/metrics.
     - [ ] Create generic `Tooltip` component in React.
@@ -576,3 +591,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-03-25 | **UPDATED** | Trade History UI: Collapsed Trade Count widget to save vertical space. |
 | 2026-03-28 | **UPDATED** | Memorialized Stock Analysis ticker click popup (L120-L127): elaborated 8 sparse items into 20 detailed sub-items with `[x]` status for existing work. Created `stock_analysis_ticker_click.md` feature overview. |
 | 2026-03-28 | **ADDED** | Created `CLAUDE.md` — Claude Code workspace config with project overview, code standards, UI/UX rules, and full file tree. Updated `ARCHITECTURE.md` with current file system tree and MongoDB collections table. |
+| 2026-03-31 | **REVIEWED** | Compared `docs/features/roadmap-proposal-20260331.md` against the master F-R, skipped redundant items already captured in the source-of-truth, and merged new settings/debug-console requirements into `docs/features-requirements.md`. |
