@@ -185,7 +185,7 @@ def test_get_portfolio_stats_exposes_data_source_and_last_updated(mock_get_stats
 
 @patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
 @patch("app.services.portfolio_analysis.MongoClient")
-def test_get_nav_history_stats_uses_live_nav_for_1d_change(mock_mongo, mock_live_snapshot):
+def test_get_nav_history_stats_keeps_eod_nav_and_exposes_rt_metrics(mock_mongo, mock_live_snapshot):
     from app.services.portfolio_analysis import get_nav_history_stats
 
     mock_db = MagicMock()
@@ -217,7 +217,11 @@ def test_get_nav_history_stats_uses_live_nav_for_1d_change(mock_mongo, mock_live
 
     stats = get_nav_history_stats()
 
-    assert stats["current_nav"] == 1050.0
-    assert stats["mtm_1d"] == 50.0
-    assert stats["change_1d"] == 5.0
-    assert stats["date_1d"] == "2026-03-30T18:25:00+00:00"
+    assert stats["current_nav"] == 1010.0
+    assert stats["current_nav_rt"] == 1050.0
+    assert stats["mtm_1d"] == 10.0
+    assert stats["change_1d"] == 1.0
+    assert stats["date_1d"] == "2026-03-30"
+    assert stats["mtm_rt"] == 50.0
+    assert stats["change_rt"] == 5.0
+    assert stats["last_updated_rt"] == "2026-03-30T18:25:00+00:00"

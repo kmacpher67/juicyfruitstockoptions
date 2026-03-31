@@ -104,13 +104,20 @@ def get_nav_history_stats():
 
     stats = {
         "current_nav": 0,
+        "current_nav_rt": None,
         "change_1d": None, "change_7d": None, "change_30d": None,
         "change_mtd": None, "change_ytd": None, "change_yoy": None, # 1Y
+        "change_rt": None,
         "start_1d": None, "start_7d": None, "start_30d": None,
         "start_mtd": None, "start_ytd": None, "start_yoy": None,
+        "start_rt": None,
         "history": [],
         "data_source": "flex_eod",
         "last_updated": None,
+        "last_updated_rt": None,
+        "mtm_rt": None,
+        "rt_unrealized_pnl": None,
+        "rt_realized_pnl": None,
     }
     
     # helper to aggregate across accounts for the latest available date
@@ -186,15 +193,26 @@ def get_nav_history_stats():
     extract_stats(s_1y, "yoy")
 
     live_snapshot = get_latest_live_nav_snapshot()
-    if live_snapshot:
-        stats["current_nav"] = live_snapshot.get("total_nav", stats["current_nav"])
+    has_live_snapshot = bool(
+        live_snapshot
+        and (
+            live_snapshot.get("timestamp") is not None
+            or live_snapshot.get("last_tws_update") is not None
+        )
+    )
+
+    if has_live_snapshot:
+        live_nav = live_snapshot.get("total_nav")
+        stats["current_nav_rt"] = live_nav
         stats["data_source"] = "tws_live"
         stats["last_updated"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
+        stats["last_updated_rt"] = stats["last_updated"]
+        stats["rt_unrealized_pnl"] = live_snapshot.get("unrealized_pnl")
+        stats["rt_realized_pnl"] = live_snapshot.get("realized_pnl")
         if stats["start_1d"] not in (None, 0):
-            live_nav = live_snapshot.get("total_nav", stats["current_nav"])
-            stats["mtm_1d"] = live_nav - stats["start_1d"]
-            stats["change_1d"] = (stats["mtm_1d"] / stats["start_1d"]) * 100
-            stats["date_1d"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
+            stats["start_rt"] = stats["start_1d"]
+            stats["mtm_rt"] = live_nav - stats["start_1d"]
+            stats["change_rt"] = (stats["mtm_rt"] / stats["start_1d"]) * 100
     elif s_1d:
         stats["last_updated"] = s_1d.get("_report_date")
 
