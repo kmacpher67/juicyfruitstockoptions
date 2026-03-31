@@ -84,6 +84,29 @@ const StatusPill = ({ dotClass, label }) => (
     </div>
 );
 
+const getStatusConfig = (stats) => {
+    switch (stats.connection_state) {
+        case 'connected':
+            return { dotClass: 'bg-green-400', label: 'TWS live' };
+        case 'handshake_failed':
+            return { dotClass: 'bg-amber-400', label: 'Handshake failed' };
+        case 'socket_unreachable':
+            return { dotClass: 'bg-red-400', label: 'Socket unreachable' };
+        case 'disconnected':
+            return { dotClass: 'bg-yellow-400', label: 'Disconnected' };
+        case 'disabled':
+            return { dotClass: 'bg-gray-500', label: 'Live disabled' };
+        case 'unavailable':
+            return { dotClass: 'bg-gray-500', label: 'ibapi missing' };
+        default:
+            return stats.tws_enabled
+                ? stats.live_connected
+                    ? { dotClass: 'bg-green-400', label: 'TWS live' }
+                    : { dotClass: 'bg-yellow-400', label: 'EOD only' }
+                : { dotClass: 'bg-gray-500', label: 'Live disabled' };
+    }
+};
+
 const NAVStats = ({ stats }) => {
     const [loadingStates, setLoadingStates] = useState({});
     const [localStats, setLocalStats] = useState({});
@@ -169,6 +192,8 @@ const NAVStats = ({ stats }) => {
                         prev.last_updated,
                     live_connected: liveStatus?.connected ?? prev.live_connected,
                     tws_enabled: liveStatus?.tws_enabled ?? prev.tws_enabled,
+                    connection_state: liveStatus?.connection_state ?? prev.connection_state,
+                    diagnosis: liveStatus?.diagnosis ?? prev.diagnosis,
                     mtm_1d:
                         start1d !== null && start1d !== undefined && liveCurrentNav !== null && liveCurrentNav !== undefined
                             ? liveCurrentNav - start1d
@@ -193,22 +218,12 @@ const NAVStats = ({ stats }) => {
 
     if (!mergedStats) return null;
 
-    const statusConfig = mergedStats.tws_enabled
-        ? mergedStats.live_connected
-            ? {
-                dotClass: 'bg-green-400',
-                label: 'TWS live',
-            }
-            : {
-                dotClass: 'bg-yellow-400',
-                label: 'EOD only',
-            }
-        : {
-            dotClass: 'bg-gray-500',
-            label: 'Live disabled',
-        };
-
+    const statusConfig = getStatusConfig(mergedStats);
     const freshnessText = formatRelativeTime(mergedStats.last_updated);
+    const statusDetail = mergedStats.live_connected
+        ? freshnessText
+        : mergedStats.diagnosis || 'Live updates are currently unavailable.';
+    const sourceLabel = mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD';
 
     return (
         <div className="mb-4 w-full">
@@ -227,7 +242,7 @@ const NAVStats = ({ stats }) => {
                                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
                                     <StatusPill dotClass={statusConfig.dotClass} label={statusConfig.label} />
                                     <span className="text-[10px] uppercase tracking-wide text-gray-500">
-                                        {mergedStats.data_source === 'tws_live' ? 'TWS intraday' : 'Flex EOD'}
+                                        {sourceLabel}
                                     </span>
                                 </div>
                                 <div className="text-[10px] uppercase tracking-wide text-gray-400">Current NAV</div>
@@ -236,7 +251,12 @@ const NAVStats = ({ stats }) => {
                                         ? '--.--'
                                         : `$${mergedStats.current_nav.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 </div>
-                                <div className="text-[11px] text-gray-400">{freshnessText}</div>
+                                <div
+                                    className="text-[11px] text-gray-400"
+                                    title={mergedStats.diagnosis || ''}
+                                >
+                                    {statusDetail}
+                                </div>
                             </div>
                             <div className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-100 shrink-0">
                                 <div className={`h-3 w-3 rounded-full ${Object.values(loadingStates).some(x => x) ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>

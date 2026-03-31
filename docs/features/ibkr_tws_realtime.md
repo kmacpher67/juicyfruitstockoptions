@@ -21,6 +21,7 @@ Implemented already:
 - `app/services/ibkr_tws_service.py` exposes connection diagnostics, live status, positions, account values, and execution capture.
 - `app/api/routes.py` exposes `/api/portfolio/live-status` and `/api/portfolio/nav/live`.
 - `frontend/src/components/NAVStats.jsx` shows TWS live vs EOD/disabled state.
+- `frontend/src/components/NAVStats.jsx` now also surfaces backend unavailable states such as handshake failure, socket unreachable, and disconnected using `connection_state` and `diagnosis`.
 - `tests/test_ibkr_tws_service.py` covers handshake-failed status behavior.
 
 Still open:

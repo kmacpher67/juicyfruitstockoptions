@@ -250,6 +250,8 @@ const Dashboard = () => {
                 live_connected: liveStatusRes.data.connected,
                 live_position_count: liveStatusRes.data.position_count,
                 tws_enabled: liveStatusRes.data.tws_enabled,
+                connection_state: liveStatusRes.data.connection_state,
+                diagnosis: liveStatusRes.data.diagnosis,
                 last_position_update: liveStatusRes.data.last_position_update,
                 last_account_value_update: liveStatusRes.data.last_account_value_update,
                 last_updated:
@@ -292,6 +294,8 @@ const Dashboard = () => {
                         live_connected: res.data.connected,
                         live_position_count: res.data.position_count,
                         tws_enabled: res.data.tws_enabled,
+                        connection_state: res.data.connection_state,
+                        diagnosis: res.data.diagnosis,
                         last_position_update: res.data.last_position_update,
                         last_account_value_update: res.data.last_account_value_update,
                         last_updated:
