@@ -268,6 +268,94 @@ def test_get_portfolio_holdings_coverage_strict_account_coverage(client):
         assert u2_stk["coverage_mismatch"] is True
 
 
+def test_get_portfolio_holdings_normalizes_live_tws_rows(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {
+                "symbol": "AMD",
+                "local_symbol": "AMD   260402C00202500",
+                "secType": "OPT",
+                "account": "U110638",
+                "position": -1,
+                "avg_cost": 5.25,
+                "last_trade_date": "20260402",
+                "right": "C",
+                "strike": 202.5,
+                "source": "tws",
+            },
+            {
+                "symbol": "AMD",
+                "secType": "STK",
+                "account": "U110638",
+                "position": 200,
+                "avg_cost": 118.55,
+                "source": "tws",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        option_row = next(h for h in data if h["security_type"] == "OPT")
+        stock_row = next(h for h in data if h["security_type"] == "STK")
+
+        assert option_row["account_id"] == "U110638"
+        assert option_row["quantity"] == -1
+        assert option_row["cost_basis"] == 5.25
+        assert option_row["display_symbol"] == "AMD 2026-04-02 202.5 Call"
+        assert option_row["percent_of_nav"] is None
+        assert option_row["coverage_status"] == "Covered"
+        assert stock_row["coverage_status"] == "Covered"
+
+
+def test_get_portfolio_holdings_percent_of_nav_remains_fraction_and_missing_values_stay_null(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {
+                "symbol": "MSFT",
+                "secType": "STK",
+                "account_id": "U1",
+                "quantity": 100,
+                "percent_of_nav": 12.5,
+                "market_price": None,
+                "market_value": "",
+                "cost_basis": None,
+                "unrealized_pnl": None,
+            }
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        row = response.json()[0]
+
+        assert row["security_type"] == "STK"
+        assert row["display_symbol"] == "MSFT"
+        assert row["percent_of_nav"] == pytest.approx(0.125)
+        assert row["market_price"] is None
+        assert row["market_value"] is None
+        assert row["cost_basis"] is None
+        assert row["unrealized_pnl"] is None
+
+
 def test_get_portfolio_holdings_coverage_with_ibkr_pascal_case_asset_class(client):
     """Regression test: IBKR CSV stores field as 'AssetClass' (PascalCase), not 'asset_class'.
 

@@ -99,6 +99,11 @@ def test_position_and_account_callbacks_capture_state():
         secType="STK",
         exchange="SMART",
         currency="USD",
+        localSymbol="AAPL",
+        lastTradeDateOrContractMonth="",
+        strike=0.0,
+        right="",
+        multiplier="1",
     )
 
     app.position("DU123456", contract, 10, 150.25)
@@ -107,6 +112,8 @@ def test_position_and_account_callbacks_capture_state():
     positions = list(app.positions.values())
     assert len(positions) == 1
     assert positions[0]["symbol"] == "AAPL"
+    assert positions[0]["underlying_symbol"] == "AAPL"
+    assert positions[0]["local_symbol"] == "AAPL"
     assert positions[0]["position"] == 10
     assert positions[0]["avg_cost"] == 150.25
 
@@ -139,12 +146,48 @@ def test_position_callback_subscribes_account_updates_once():
     app = IBKRTWSApp()
     calls = []
     app.reqAccountUpdates = lambda subscribe, account: calls.append((subscribe, account))
-    contract = SimpleNamespace(symbol="AAPL", secType="STK", exchange="SMART", currency="USD")
+    contract = SimpleNamespace(
+        symbol="AAPL",
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+        localSymbol="AAPL",
+        lastTradeDateOrContractMonth="",
+        strike=0.0,
+        right="",
+        multiplier="1",
+    )
 
     app.position("DU123456", contract, 10, 150.25)
     app.position("DU123456", contract, 11, 150.25)
 
     assert calls == [(True, "DU123456")]
+
+
+def test_option_position_callback_captures_contract_details():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="AMD",
+        localSymbol="AMD   260402C00202500",
+        secType="OPT",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260402",
+        strike=202.5,
+        right="C",
+        multiplier="100",
+    )
+
+    app.position("U110638", contract, -1, 5.25)
+
+    stored = list(app.positions.values())[0]
+    assert stored["symbol"] == "AMD"
+    assert stored["underlying_symbol"] == "AMD"
+    assert stored["local_symbol"] == "AMD   260402C00202500"
+    assert stored["last_trade_date"] == "20260402"
+    assert stored["strike"] == 202.5
+    assert stored["right"] == "C"
+    assert stored["multiplier"] == "100"
 
 
 def test_get_account_values_filters_by_account(monkeypatch):

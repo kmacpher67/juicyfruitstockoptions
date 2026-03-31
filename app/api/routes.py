@@ -27,6 +27,147 @@ router = APIRouter()
 import logging
 logger = logging.getLogger(__name__)
 
+
+def _safe_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(numeric):
+        return None
+    return numeric
+
+
+def _canonical_security_type(row: dict) -> str:
+    candidates = [
+        row.get("security_type"),
+        row.get("asset_class"),
+        row.get("AssetClass"),
+        row.get("secType"),
+        row.get("sec_type"),
+    ]
+    for candidate in candidates:
+        if candidate:
+            return str(candidate).upper()
+
+    symbol = str(row.get("symbol") or "")
+    local_symbol = str(row.get("local_symbol") or "")
+    contract_hint = " ".join(part for part in [symbol, local_symbol] if part)
+    if re.search(r"\d{6}[CP]\d+", contract_hint):
+        return "OPT"
+    return "STK"
+
+
+def _extract_option_fields(row: dict) -> tuple[str | None, str | None, float | None]:
+    expiry = row.get("expiry") or row.get("last_trade_date") or row.get("lastTradeDateOrContractMonth")
+    right = row.get("right")
+    strike = _safe_float(row.get("strike"))
+
+    local_symbol = str(row.get("local_symbol") or row.get("localSymbol") or "")
+    if local_symbol:
+        match = re.search(r"(\d{6})([CP])(\d+)$", local_symbol.strip())
+        if match:
+            expiry = expiry or match.group(1)
+            right = right or match.group(2)
+            if strike is None:
+                strike = int(match.group(3)) / 1000.0
+
+    symbol = str(row.get("symbol") or "")
+    if symbol and (expiry is None or right is None or strike is None):
+        match = re.search(r"(\d{6})([CP])(\d+)", symbol)
+        if match:
+            expiry = expiry or match.group(1)
+            right = right or match.group(2)
+            if strike is None:
+                strike = int(match.group(3)) / 1000.0
+
+    return expiry, right, strike
+
+
+def _format_option_expiry(expiry: str | None) -> str | None:
+    if not expiry:
+        return None
+
+    value = str(expiry).strip()
+    for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y%m", "%Y-%m"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            return parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return value
+
+
+def _build_display_symbol(row: dict, security_type: str) -> str:
+    symbol = str(row.get("symbol") or "").strip()
+    underlying = str(row.get("underlying_symbol") or row.get("underlying") or symbol).strip()
+
+    if security_type not in {"OPT", "FOP"}:
+        return symbol or underlying
+
+    expiry, right, strike = _extract_option_fields(row)
+    expiry_label = _format_option_expiry(expiry)
+    right_label = {"C": "Call", "P": "Put"}.get(str(right or "").upper(), str(right or "").upper() or None)
+    strike_label = f"{strike:g}" if strike is not None else None
+
+    parts = [part for part in [underlying or symbol, expiry_label, strike_label, right_label] if part]
+    if parts:
+        return " ".join(parts)
+    return symbol or underlying
+
+
+def _normalize_portfolio_row(row: dict) -> dict:
+    normalized = dict(row)
+    security_type = _canonical_security_type(normalized)
+    quantity = _safe_float(normalized.get("quantity"))
+    if quantity is None:
+        quantity = _safe_float(normalized.get("position"))
+
+    market_price = _safe_float(normalized.get("market_price"))
+    if market_price is None:
+        market_price = _safe_float(normalized.get("mark_price"))
+
+    market_value = _safe_float(normalized.get("market_value"))
+    if market_value is None:
+        market_value = _safe_float(normalized.get("position_value"))
+    if market_value is None and market_price is not None and quantity is not None:
+        multiplier = _safe_float(normalized.get("multiplier"))
+        if multiplier is None:
+            multiplier = 100.0 if security_type in {"OPT", "FOP"} else 1.0
+        market_value = market_price * quantity * multiplier
+
+    cost_basis = _safe_float(normalized.get("cost_basis"))
+    if cost_basis is None:
+        cost_basis = _safe_float(normalized.get("avg_cost"))
+    if cost_basis is None:
+        cost_basis = _safe_float(normalized.get("averageCost"))
+
+    unrealized_pnl = _safe_float(normalized.get("unrealized_pnl"))
+    percent_of_nav = _safe_float(normalized.get("percent_of_nav"))
+    if percent_of_nav is not None and percent_of_nav > 1:
+        percent_of_nav = percent_of_nav / 100.0
+
+    account_id = normalized.get("account_id") or normalized.get("account")
+    normalized.update(
+        {
+            "account_id": account_id,
+            "quantity": quantity,
+            "market_price": market_price,
+            "market_value": market_value,
+            "cost_basis": cost_basis,
+            "unrealized_pnl": unrealized_pnl,
+            "percent_of_nav": percent_of_nav,
+            "security_type": security_type,
+            "asset_class": security_type,
+            "secType": security_type,
+            "underlying_symbol": normalized.get("underlying_symbol") or normalized.get("underlying") or normalized.get("symbol"),
+            "display_symbol": _build_display_symbol(normalized, security_type),
+        }
+    )
+    return normalized
+
 @router.post("/token", response_model=Token)
 @log_endpoint
 async def login_for_access_token(
@@ -583,7 +724,7 @@ async def get_portfolio_holdings(
         # Fallback for legacy data
         query = {"report_date": latest.get("report_date")}
         
-    data = list(db.ibkr_holdings.find(query, {"_id": 0}))
+    data = [_normalize_portfolio_row(row) for row in db.ibkr_holdings.find(query, {"_id": 0})]
     
     # Enrich with Dividend History
     symbols = list(set([h["symbol"] for h in data if "symbol" in h]))
@@ -598,17 +739,19 @@ async def get_portfolio_holdings(
             sym = row.get("symbol")
             if not sym: continue
             
-            divs = div_sums.get(sym, 0.0)
+            divs = float(div_sums.get(sym, 0.0) or 0.0)
             row["divs_earned"] = divs
             
-            unrealized = row.get("unrealized_pnl", 0)
-            row["total_return"] = unrealized + divs
+            unrealized = _safe_float(row.get("unrealized_pnl"))
+            row["total_return"] = (unrealized if unrealized is not None else None)
+            if row["total_return"] is not None:
+                row["total_return"] += divs
             
-            cb = row.get("cost_basis", 0)
-            if cb > 0:
+            cb = _safe_float(row.get("cost_basis"))
+            if cb is not None and cb > 0:
                 row["true_yield"] = divs / cb
             else:
-                row["true_yield"] = 0.0
+                row["true_yield"] = None
 
     # 3. Enhanced Metrics (Coverage, DTE, ITM/OTM)
     from app.services.options_analysis import OptionsAnalyzer
@@ -623,7 +766,7 @@ async def get_portfolio_holdings(
         if not und:
             continue
 
-        sec_type = row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
+        sec_type = row.get("security_type") or row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
         qty = float(row.get("quantity", 0) or 0)
         key = (account_id, und)
 
@@ -672,7 +815,7 @@ async def get_portfolio_holdings(
             row["coverage_mismatch"] = mismatch
 
         # B. Option Metrics
-        sec_type = row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
+        sec_type = row.get("security_type") or row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
         if sec_type in ["OPT", "FOP"]:
             # Parse Expiry & DTE
             exp_str = row.get("expiry")
@@ -690,15 +833,16 @@ async def get_portfolio_holdings(
                     pass
             
             # Strike Distance & ITM
-            strike = float(row.get("strike", 0))
-            price = float(row.get("market_price", 0) or row.get("mark_price", 0) or 0)
-            if strike > 0 and price > 0:
+            _, _, parsed_strike = _extract_option_fields(row)
+            strike = parsed_strike if parsed_strike is not None else float(row.get("strike", 0) or 0)
+            price = _safe_float(row.get("market_price"))
+            if strike > 0 and price is not None and price > 0:
                 row["dist_to_strike_pct"] = abs(price - strike) / strike
                 
                 # ITM Check using OSI symbol (AAPL  250117C00150000)
                 # re is already imported in routes.py (line 34 in options_analysis, but I need it here)
                 # But I can just check for 'C' or 'P' after the date.
-                sym = row.get("symbol", "")
+                sym = row.get("local_symbol") or row.get("symbol", "")
                 if re.search(r'\d{6}C\d+', sym):
                     row["is_itm"] = price >= strike
                 elif re.search(r'\d{6}P\d+', sym):
