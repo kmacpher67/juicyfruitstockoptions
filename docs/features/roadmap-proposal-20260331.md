@@ -46,6 +46,10 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
 - [x] **Trade History Management**: Ingest, process, and display the entire history of trades with correct cost basis and metrics.
 - [x] **Time Window Filter**: Implement a time window filter (1D, 1W, 1M, YTD, ALL, etc.). Default to YTD.
 - [x] **Account-Aware Metrics**: Display metrics (Total P&L, Win Rate, etc.) broken down by account and for "All" accounts.
+- [/] **RT Trades Availability & Diagnostics**: Treat RT Trades as a runtime-verified feature, not just a clickable UI mode.
+    - [ ] Surface `handshake_failed` distinctly when the backend can reach the IBKR socket but the API handshake does not complete.
+    - [ ] Add `?view=TRADES` unavailable-state messaging that explains RT Trades require the same-runtime IBKR handshake, not only raw TCP reachability.
+    - [ ] Persist and expose current-day TWS executions only after `reqExecutions` / `execDetails` / commission handling are implemented end to end.
 - [/] **Dividends in Trade History**: Incorporate cash dividends into the trade history view for accurate return calculations.
     - [x] **Flex Report**: A new Flex Query for cash transactions has been configured.
     - [ ] **Backend Parser**: Update `ibkr_service.py` to parse the new dividend report and store it.
@@ -122,6 +126,7 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
     - [/] **API Endpoints**: Expose live status and data to the frontend.
     - [/] **Frontend Indicator**: A UI badge showing live connection status.
     - [/] **Connection Reliability & Diagnostics**: Improve logging, reconnect logic, and provide clear error states (e.g., "Handshake Failed"). This is critical for debugging Docker-to-host connectivity.
+    - [ ] **Trusted Runtime Setup**: Document and verify the exact TWS trusted-client / localhost-only API settings required for the runtime that serves FastAPI and `?view=TRADES`.
 - [x] **IBKR Client Portal API**: Implemented as a fallback, but lower priority than the TWS socket.
 
 #### Database & Storage
@@ -182,6 +187,7 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
 ## 3. Bugs & Maintenance
 - [ ] **Stock Analysis Feature**: The entire feature stopped working after recent changes. Needs investigation. `[High Priority]`
 - [ ] **1D NAV is Zero**: The 1-day NAV metric is often showing 0. This is likely due to a lack of intraday data points before the TWS service is fully operational.
+- [/] **RT Trades Handshake Failure**: Clicking RT in Trades can currently report: `RT trades are unavailable. TCP socket is reachable, but the IBKR API handshake did not complete.` Treat this as a runtime/TWS API trust diagnostic issue first, then a trades UX issue second.
 - [/] **Dividend Feed Bugs**: The holdings, predicted price, and target fields in the dividend feed are empty.
 
 ---
@@ -206,3 +212,4 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
 | 2026-03-21 | **ADDED** | Implemented per-account trade metrics widget in Trade History UI. |
 | 2026-02-17 | **FIXED** | Fixed Dividend Scanner bug (method typo + expanded lookahead 0-30 days + UTC fix). |
 | 2026-02-01 | **VARIOUS** | Initial refactoring, refinement, and feature additions by AI Agent. |
+| 2026-03-31 | **UPDATED** | Added roadmap coverage for IBKR RT Trades handshake/runtime diagnostics and TWS trusted-client requirements. |

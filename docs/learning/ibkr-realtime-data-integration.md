@@ -370,12 +370,14 @@ When the UI only shows a generic "not working" state, diagnosis becomes guesswor
 
 - The remaining user-visible problem is best described as "web app realtime diagnosis is incomplete", not simply "TWS integration missing".
 - The backend service already models handshake-failed state and the tests cover it.
+- Current `?view=TRADES` user-facing failure text is: `RT trades are unavailable. TCP socket is reachable, but the IBKR API handshake did not complete. Verify TWS trusted-client / localhost-only API settings for this runtime.` This is the correct direction of diagnosis and should be preserved as a first-class unavailable state.
 - The most likely failing production path is:
   - host CLI proves localhost TWS works
   - backend runtime reaches `host.docker.internal:7496`
   - TWS rejects or never fully handshakes that runtime because of trusted-client / localhost-only API rules
   - scheduler writes no fresh `source: "tws"` documents
   - the web app falls back to Flex/EOD and looks broken
+- For RT trades specifically, this means the click target may be working correctly as a diagnostic surface even though live trades are not available yet. A reachable socket without a completed handshake must block RT mode because execution callbacks (`reqExecutions` / `execDetails`) cannot be trusted until the IB API session is genuinely established.
 - The next fix should therefore prioritize:
   - backend-runtime verification
   - surfacing precise `connection_state` / `diagnosis`

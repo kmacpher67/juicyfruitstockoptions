@@ -130,9 +130,19 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-ui-rt-001**: Define the data-source rule in docs and API contracts. TWS is the preferred intraday source for RT / same-day freshness, while Flex remains authoritative for historical and EOD reporting.
     - [x] **ibkr-tws-ui-rt-002**: Persist live portfolio snapshots into Mongo with explicit source tags. `nav_history` uses `source: "tws"` for intraday NAV snapshots and `ibkr_holdings` uses `source: "tws"` plus `last_tws_update` so the UI can tell whether `1D` is truly live.
     - [ ] **ibkr-tws-ui-rt-003**: Add a dedicated RT/intraday time-series presentation for `?view=PORTFOLIO` that reads from TWS-backed NAV history, distinguishes RT vs `1D`, and never shows placeholder zeroes as real values.
-    - [ ] **ibkr-tws-ui-rt-004**: Add current-day live trade freshness to `?view=TRADES`. This depends on exposing TWS execution data through API and persisting `ibkr_trades` records with `source: "tws_live"` before Flex history lands.
+    - [/] **ibkr-tws-ui-rt-004**: Add current-day live trade freshness to `?view=TRADES`. This depends on exposing TWS execution data through API and persisting `ibkr_trades` records with `source: "tws_live"` before Flex history lands.
+        - [ ] **ibkr-tws-ui-rt-004a**: Treat the current `RT trades are unavailable. TCP socket is reachable, but the IBKR API handshake did not complete.` message as a valid backend diagnosis. Do not degrade it to a generic unavailable state.
+        - [ ] **ibkr-tws-ui-rt-004b**: Render a trades-specific unavailable state that explicitly tells the operator raw TCP reachability is not sufficient; the IBKR API handshake must complete from the same runtime as FastAPI.
+        - [ ] **ibkr-tws-ui-rt-004c**: Add backend/runtime verification steps for trades mode using the existing TWS CLI from the same runtime that serves the web app, not just the host shell.
+        - [ ] **ibkr-tws-ui-rt-004d**: Implement current-day execution ingestion via `reqExecutions`, `execDetails`, and commission reconciliation before enabling RT trades rows or metrics.
+        - [ ] **ibkr-tws-ui-rt-004e**: Persist `handshake_failed` diagnostics for RT trades so the UI can show the latest failure reason and timestamp without implying missing historical trade data.
     - [/] **ibkr-tws-ui-rt-005**: Surface explicit unavailable states in the UI using backend live-status diagnostics. At minimum support `disabled`, `disconnected`, `socket_unreachable`, `handshake_failed`, and `connected`. Reviewed 2026-03-31: the `PORTFOLIO` NAV card now surfaces backend `connection_state` and `diagnosis`; broader view-level handling and `TRADES` messaging remain open.
     - [ ] **ibkr-tws-ui-rt-006**: Document the exact verification sequence so the feature can be repeated without rediscovery: same-runtime CLI/API connectivity check, scheduler persistence check in Mongo, then frontend validation on `PORTFOLIO` and `TRADES`.
+
+- [/] **IBKR RT Trades Runtime Trust**: Document and operationalize the TWS API trust requirements for the runtime that serves the web app.
+    - [ ] **ibkr-tws-runtime-trust-001**: Document the exact TWS API settings required for Juicy Fruit runtimes: socket enabled, correct port, trusted client allowance, and the localhost-only implications for Docker or bridged runtimes.
+    - [ ] **ibkr-tws-runtime-trust-002**: Add an operator checklist that distinguishes host-local success from backend-runtime success and uses absolute pass/fail language for `raw-connect-test` versus `connect-test`.
+    - [ ] **ibkr-tws-runtime-trust-003**: If the deployed runtime cannot satisfy TWS trust requirements reliably, route RT trades and other intraday UI paths to an explicit fallback mode instead of presenting a broken live toggle.
 
 - [x] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
     - [x] **ibkr-tws-ui-navstat**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
