@@ -33,6 +33,31 @@ Selected tasks for the current fix:
 - `ibkr-tws-reliability-004`
 - `ibkr-tws-reliability-005`
 
+## Repeatable UI Roadmap - 2026-03-31
+
+The feature request "IBKR Real-Time UI" is too large to repeat safely as one checklist line. Treat it as the following repeatable sequence:
+
+1. Runtime truth first.
+   Verify TWS connectivity from the same runtime as FastAPI using `app/scripts/ibkr_tws_cli.py` and `/api/portfolio/live-status`.
+2. Persistence second.
+   Confirm fresh intraday documents exist in Mongo before touching the UI:
+   `nav_history` with `source: "tws"`, `ibkr_holdings` with `source: "tws"`, and later `ibkr_trades` with `source: "tws_live"`.
+3. Contract third.
+   Make `data_source`, `last_updated`, `connection_state`, and `diagnosis` the stable frontend contract so UI work is driven by backend truth.
+4. `PORTFOLIO` intraday UX fourth.
+   Add the RT/intraday time-series view, distinguish RT vs `1D`, and show a deliberate unavailable state instead of empty/zero pretending to be live.
+5. `TRADES` intraday UX fifth.
+   Only add live/current-day trade visuals after TWS execution sync, persistence, and an explicit API endpoint are in place.
+6. End-to-end verification last.
+   Re-check CLI -> API -> DB -> frontend for both `?view=PORTFOLIO` and `?view=TRADES`.
+
+Follow-on feature IDs for this roadmap:
+
+- `ibkr-tws-ui-rt-003`
+- `ibkr-tws-ui-rt-004`
+- `ibkr-tws-ui-rt-005`
+- `ibkr-tws-ui-rt-006`
+
 ---
 
 ## Pre-Implementation Checklist

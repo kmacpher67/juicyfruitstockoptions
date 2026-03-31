@@ -126,7 +126,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-api-002**: Update `GET /api/portfolio/stats` to include `data_source` (`"tws_live"` or `"flex_eod"`) and `last_updated` timestamp. Frontend uses this to show data staleness.
     - [x] **ibkr-tws-api-003**: Add `GET /api/portfolio/nav/live` returning the latest intraday NAV snapshot from `nav_history` with `source: "tws"` tag.
 
-- [ ] ** IKBKR Real-time UI**: ADD time series R 
+- [/] **IBKR Real-Time UI**: Make intraday realtime behavior repeatable across `?view=PORTFOLIO` and `?view=TRADES`. When TWS is connected, the UI should surface RT / `1D` freshness from TWS-backed collections and APIs; when TWS is not available, the UI must clearly show the fallback/unavailable reason instead of implying live data exists.
+    - [x] **ibkr-tws-ui-rt-001**: Define the data-source rule in docs and API contracts. TWS is the preferred intraday source for RT / same-day freshness, while Flex remains authoritative for historical and EOD reporting.
+    - [x] **ibkr-tws-ui-rt-002**: Persist live portfolio snapshots into Mongo with explicit source tags. `nav_history` uses `source: "tws"` for intraday NAV snapshots and `ibkr_holdings` uses `source: "tws"` plus `last_tws_update` so the UI can tell whether `1D` is truly live.
+    - [ ] **ibkr-tws-ui-rt-003**: Add a dedicated RT/intraday time-series presentation for `?view=PORTFOLIO` that reads from TWS-backed NAV history, distinguishes RT vs `1D`, and never shows placeholder zeroes as real values.
+    - [ ] **ibkr-tws-ui-rt-004**: Add current-day live trade freshness to `?view=TRADES`. This depends on exposing TWS execution data through API and persisting `ibkr_trades` records with `source: "tws_live"` before Flex history lands.
+    - [ ] **ibkr-tws-ui-rt-005**: Surface explicit unavailable states in the UI using backend live-status diagnostics. At minimum support `disabled`, `disconnected`, `socket_unreachable`, `handshake_failed`, and `connected`.
+    - [ ] **ibkr-tws-ui-rt-006**: Document the exact verification sequence so the feature can be repeated without rediscovery: same-runtime CLI/API connectivity check, scheduler persistence check in Mongo, then frontend validation on `PORTFOLIO` and `TRADES`.
 
 - [x] **IBKR Real-Time Data — Frontend Freshness Indicator**: Show when portfolio data was last refreshed and whether live TWS is connected.
     - [x] **ibkr-tws-ui-navstat**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
