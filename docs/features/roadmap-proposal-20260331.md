@@ -46,6 +46,7 @@ The goal is to build a robust, semi-automated trading dashboard ("Juicy Fruit") 
     - [ ] **portfolio-live-grid-002**: Restore correct security type classification and display for `STK` vs `OPT`, including option-specific description details and any Type-driven links/actions.
     - [ ] **portfolio-live-grid-003**: `% NAV` must not render `NaN%`; row-level percent calculations must guard against missing denominators and unavailable live values.
     - [ ] **portfolio-live-grid-004**: Re-verify the pre-TWS Type-column fallback logic that was previously documented as fixed so the same regression is not reintroduced.
+    - [ ] **portfolio-live-grid-005**: When realtime portfolio items overlap with the same position already present from Flex/EOD data, `?view=PORTFOLIO` must show one merged row instead of two visible rows. The merge key and precedence rules must prevent duplicate quantity, market value, and PnL.
 
 
 #### Trade History (`?view=TRADES`)

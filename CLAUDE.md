@@ -149,6 +149,15 @@ juicyfruitstockoptions/
 └── Ai_Stock_Database.py              # Legacy stock DB script
 ```
 
+## Output Quality Guards
+- **Never fabricate financial data**: No invented prices, Greeks, yields, or statistics. 
+  Return explicit "UNKNOWN" or raise an error rather than guessing.
+- **Analysis outputs**: Lead with the finding. Format: Summary (≤3 bullets) → 
+  Supporting data → Caveats. Tables over prose. Numbers must include units.
+- **No redundant file reads**: Read each file once per session unless it may have changed.
+- **ASCII only in data outputs**: No em dashes, smart quotes, or Unicode bullets in 
+  any data exported to CSV/XLSX or displayed in tables.
+
 ---
 
 ## MongoDB Collections (stock_analysis DB)
