@@ -62,15 +62,22 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                 const cleanSym = row.underlying_symbol || row.symbol?.split(" ")[0] || sym.split(" ")[0];
                 const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`;
                 const yahooUrl = `https://finance.yahoo.com/quote/${cleanSym}/options`;
+                const detailTicker = row.symbol || sym;
+                const detailLabel = `Open stock analysis detail for ${cleanSym}`;
 
                 return (
                     <div className="flex items-center gap-2">
                         <span
                             className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
-                            onClick={() => params.context.onTickerClick && params.context.onTickerClick(row.symbol || sym)}
+                            onClick={() => params.context.onTickerClick && params.context.onTickerClick(detailTicker)}
+                            title={detailLabel}
+                            aria-label={detailLabel}
                         >
                             {sym}
-                            <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <ExternalLink
+                                className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
+                                aria-hidden="true"
+                            />
                         </span>
                         <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
                             <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
