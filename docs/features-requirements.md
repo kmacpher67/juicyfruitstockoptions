@@ -79,7 +79,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Set up Docker Secrets or strict Env Var management (no hardcoded secrets).
 - [ ] **Authentication**:
     - [x] Auto-logout in UI if backend token expires, returns view control to login.
-    - [ ] Deep p link to a specific page every page as url target that can copied
+    - [ ] Deep link URL to a specific page every page as url target that can copied
     - [ ] Synced session state between generic React usage and Python backend.
     - [ ] Implement "Remember Me" vs "High Security" modes.
 - [ ] **Settings Management**:
@@ -317,7 +317,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
-    - [x] **LINK to Stock Analysis Detail**: Portfolio Page Add small link next to ticker and existing  Google, Yahoo finance, D to modal detail window shared logic same pop up window used from the ticker analysis list. 
+    - [ ] **LINK to Stock Analysis Detail**: Portfolio Page quick link next to ticker and existing Google / Yahoo links should use the external-link arrow-out-of-box glyph for Stock Analysis detail, not a `D` text label. Improve the glyph color/contrast so it reads clearly against the background, and keep using the same shared modal detail window logic used from the ticker analysis list.
+    - [ ] **Links on tickers**: Standard link next to any time a ticker is displayed (analysis page, portfolio, or trades)
 - [ ] **Portfolio View — TWS Live Grid Regression Fixes**: Review and fix the 2026-03-31 `?view=PORTFOLIO` regressions introduced or exposed during TWS realtime integration. Reference: `docs/features/portfolio_tws_live_grid_regressions_20260331.md`.
     - [ ] **portfolio-live-grid-001**: Price, Value, Basis, and Unrealized PnL must not render the JavaScript literal `undefined`. If live fields are absent, use explicit fallback/null rendering rather than broken currency text.
     - [ ] **portfolio-live-grid-002**: `% NAV` must not render `NaN%`. Guard row-level percentage math when NAV, market value, or live fields are missing or zero.
