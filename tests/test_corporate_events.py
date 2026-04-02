@@ -135,3 +135,84 @@ def test_generate_corporate_events_calendar_logic(mock_mongo, mock_news_service,
     assert "Sentiment: 0.8" in written_content
         
     print(f"Verified ICS Content via Mock")
+
+
+# ---------------------------------------------------------------------------
+# Regression: events-stk-filter-bug
+# OPT contract symbols (e.g. "AMD   260220C00235000") must never reach yfinance.
+# ---------------------------------------------------------------------------
+
+def test_generate_corporate_events_calendar_filters_opt_symbols(
+    mock_mongo, mock_news_service, mock_yfinance, mock_settings, mock_dependencies, mock_fs, mock_open_file
+):
+    """
+    Holdings that include raw OPT OCC strings must be filtered out by the final
+    _normalize_to_stk_symbol guard so yfinance is never called with an option symbol.
+    The underlying root (e.g. AMD) should still be queried.
+    """
+    scanner = DividendScanner()
+
+    mock_mongo.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap_opt", "date": datetime.utcnow()}
+    mock_mongo.ibkr_holdings.find.return_value = [
+        # A properly tagged STK row — must be included
+        {"symbol": "AMD", "secType": "STK"},
+        # An OPT row with OCC compact symbol — secType tag present
+        {"symbol": "AMD260220C00235000", "secType": "OPT"},
+        # An OPT row with spaced OCC format — secType may be absent in some live data
+        {"symbol": "MSFT  260220C00400000", "secType": None},
+        # Another clean STK
+        {"symbol": "TSLA", "secType": "STK"},
+    ]
+
+    mock_ticker = MagicMock()
+    mock_yfinance.Ticker.return_value = mock_ticker
+    mock_ticker.info = {}
+    mock_ticker.calendar = None
+
+    mock_mongo.corporate_events.find.return_value = []
+
+    scanner.generate_corporate_events_calendar()
+
+    called_symbols = [call.args[0] for call in mock_yfinance.Ticker.call_args_list]
+
+    # OPT OCC strings must NOT reach yfinance
+    for sym in called_symbols:
+        assert not any(c.isdigit() for c in sym), (
+            f"yfinance called with suspicious symbol containing digits: {sym!r}"
+        )
+
+    # AMD and TSLA should be queried; AMD260220... and MSFT  260220... must not
+    assert "AMD" in called_symbols, "Underlying root AMD must be queried"
+    assert "TSLA" in called_symbols, "TSLA STK must be queried"
+    assert "MSFT" in called_symbols, "MSFT root extracted from OCC should be queried"
+
+
+def test_generate_corporate_events_calendar_deduplicates_underlying(
+    mock_mongo, mock_news_service, mock_yfinance, mock_settings, mock_dependencies, mock_fs, mock_open_file
+):
+    """
+    When both a STK row and an OPT row share the same underlying, yfinance should
+    only be called once for that underlying (no duplicate queries).
+    """
+    scanner = DividendScanner()
+
+    mock_mongo.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap_dedup", "date": datetime.utcnow()}
+    mock_mongo.ibkr_holdings.find.return_value = [
+        {"symbol": "AAPL", "secType": "STK"},
+        {"symbol": "AAPL  260220C00200000", "secType": "OPT"},
+        {"symbol": "AAPL260220C00210000", "secType": "OPT"},
+    ]
+
+    mock_ticker = MagicMock()
+    mock_yfinance.Ticker.return_value = mock_ticker
+    mock_ticker.info = {}
+    mock_ticker.calendar = None
+    mock_mongo.corporate_events.find.return_value = []
+
+    scanner.generate_corporate_events_calendar()
+
+    called_symbols = [call.args[0] for call in mock_yfinance.Ticker.call_args_list]
+
+    assert called_symbols.count("AAPL") == 1, (
+        f"AAPL should be queried exactly once, got: {called_symbols}"
+    )

@@ -15,20 +15,24 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const LinkRenderer = (params) => {
     if (!params.value) return null;
     const onTickerClick = params.context.onTickerClick;
+    const ticker = params.value;
+    const googleUrl = `https://www.google.com/finance/quote/${ticker}:NASDAQ`;
+    const yahooUrl = `https://finance.yahoo.com/quote/${ticker}/options`;
 
     return (
         <div className="flex items-center gap-2">
             <span
                 className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
-                onClick={() => onTickerClick && onTickerClick(params.value)}
+                onClick={() => onTickerClick && onTickerClick(ticker)}
+                title={`Open stock analysis detail for ${ticker}`}
             >
-                {params.value}
-                <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                {ticker}
+                <ExternalLink className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all" />
             </span>
-            {/* Keep Google Link as small icon? Or just rely on modal? Modal has links inside? 
-                 Let's keep the direct google link as a separate small icon if needed, 
-                 but requirement implies "More Info" via Modal. 
-                 Let's make the text open the modal. */}
+            <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
+                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
+                <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+            </div>
         </div>
     );
 };

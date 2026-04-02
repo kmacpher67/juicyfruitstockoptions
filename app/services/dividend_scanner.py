@@ -393,11 +393,35 @@ class DividendScanner:
                 symbols.add(sym)
                 
             symbols = list(symbols)
-        
+
+        # Final guard: normalise every symbol through the same OCC-strip logic used in
+        # scan_dividend_capture_opportunities.  This catches cases where secType is absent
+        # or set differently (e.g. TWS live data vs Flex) and an OCC option string such as
+        # "AMD   260220C00235000" slips through the manual is_opt checks above.
+        raw_count = len(symbols)
+        symbols = [
+            s for s in (_normalize_to_stk_symbol(sym) for sym in symbols)
+            if s is not None
+        ]
+        # Deduplicate while preserving order (set() loses order in older Pythons)
+        seen: set[str] = set()
+        symbols_deduped = []
+        for s in symbols:
+            if s not in seen:
+                seen.add(s)
+                symbols_deduped.append(s)
+        symbols = symbols_deduped
+        filtered_opt_count = raw_count - len(symbols)
+        if filtered_opt_count > 0:
+            logging.info(
+                f"[DividendScanner] generate_corporate_events_calendar: filtered out "
+                f"{filtered_opt_count} non-equity/option symbols via final OCC guard."
+            )
+
         now = datetime.utcnow()
         lookahead_days = settings.CALENDAR_LOOKAHEAD_DAYS
         window_end = now + timedelta(days=lookahead_days)
-        
+
         logging.info(f"Scanning events for {len(symbols)} symbols (Window: {lookahead_days} days)")
         
         news_service = NewsService()

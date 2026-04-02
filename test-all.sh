@@ -1,14 +1,36 @@
-# run all the tests in the project
-# this is a simple script that runs all the tests in the project
-# it is not meant to be a comprehensive test runner, but it is a simple way to
-# run all the tests in the project
+#!/usr/bin/env bash
+
+set -euo pipefail
 
 echo "Running all tests..."
-echo "backend tests..."
-pytest 
 
-echo "frontend tests..."
-node --test frontend/src/components/*.test.js
+if ! command -v pytest >/dev/null 2>&1; then
+  echo "Error: pytest is not installed or not on PATH."
+  exit 1
+fi
 
-echo "All tests completed!"
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: node is not installed or not on PATH."
+  exit 1
+fi
 
+echo "Backend tests..."
+pytest
+
+echo "Frontend tests..."
+mapfile -d '' frontend_tests < <(
+  find frontend/src -type f \( \
+    -name "*.test.js" -o -name "*.spec.js" -o \
+    -name "*.test.jsx" -o -name "*.spec.jsx" -o \
+    -name "*.test.ts" -o -name "*.spec.ts" -o \
+    -name "*.test.tsx" -o -name "*.spec.tsx" \
+  \) -print0
+)
+
+if ((${#frontend_tests[@]} == 0)); then
+  echo "No frontend test files found under frontend/src."
+else
+  node --test "${frontend_tests[@]}"
+fi
+
+echo "All tests completed."

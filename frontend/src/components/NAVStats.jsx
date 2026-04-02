@@ -38,18 +38,18 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
         <div
             onClick={onClick}
             className={`
-                bg-gray-800 px-2 py-1 rounded flex flex-col items-center justify-center
-                border ${loading ? 'border-yellow-500 animate-pulse' : 'border-gray-700 hover:border-blue-500'} 
-                transition-all cursor-pointer relative group h-[62px] w-full select-none
+                bg-gray-800 px-2 py-0.5 rounded flex flex-col items-center justify-center
+                border ${loading ? 'border-yellow-500 animate-pulse' : 'border-gray-700 hover:border-blue-500'}
+                transition-all cursor-pointer relative group h-[52px] w-full select-none
             `}
             title={tooltip}
         >
-            <span className="text-gray-400 text-[10px] uppercase font-semibold">{label}</span>
-            <span className={`text-sm lg:text-base font-bold ${colorClass} font-mono`}>
+            <span className="text-gray-400 text-[9px] uppercase font-semibold">{label}</span>
+            <span className={`text-xs lg:text-sm font-bold ${colorClass} font-mono`}>
                 {displayValue}
             </span>
             {subtitle ? (
-                <span className="mt-0.5 text-center text-[9px] text-gray-500">{subtitle}</span>
+                <span className="mt-0 text-center text-[9px] text-gray-500 leading-tight">{subtitle}</span>
             ) : null}
             {/* Loading Indicator Overlay */}
             {loading && (
@@ -291,7 +291,7 @@ const NAVStats = ({ stats, selectedAccount = 'all' }) => {
                     <button
                         onClick={handleLiveSync}
                         className={`
-                            h-[62px] w-full rounded border border-gray-600 bg-gray-800 px-3 text-left transition-colors
+                            h-[52px] w-full rounded border border-gray-600 bg-gray-800 px-3 text-left transition-colors
                             hover:bg-gray-700
                         `}
                         title="Refresh NAV widgets and live TWS status"
@@ -305,11 +305,11 @@ const NAVStats = ({ stats, selectedAccount = 'all' }) => {
                                     </span>
                                 </div>
                                 <div className="text-[9px] uppercase tracking-wide text-gray-400">Current NAV</div>
-                                <div className="font-mono text-base lg:text-lg font-bold text-white leading-tight">
+                                <div className="font-mono text-sm lg:text-base font-bold text-white leading-tight">
                                     {formatCurrency(currentNavValue)}
                                 </div>
                                 <div
-                                    className="text-[10px] text-gray-400"
+                                    className="text-[9px] text-gray-400 truncate max-w-[140px]"
                                     title={mergedStats.diagnosis || ''}
                                 >
                                     {statusDetail}
