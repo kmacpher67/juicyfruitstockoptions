@@ -14,6 +14,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     const [newToken, setNewToken] = useState("");
     const [queryIdHoldings, setQueryIdHoldings] = useState("");
     const [queryIdTrades, setQueryIdTrades] = useState("");
+    const [queryIdOrders, setQueryIdOrders] = useState("");
     const [queryIdDividends, setQueryIdDividends] = useState("");
 
     // Detailed NAV Query IDs
@@ -93,6 +94,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             });
             setQueryIdHoldings(res.data.query_id_holdings || "");
             setQueryIdTrades(res.data.query_id_trades || "");
+            setQueryIdOrders(res.data.query_id_orders || "");
             setQueryIdDividends(res.data.query_id_dividends || "");
 
             // Populate detailed IDs
@@ -115,6 +117,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             const payload = {
                 query_id_holdings: queryIdHoldings,
                 query_id_trades: queryIdTrades,
+                query_id_orders: queryIdOrders,
                 query_id_dividends: queryIdDividends,
                 query_id_nav_1d: queryIds.nav_1d,
                 query_id_nav_7d: queryIds.nav_7d,
@@ -337,6 +340,16 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                                 className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
                                                 value={queryIdTrades}
                                                 onChange={(e) => setQueryIdTrades(e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Orders Query ID</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Query ID"
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={queryIdOrders}
+                                                onChange={(e) => setQueryIdOrders(e.target.value)}
                                             />
                                         </div>
                                         <div>

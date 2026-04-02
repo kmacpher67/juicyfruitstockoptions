@@ -106,6 +106,7 @@ class IBKRConfig(BaseModel):
     flex_token: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
+    query_id_orders: Optional[str] = None
     query_id_nav: Optional[str] = None # For Generic/History if needed
     query_id_nav_1d: Optional[str] = None
     query_id_nav_7d: Optional[str] = None
@@ -128,6 +129,7 @@ class IBKRStatus(BaseModel):
     flex_token_masked: Optional[str] = None
     query_id_holdings: Optional[str] = None
     query_id_trades: Optional[str] = None
+    query_id_orders: Optional[str] = None
     query_id_nav: Optional[str] = None 
     query_id_nav_1d: Optional[str] = None
     query_id_nav_7d: Optional[str] = None

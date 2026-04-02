@@ -510,6 +510,20 @@ def parse_and_store_dividends(content):
     else:
         parse_csv_dividends(content.decode('utf-8', errors='ignore'))
 
+
+def parse_and_store_order_history(content):
+    """
+    Stub parser for Flex order-history rows.
+    Current implementation intentionally no-ops until report format and mapping are finalized.
+    """
+    if not content:
+        logging.info("Skipping Flex order-history parse: empty payload.")
+        return
+    logging.warning(
+        "Flex order-history ingestion stub reached. "
+        "Configure/query the Orders Flex report and implement parse mapping to persist source='flex_order_history'."
+    )
+
 def save_sync_status(status: str, message: str):
     """Persist the result of the sync job."""
     try:
@@ -623,6 +637,20 @@ def run_ibkr_sync(check_interval_hours: float = 0.0, nav_days: int = 0):
                     time.sleep(20) # Rate Limit Protection
                  except Exception as e:
                     msg = f"Dividends Error: {e}"
+                    logging.exception(msg)
+                    errors.append(msg)
+
+            # E. Orders (Flex Order History) - Stubbed parse path
+            q_orders = config.get("query_id_orders")
+            if q_orders:
+                try:
+                    logging.info("Fetching Daily Orders (Flex History)...")
+                    data_orders = fetch_flex_report(q_orders, token, label="orders")
+                    parse_and_store_order_history(data_orders)
+                    import time
+                    time.sleep(20)  # Rate Limit Protection
+                except Exception as e:
+                    msg = f"Orders Error: {e}"
                     logging.exception(msg)
                     errors.append(msg)
                     

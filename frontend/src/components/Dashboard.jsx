@@ -9,9 +9,26 @@ import SettingsModal from './SettingsModal';
 import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import TradeHistory from './TradeHistory';
+import OrdersGrid from './OrdersGrid';
 import TickerModal from './TickerModal';
 import RollAnalysisModal from './RollAnalysisModal';
 // import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+const formatRelativeTime = (value) => {
+    if (!value) return 'update pending';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'update pending';
+
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+    if (diffSeconds < 5) return 'updated just now';
+    if (diffSeconds < 60) return `updated ${diffSeconds}s ago`;
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `updated ${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `updated ${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `updated ${diffDays}d ago`;
+};
 
 const AVAILABLE_COLUMNS = [
     { field: "Ticker", headerName: "Ticker" },
@@ -35,6 +52,7 @@ const Dashboard = () => {
         const v = searchParams.get('view');
         if (v === 'PORTFOLIO') return 'PORTFOLIO';
         if (v === 'TRADES') return 'TRADES';
+        if (v === 'ORDERS') return 'ORDERS';
         return 'ANALYSIS';
     });
     const [selectedReport, setSelectedReport] = useState(searchParams.get('report') || '');
@@ -51,6 +69,7 @@ const Dashboard = () => {
         const params = {};
         if (viewMode === 'PORTFOLIO') params.view = 'PORTFOLIO';
         if (viewMode === 'TRADES') params.view = 'TRADES';
+        if (viewMode === 'ORDERS') params.view = 'ORDERS';
         if (selectedReport) params.report = selectedReport;
         setSearchParams(params, { replace: true });
     }, [viewMode, selectedReport, setSearchParams]);
@@ -233,6 +252,7 @@ const Dashboard = () => {
     // viewMode state moved to top for Deep Linking
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
+    const [openOrders, setOpenOrders] = useState([]);
     const [filterTicker, setFilterTicker] = useState(null);
     const [liveStatus, setLiveStatus] = useState(null);
     const [toast, setToast] = useState(null);
@@ -267,6 +287,50 @@ const Dashboard = () => {
             setLoading(false);
         }
     };
+
+    const loadOrdersData = async () => {
+        setLoading(true);
+        try {
+            const [ordersRes, liveStatusRes] = await Promise.all([
+                api.get('/orders/open'),
+                api.get('/orders/live-status')
+            ]);
+            setOpenOrders(ordersRes.data || []);
+            setLiveStatus(liveStatusRes.data || null);
+        } catch (error) {
+            console.error("Failed to load orders:", error);
+            setOpenOrders([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (viewMode !== 'ORDERS') return undefined;
+
+        let cancelled = false;
+        const pollOrders = async () => {
+            try {
+                const [ordersRes, liveStatusRes] = await Promise.all([
+                    api.get('/orders/open'),
+                    api.get('/orders/live-status')
+                ]);
+                if (cancelled) return;
+                setOpenOrders(ordersRes.data || []);
+                setLiveStatus(liveStatusRes.data || null);
+            } catch (error) {
+                console.error('Failed to poll orders:', error);
+            }
+        };
+
+        const intervalId = window.setInterval(pollOrders, 30000);
+        pollOrders();
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [viewMode]);
 
     useEffect(() => {
         if (viewMode !== 'PORTFOLIO') return undefined;
@@ -340,6 +404,8 @@ const Dashboard = () => {
         if (viewMode === 'PORTFOLIO') {
             loadPortfolioData();
             triggerAutoSync();
+        } else if (viewMode === 'ORDERS') {
+            loadOrdersData();
         } else {
             // If in analysis mode, we still might want the holdings for the indicator
             if (user?.role === 'admin' || user?.role === 'portfolio') {
@@ -491,6 +557,11 @@ const Dashboard = () => {
 
     // --- Roll Analysis Logic ---
     const [selectedRollOpportunity, setSelectedRollOpportunity] = useState(null);
+    const orderUpdateLabel = formatRelativeTime(liveStatus?.last_order_update);
+    const orderAgeSeconds = liveStatus?.last_order_update
+        ? Math.max(0, Math.floor((Date.now() - new Date(liveStatus.last_order_update).getTime()) / 1000))
+        : null;
+    const isOrderFeedStale = orderAgeSeconds !== null && orderAgeSeconds > 90;
 
     return (
         <div className="min-h-screen w-full bg-gray-900 px-4 py-5 text-white lg:px-6">
@@ -557,6 +628,12 @@ const Dashboard = () => {
                             >
                                 Trade History
                             </button>
+                            <button
+                                onClick={() => setViewMode('ORDERS')}
+                                className={`px-3 py-1 text-sm rounded ${viewMode === 'ORDERS' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Orders
+                            </button>
                         </div>
                     )}
                 </div>
@@ -601,6 +678,40 @@ const Dashboard = () => {
                 </>
             ) : viewMode === 'TRADES' ? (
                 <TradeHistory />
+            ) : viewMode === 'ORDERS' ? (
+                <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={loadOrdersData}
+                                disabled={loading}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm disabled:opacity-50 transition-colors"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                                Refresh Orders
+                            </button>
+                            <span className="text-xs text-gray-400">
+                                Open Orders: <span className="font-semibold text-gray-200">{openOrders.length}</span>
+                            </span>
+                        </div>
+                        <div className={`text-xs px-3 py-1 rounded border ${
+                            liveStatus?.connected
+                                ? (isOrderFeedStale ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-green-500/40 bg-green-500/10 text-green-200')
+                                : 'border-gray-600 bg-gray-900 text-gray-300'
+                        }`}>
+                            <span className="font-semibold mr-2">
+                                {liveStatus?.connected ? (isOrderFeedStale ? 'TWS Connected (Stale)' : 'TWS Live') : 'TWS Not Live'}
+                            </span>
+                            <span>{orderUpdateLabel}</span>
+                        </div>
+                    </div>
+                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
+                        <OrdersGrid
+                            data={openOrders}
+                            onTickerClick={(ticker) => setSelectedTicker(ticker)}
+                        />
+                    </div>
+                </div>
             ) : (
                 <>
                     {/* Controls Bar */}

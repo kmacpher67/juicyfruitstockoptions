@@ -210,6 +210,36 @@ In `?view=PORTFOLIO`:
 - allow focus filters for `Pending Cover`, `Pending BTC`, and `Pending Roll`
 - keep detail-level order facts available in the drawer or hover detail
 
+In `?view=ORDERS`:
+
+- show a dedicated open-orders table with sortable columns
+- include account, order symbol, action, status, remaining quantity, order type, prices, source, and last update
+- enrich each row with relevant ticker context from tracked market data (LAST, `%1D`, skew, trend fields)
+- include a manual `Refresh Orders` button for immediate operator pull
+- auto-refresh orders in the background while `?view=ORDERS` is active
+- show a feed freshness badge using `last_order_update` and mark stale state explicitly
+- include quick links on ticker cells:
+  - `D` = open internal stock analysis detail
+  - `G` = open Google Finance
+  - `Y` = open Yahoo Options
+- when the order is an option contract, use the underlying stock ticker for D/G/Y links
+
+### BAG / Combo Orders (Current vs Target)
+
+Current behavior:
+
+- BAG rows are shown as top-level combo parents when present in `ibkr_orders`.
+- Juicy Fruit currently does **not** provide leg drill-down from BAG rows in the Orders table.
+- Practically, this can look like "orphans" when users expect to click and see the exact roll legs.
+
+Target behavior:
+
+- BAG rows should be expandable (or paired with grouped child rows) to show individual legs.
+- UI should retain both:
+  - net combo context (single BAG row with net limit/debit/credit)
+  - per-leg context (BUY/SELL legs, strikes, expiry, ratio, and status)
+- Add explicit BAG-parent visibility toggles so operators can choose net view vs decomposed-leg view.
+
 In a detail drawer:
 
 - list the exact working orders affecting the group
@@ -230,6 +260,27 @@ Example:
 4. Covered stock with a pending buy-to-close is visibly different from covered stock with no pending order.
 5. Roll intent is shown only when evidence is strong enough; otherwise the UI falls back to separate pending-leg facts.
 6. The same `(account, underlying)` pending-order summary is consistent across the stock row, option rows, and detail drawer.
+7. `?view=ORDERS` uses the same dashboard role access pattern as portfolio/trades controls (`admin` and `portfolio`).
+8. `?view=ORDERS` surfaces active open orders from `ibkr_orders` (`source: tws_open_order`) and clearly labels data source for each row.
+9. `?view=ORDERS` provides both manual refresh and background refresh, and visibly indicates when order data is stale.
+
+---
+
+## Flex Orders Work Items
+
+Current state:
+
+- TWS open-order ingest is active and persisted.
+- Flex order-history ingest is still stubbed until a concrete Flex Orders report format is available for this account.
+- TWS reconciliation now marks stale open-order docs as `Inactive` after a completed open-order snapshot so leftover combo/BAG parent remnants no longer appear as active pending orders.
+
+Required follow-ups:
+
+1. Create IBKR Flex report/query for order history and capture its Query ID.
+2. Add/update the Query ID in **Settings -> IBKR Integration -> Orders Query ID**.
+3. Implement/verify parser mapping from that report into `ibkr_orders` with `source: flex_order_history`.
+4. Add parser regression tests with representative Flex order rows.
+5. Implement BAG leg decomposition and BAG-parent visibility controls (see F-R `ibkr-orders-012`, `ibkr-orders-013`).
 
 ---
 
@@ -240,3 +291,6 @@ Example:
 | 2026-04-02 | **CREATED** | Defined pending-order-aware coverage requirements for portfolio holdings and working-order visibility. |
 | 2026-04-02 | **UPDATED** | Clarified that coverage truth must come from contract-level position snapshots; RT execution rows are context only and should not be used as direct coverage state. |
 | 2026-04-02 | **UPDATED** | Clarified flat-row handling: rows with `quantity == 0` are intentionally left without a coverage label so they do not appear in Covered/Uncovered/Naked focus filters. |
+| 2026-04-02 | **UPDATED** | Added `?view=ORDERS` requirements, D/G/Y linking expectations, and explicit Flex Orders report setup follow-up items. |
+| 2026-04-02 | **UPDATED** | Added Orders view freshness UX requirements (manual refresh, auto-refresh, and stale indicator). |
+| 2026-04-02 | **UPDATED** | Captured BAG/combo current limitation (no leg drill-down yet), target decomposition UX, and follow-up F-R links for BAG handling. |

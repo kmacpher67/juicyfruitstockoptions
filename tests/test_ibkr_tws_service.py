@@ -409,6 +409,38 @@ def test_upsert_open_orders_to_db_writes_ibkr_orders(monkeypatch):
     assert kwargs["upsert"] is True
 
 
+def test_upsert_open_orders_reconciles_stale_rows_when_snapshot_complete(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.connected = True
+    fake_app.order_snapshot_complete = True
+    fake_app.orders = {}
+    service = IBKRTWSService(
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+
+    update_many_calls = []
+    mock_collection = SimpleNamespace(
+        update_one=lambda *args, **kwargs: None,
+        update_many=lambda *args, **kwargs: update_many_calls.append((args, kwargs))
+        or SimpleNamespace(modified_count=3),
+    )
+    mock_db = SimpleNamespace(ibkr_orders=mock_collection)
+
+    upserted = service.upsert_open_orders_to_db(db=mock_db)
+
+    assert upserted == 0
+    assert len(update_many_calls) == 1
+    args, _ = update_many_calls[0]
+    assert args[0]["source"] == "tws_open_order"
+    assert args[1]["$set"]["status"] == "Inactive"
+    assert args[1]["$set"]["remaining_quantity"] == 0.0
+    assert args[1]["$set"]["stale_reconciled"] is True
+
+
 def test_refresh_executions_requests_tws_snapshot(monkeypatch):
     monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
     fake_app = FakeApp()

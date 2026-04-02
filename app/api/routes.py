@@ -197,7 +197,7 @@ def _normalize_order_action(raw_value):
 
 def _is_active_pending_order(row: dict) -> bool:
     status = str(row.get("status") or "").strip()
-    if status in {"Filled", "Cancelled", "ApiCancelled"}:
+    if status in {"Filled", "Cancelled", "ApiCancelled", "Inactive"}:
         return False
 
     remaining = _safe_float(row.get("remaining_quantity"))
@@ -220,6 +220,80 @@ def _is_call_order(row: dict) -> bool:
 
     _, parsed_right, _ = _extract_option_fields(row)
     return str(parsed_right or "").strip().upper() == "C"
+
+
+def _normalize_order_row(order: dict) -> dict:
+    normalized = dict(order)
+    security_type = _canonical_security_type(normalized)
+    account_id = normalized.get("account_id") or normalized.get("account") or "UNKNOWN"
+    underlying_symbol = _extract_option_underlying(normalized) if security_type in {"OPT", "FOP"} else (
+        normalized.get("underlying_symbol") or normalized.get("underlying") or normalized.get("symbol")
+    )
+    action = _normalize_order_action(normalized.get("action"))
+    status = str(normalized.get("status") or "").strip()
+    total_quantity = _safe_float(normalized.get("total_quantity"))
+    filled_quantity = _safe_float(normalized.get("filled_quantity"))
+    remaining_quantity = _safe_float(normalized.get("remaining_quantity"))
+    if remaining_quantity is None and total_quantity is not None and filled_quantity is not None:
+        remaining_quantity = max(total_quantity - filled_quantity, 0.0)
+    if remaining_quantity is None:
+        remaining_quantity = total_quantity
+
+    normalized.update(
+        {
+            "account_id": account_id,
+            "security_type": security_type,
+            "asset_class": security_type,
+            "secType": security_type,
+            "underlying_symbol": underlying_symbol,
+            "display_symbol": _build_display_symbol(normalized, security_type),
+            "action": action,
+            "status": status,
+            "total_quantity": total_quantity,
+            "filled_quantity": filled_quantity,
+            "remaining_quantity": remaining_quantity,
+            "is_active": _is_active_pending_order(normalized),
+            "limit_price": _safe_float(normalized.get("limit_price")),
+            "aux_price": _safe_float(normalized.get("aux_price")),
+            "avg_fill_price": _safe_float(normalized.get("avg_fill_price")),
+            "last_fill_price": _safe_float(normalized.get("last_fill_price")),
+            "strike": _safe_float(normalized.get("strike")),
+            "multiplier": _safe_float(normalized.get("multiplier")),
+            "source": normalized.get("source") or "unknown",
+            "last_update": (
+                normalized.get("last_update")
+                or normalized.get("last_tws_update")
+                or normalized.get("source_as_of")
+            ),
+        }
+    )
+    return normalized
+
+
+def _market_context_for_ticker(db, ticker: str | None) -> dict:
+    if not ticker:
+        return {}
+    doc = db.stock_data.find_one({"Ticker": ticker}, {"_id": 0}) or {}
+
+    def _safe_percent(value):
+        if value in (None, ""):
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip().replace("%", "").replace(",", "")
+            return _safe_float(cleaned)
+        return _safe_float(value)
+
+    return {
+        "last_price": _safe_float(doc.get("Current Price")),
+        "day_change_pct": _safe_percent(doc.get("1D % Change")),
+        "yoy_price_pct": _safe_percent(doc.get("YoY Price %")),
+        "call_put_skew": _safe_float(doc.get("Call/Put Skew")),
+        "tsmom_60": _safe_float(doc.get("TSMOM_60")),
+        "ma_200": _safe_float(doc.get("MA_200")),
+        "ema_20": _safe_float(doc.get("EMA_20")),
+        "hma_20": _safe_float(doc.get("HMA_20")),
+        "div_yield": _safe_percent(doc.get("Div Yield")),
+    }
 
 
 def _load_pending_order_summaries(db, coverage_by_account) -> dict[tuple[str, str], dict]:
@@ -843,6 +917,7 @@ def get_ibkr_status(
         flex_token_masked=masked,
         query_id_holdings=config.get("query_id_holdings"),
         query_id_trades=config.get("query_id_trades"),
+        query_id_orders=config.get("query_id_orders"),
         query_id_nav=config.get("query_id_nav"),
         query_id_nav_1d=config.get("query_id_nav_1d"),
         query_id_nav_7d=config.get("query_id_nav_7d"),
@@ -873,6 +948,8 @@ def update_ibkr_config(
         update_data["query_id_holdings"] = config.query_id_holdings
     if config.query_id_trades:
         update_data["query_id_trades"] = config.query_id_trades
+    if config.query_id_orders:
+        update_data["query_id_orders"] = config.query_id_orders
     if config.query_id_nav:
         update_data["query_id_nav"] = config.query_id_nav
     if config.query_id_nav_1d: update_data["query_id_nav_1d"] = config.query_id_nav_1d
@@ -991,6 +1068,62 @@ async def get_portfolio_live_nav(
         "source": "tws",
         "last_tws_update": None,
     }
+
+
+@router.get("/orders/open")
+@log_endpoint
+async def get_open_orders(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    active_only: bool = True,
+):
+    """
+    Return normalized open/working orders with optional ticker market context.
+    """
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+
+    sources = ["tws_open_order", "flex_order_history"]
+    orders = list(db.ibkr_orders.find({"source": {"$in": sources}}, {"_id": 0}))
+
+    normalized_rows = [_normalize_order_row(order) for order in orders]
+    if active_only:
+        normalized_rows = [row for row in normalized_rows if row.get("is_active")]
+
+    # Keep newest updates first by default.
+    normalized_rows.sort(
+        key=lambda row: (
+            str(row.get("last_update") or ""),
+            str(row.get("account_id") or ""),
+            str(row.get("display_symbol") or ""),
+        ),
+        reverse=True,
+    )
+
+    market_cache: dict[str, dict] = {}
+    for row in normalized_rows:
+        ticker = row.get("underlying_symbol") or row.get("symbol")
+        ticker = str(ticker or "").strip().upper() or None
+        row["underlying_ticker"] = ticker
+        if ticker not in market_cache:
+            market_cache[ticker] = _market_context_for_ticker(db, ticker)
+        row.update(market_cache[ticker])
+
+    return normalized_rows
+
+
+@router.get("/orders/live-status")
+@log_endpoint
+async def get_order_live_status(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    if current_user.role not in ["admin", "portfolio"]:
+        raise HTTPException(status_code=403, detail="Portfolio access required")
+
+    tws_service = get_ibkr_tws_service()
+    return tws_service.get_live_status()
 
 @router.get("/nav/report/{report_type}")
 @log_endpoint

@@ -250,7 +250,7 @@ def _position_storage_key(
     return f"{account_value}:{sec_type_value}:{local_value or symbol_value}"
 
 
-FINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled"}
+FINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
 
 
 INFO_ERROR_CODES = {2104, 2106, 2158}
@@ -1004,8 +1004,6 @@ class IBKRTWSService:
 
     def upsert_open_orders_to_db(self, db: Any | None = None, account: str | None = None) -> int:
         orders = self.get_open_orders(account=account, active_only=False)
-        if not orders:
-            return 0
 
         if db is None:
             from pymongo import MongoClient
@@ -1014,10 +1012,12 @@ class IBKRTWSService:
             db = client.get_default_database("stock_analysis")
 
         upserted = 0
+        seen_order_keys: set[str] = set()
         for order in orders:
             order_key = order.get("order_key")
             if not order_key:
                 continue
+            seen_order_keys.add(order_key)
 
             order_doc = {
                 "order_key": order_key,
@@ -1059,7 +1059,38 @@ class IBKRTWSService:
             )
             upserted += 1
 
+        snapshot_complete = False
+        with self._lock:
+            if self._app is not None:
+                with self._app._lock:
+                    snapshot_complete = bool(getattr(self._app, "order_snapshot_complete", False))
+
+        stale_filter: dict[str, Any] = {"source": "tws_open_order"}
+        if account:
+            stale_filter["account_id"] = account
+        if seen_order_keys:
+            stale_filter["order_key"] = {"$nin": sorted(seen_order_keys)}
+
+        deactivated = 0
+        if snapshot_complete:
+            stale_update = db.ibkr_orders.update_many(
+                stale_filter,
+                {
+                    "$set": {
+                        "status": "Inactive",
+                        "remaining_quantity": 0.0,
+                        "stale_reconciled": True,
+                        "last_tws_update": _utc_now_iso(),
+                    }
+                },
+            )
+            deactivated = int(getattr(stale_update, "modified_count", 0) or 0)
+
         self.logger.info("Upserted %s TWS open order(s) into ibkr_orders.", upserted)
+        if snapshot_complete:
+            self.logger.info("Reconciled %s stale TWS open order(s) as inactive.", deactivated)
+        else:
+            self.logger.debug("Skipped stale-order reconciliation because open-order snapshot is incomplete.")
         return upserted
 
     def is_connected(self) -> bool:

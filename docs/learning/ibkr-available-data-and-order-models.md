@@ -55,6 +55,23 @@ Practical implication:
 
 - TWS is the only source in this repo direction that should be trusted to answer "what orders are working right now?"
 
+### BAG / Combo Interpretation
+
+In IBKR, `secType = BAG` represents a combo/multi-leg order wrapper (common for roll workflows, spreads, and other multi-leg strategies).
+
+- BAG row: net combo intent (single parent order)
+- Legs: individual BUY/SELL contracts that make up the combo
+
+For Juicy Fruit:
+
+- today we persist the BAG parent order fields, but do not yet render a BAG leg drill-down in `?view=ORDERS`
+- this is why BAG rows can feel like "orphans" even when they are valid roll/combo parents
+- stale BAG parents should be marked `Inactive` by reconciliation once they are no longer in the current open-order snapshot
+
+Operational note:
+
+- TWS display preferences can change how grouped/multi-leg activity is shown in the workstation UI, but Juicy Fruit still needs explicit backend + UI leg decomposition to show stable per-leg context in-app.
+
 ---
 
 ## Flex What We Can Use
@@ -247,8 +264,18 @@ The second layer is a projection, not a replacement for the first.
 1. Normalize TWS open / working orders into `ibkr_orders`.
 2. Build `(account, underlying)` grouping logic for pending-order effect.
 3. Expose the derived summary to `?view=PORTFOLIO`.
-4. Add detail-drawer order facts and focus filters.
-5. Add Flex order-history ingestion only if the configured Flex reports actually provide usable order rows.
+4. Add `?view=ORDERS` with sortable order rows and ticker context enrichment (`LAST`, `%1D`, skew, trend fields).
+5. Add detail-drawer order facts and focus filters.
+6. Add Flex order-history ingestion only if the configured Flex reports actually provide usable order rows.
+
+Current implementation note (2026-04-02):
+
+- `query_id_orders` is now exposed in IBKR Integration settings.
+- Flex order-history sync path is intentionally stubbed pending real report creation and parser mapping.
+- Orders UI now includes manual refresh, view-active auto polling, and a stale-feed indicator keyed off `last_order_update`.
+- TWS order reconciliation marks previously persisted but no-longer-open orders as `Inactive` once a full open-order snapshot completes (helps clear stale BAG/combo parent remnants).
+- BAG leg decomposition is still a planned follow-up; current Orders view shows BAG parents but not detailed combo legs.
+- Action needed: create the Flex Orders report/query in IBKR, set the new Query ID, then implement/verify parser coverage for `source: flex_order_history`.
 
 ---
 
@@ -266,3 +293,5 @@ The second layer is a projection, not a replacement for the first.
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-04-02 | **CREATED** | Documented IBKR source availability and proposed normalized models for pending orders and coverage intent. |
+| 2026-04-02 | **UPDATED** | Added Orders view expectations and documented `query_id_orders` Flex ingestion stub and required setup follow-ups. |
+| 2026-04-02 | **UPDATED** | Added BAG/combo interpretation guidance, current Juicy Fruit BAG limitation, and decomposition follow-up direction. |
