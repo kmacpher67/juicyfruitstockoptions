@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { TrendingUp, TrendingDown, DollarSign, Activity, Calendar, Radio } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
@@ -112,7 +113,7 @@ const SourceBadge = ({ source }) => {
     );
 };
 
-const TradeHistory = () => {
+const TradeHistory = ({ onTickerClick }) => {
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -173,12 +174,43 @@ const TradeHistory = () => {
         },
         {
             field: "symbol",
-            headerName: "Symbol",
+            headerName: "Ticker",
             filter: true,
             sortable: true,
             sort: "asc",
             sortIndex: 1,
-            valueGetter: p => p.data.symbol || p.data.Symbol
+            width: 330,
+            valueGetter: p => p.data.symbol || p.data.Symbol,
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                const symbol = params.value;
+                if (!symbol) return null;
+                const cleanSym = row.underlying_symbol || String(symbol).split(" ")[0];
+                const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`;
+                const yahooUrl = `https://finance.yahoo.com/quote/${cleanSym}/options`;
+                const detailLabel = `Open stock analysis detail for ${cleanSym}`;
+
+                return (
+                    <div className="flex items-center gap-2">
+                        <span
+                            className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                            onClick={() => onTickerClick && onTickerClick(cleanSym)}
+                            title={detailLabel}
+                            aria-label={detailLabel}
+                        >
+                            {symbol}
+                            <ExternalLink
+                                className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
+                                aria-hidden="true"
+                            />
+                        </span>
+                        <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             field: "account",

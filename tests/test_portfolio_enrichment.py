@@ -876,3 +876,35 @@ def test_get_portfolio_holdings_adds_pending_roll_effect(client):
         assert stock_row["pending_buy_to_close_contracts"] == 1.0
         assert stock_row["pending_cover_contracts"] == 1.0
         assert stock_row["pending_roll_contracts"] == 1.0
+
+
+def test_get_portfolio_holdings_defaults_pending_fields_when_no_active_orders(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {"symbol": "MSFT", "secType": "STK", "account_id": "U9", "quantity": 100, "market_price": 380.0},
+            {"symbol": "MSFT", "secType": "OPT", "account_id": "U9", "quantity": -1, "underlying_symbol": "MSFT", "right": "C", "strike": 390.0, "expiry": "2026-04-25"},
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        stock_row = next(h for h in data if h["security_type"] == "STK")
+        option_row = next(h for h in data if h["security_type"] == "OPT")
+
+        for row in (stock_row, option_row):
+            assert row["pending_order_count"] == 0
+            assert row["pending_order_effect"] == "none"
+            assert row["pending_cover_contracts"] == 0.0
+            assert row["pending_buy_to_close_contracts"] == 0.0
+            assert row["pending_roll_contracts"] == 0.0

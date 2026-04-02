@@ -683,7 +683,7 @@ const Dashboard = () => {
                     </div>
                 </>
             ) : viewMode === 'TRADES' ? (
-                <TradeHistory />
+                <TradeHistory onTickerClick={(ticker) => setSelectedTicker(ticker)} />
             ) : viewMode === 'ORDERS' ? (
                 <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">

@@ -33,6 +33,24 @@ const resolveSecurityTypeLabel = (row = {}) => {
 
 const getDisplaySymbol = (row = {}) => row.display_symbol || row.description || row.local_symbol || row.symbol || '';
 
+const getPendingEffectUi = (effect) => {
+    switch (effect) {
+        case 'covering_uncovered':
+            return { label: 'Pending Cover', tone: 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10' };
+        case 'buying_to_close':
+            return { label: 'Pending BTC', tone: 'text-amber-200 border-amber-500/50 bg-amber-500/10' };
+        case 'rolling':
+            return { label: 'Pending Roll', tone: 'text-sky-200 border-sky-500/50 bg-sky-500/10' };
+        default:
+            return null;
+    }
+};
+
+const toCsvCell = (value) => {
+    if (value === undefined || value === null) return '';
+    return `"${String(value).replace(/"/g, '""')}"`;
+};
+
 const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'all', onSelectedAccountChange }) => {
     const [filters, setFilters] = useState({ ...DEFAULT_PORTFOLIO_FILTERS, account: selectedAccount || 'all' });
 
@@ -41,6 +59,26 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
     }, [selectedAccount]);
 
     const colDefs = useMemo(() => [
+        {
+            field: "pending_buy_to_close_contracts",
+            headerName: "P.BTC",
+            headerTooltip: "Pending Buy-to-Close",
+            width: 82,
+            pinned: 'left',
+            sortable: true,
+            valueGetter: (params) => {
+                const contracts = getNumericValue(params.data?.pending_buy_to_close_contracts);
+                return contracts && contracts > 0 ? contracts : null;
+            },
+            cellRenderer: (params) => {
+                if (!params.value) return '';
+                return (
+                    <span className="inline-flex items-center rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                        BTC {params.value}
+                    </span>
+                );
+            },
+        },
         {
             field: "account_id",
             headerName: "Account",
@@ -53,7 +91,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             headerName: "Ticker",
             sortable: true,
             filter: true,
-            width: 220,
+            width: 300,
             pinned: 'left',
             sort: 'asc',
             sortIndex: 1,
@@ -93,13 +131,28 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
         {
             field: "coverage_status",
             headerName: "Coverage",
-            width: 100,
+            width: 220,
             sortable: true,
-            cellClass: params => {
-                if (params.value === 'Uncovered' || params.value === 'Naked') return 'text-red-400 font-bold';
-                if (params.value === 'Covered') return 'text-green-400 font-bold';
-                return '';
-            }
+            cellRenderer: (params) => {
+                const status = params.value || '';
+                const pendingUi = getPendingEffectUi(params.data?.pending_order_effect);
+                const statusClass = status === 'Covered'
+                    ? 'text-green-400 font-bold'
+                    : (status === 'Uncovered' || status === 'Naked')
+                        ? 'text-red-400 font-bold'
+                        : 'text-slate-300';
+
+                return (
+                    <div className="flex items-center gap-2">
+                        <span className={statusClass}>{status || '-'}</span>
+                        {pendingUi && (
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${pendingUi.tone}`}>
+                                {pendingUi.label}
+                            </span>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             field: "dte",
@@ -263,12 +316,45 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
 
     // CSV Export for current view
     const handleExportCSV = () => {
-        const headers = colDefs.map(c => c.headerName);
-        const fields = colDefs.map(c => c.field);
-        const rows = rowData.map(row => fields.map(f => row[f]));
-        let csv = headers.join(',') + '\n';
-        rows.forEach(r => {
-            csv += r.map(x => (x !== undefined ? `"${String(x).replace(/"/g, '""')}"` : '')).join(',') + '\n';
+        const headers = [
+            'Account',
+            'Ticker',
+            'Coverage',
+            'Pending Effect',
+            'DTE',
+            'NtM %',
+            'Qty',
+            'Price',
+            'Value',
+            'Basis',
+            'Unrealized P&L',
+            'Divs',
+            'Total Return',
+            'True Yield',
+            '% NAV',
+            'Type',
+        ];
+        const rows = rowData.map((row) => [
+            row.account_id || '',
+            getDisplaySymbol(row),
+            row.coverage_status || '',
+            row.pending_order_effect || 'none',
+            getNumericValue(row.dte) ?? '',
+            formatPercent(row.dist_to_strike_pct, 1),
+            getNumericValue(row.quantity) ?? '',
+            formatCurrency(row.market_price, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            formatCurrency(row.market_value, { maximumFractionDigits: 0 }),
+            formatCurrency(row.cost_basis, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            formatCurrency(row.unrealized_pnl, { maximumFractionDigits: 0 }),
+            formatCurrency(row.divs_earned, { maximumFractionDigits: 0 }),
+            formatCurrency(row.total_return, { maximumFractionDigits: 0 }),
+            formatPercent(row.true_yield, 2),
+            formatPercent(row.percent_of_nav, 2),
+            resolveSecurityTypeLabel(row),
+        ]);
+        let csv = headers.map(toCsvCell).join(',') + '\n';
+        rows.forEach((r) => {
+            csv += r.map(toCsvCell).join(',') + '\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -289,8 +375,12 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 <Button label="Uncovered" active={filters.coverage === 'Uncovered'} onClick={() => setCoverageFilter('Uncovered')} />
                 <Button label="Naked" active={filters.coverage === 'Naked'} onClick={() => setCoverageFilter('Naked')} />
                 <Button label="Covered" active={filters.coverage === 'Covered'} onClick={() => setCoverageFilter('Covered')} />
+                <Button label='Pending Cover' active={filters.pendingEffect === 'pending_cover'} onClick={() => setFilters((current) => ({ ...current, pendingEffect: current.pendingEffect === 'pending_cover' ? 'all' : 'pending_cover' }))} />
+                <Button label='Pending BTC' active={filters.pendingEffect === 'pending_btc'} onClick={() => setFilters((current) => ({ ...current, pendingEffect: current.pendingEffect === 'pending_btc' ? 'all' : 'pending_btc' }))} />
+                <Button label='Pending Roll' active={filters.pendingEffect === 'pending_roll'} onClick={() => setFilters((current) => ({ ...current, pendingEffect: current.pendingEffect === 'pending_roll' ? 'all' : 'pending_roll' }))} />
                 <Button label={`Expiring (<${filters.dteLimit}D)`} active={filters.expiringOnly} onClick={() => toggleBooleanFilter('expiringOnly')} />
                 <Button label={`Near Money (<${filters.nearMoneyPercent}%)`} active={filters.nearMoneyOnly} onClick={() => toggleBooleanFilter('nearMoneyOnly')} />
+                <Button label={'Show "STK ?"'} active={filters.showStocks} onClick={() => toggleBooleanFilter('showStocks')} />
 
                 <span className="ml-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Account:</span>
                 <select

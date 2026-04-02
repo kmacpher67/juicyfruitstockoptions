@@ -294,3 +294,4 @@ Required follow-ups:
 | 2026-04-02 | **UPDATED** | Added `?view=ORDERS` requirements, D/G/Y linking expectations, and explicit Flex Orders report setup follow-up items. |
 | 2026-04-02 | **UPDATED** | Added Orders view freshness UX requirements (manual refresh, auto-refresh, and stale indicator). |
 | 2026-04-02 | **UPDATED** | Captured BAG/combo current limitation (no leg drill-down yet), target decomposition UX, and follow-up F-R links for BAG handling. |
+| 2026-04-02 | **UPDATED** | Implemented Portfolio focus controls and visual badges for `Pending Cover`, `Pending BTC`, and `Pending Roll` on `?view=PORTFOLIO`. |

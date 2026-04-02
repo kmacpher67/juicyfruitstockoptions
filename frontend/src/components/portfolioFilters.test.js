@@ -42,6 +42,7 @@ const sampleRows = [
         account_id: 'U280132',
         asset_class: 'STK',
         coverage_status: 'Uncovered',
+        pending_order_effect: 'covering_uncovered',
     },
     {
         symbol: 'TSLA 2026-04-04 250 Call',
@@ -49,6 +50,7 @@ const sampleRows = [
         account_id: 'U280132',
         asset_class: 'OPT',
         coverage_status: 'Uncovered',
+        pending_order_effect: 'covering_uncovered',
         dte: 3,
         dist_to_strike_pct: 0.03,
     },
@@ -144,5 +146,59 @@ test('applyPortfolioFilters does not include unrelated stock rows when option-fo
     assert.deepEqual(
         filtered.map((row) => row.symbol),
         ['AMD', 'AMD 2026-04-02 202.5 Call'],
+    );
+});
+
+test('applyPortfolioFilters hides stock rows when Show "STK ?" is unchecked', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        showStocks: false,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD 2026-04-02 202.5 Call', 'AMZN 2026-04-10 210 Call', 'TSLA 2026-04-04 250 Call'],
+    );
+});
+
+test('applyPortfolioFilters keeps underlying stock row for matched options when Show "STK ?" is checked', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        expiringOnly: true,
+        dteLimit: 4,
+        showStocks: true,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMD 2026-04-02 202.5 Call', 'TSLA', 'TSLA 2026-04-04 250 Call'],
+    );
+});
+
+test('applyPortfolioFilters pending cover focus returns actionable pending-cover rows', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        pendingEffect: 'pending_cover',
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['TSLA', 'TSLA 2026-04-04 250 Call'],
+    );
+});
+
+test('applyPortfolioFilters applies pending-effect focus with other filters using AND semantics', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        pendingEffect: 'pending_cover',
+        coverage: 'Uncovered',
+        account: 'U280132',
+        nearMoneyOnly: true,
+        nearMoneyPercent: 5,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['TSLA', 'TSLA 2026-04-04 250 Call'],
     );
 });
