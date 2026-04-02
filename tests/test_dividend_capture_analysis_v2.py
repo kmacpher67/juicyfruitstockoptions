@@ -58,3 +58,42 @@ def test_dividend_capture_analysis_logic_v2(mock_yf, mock_roll_cls, mock_opp_cls
     # VERIFY
     assert len(strategies) == 3
 
+
+@patch("app.services.dividend_scanner.NewsService")
+@patch("app.services.dividend_scanner.MongoClient")
+@patch("app.services.dividend_scanner.SignalService")
+@patch("app.services.dividend_scanner.OpportunityService")
+@patch("app.services.dividend_scanner.RollService")
+@patch("app.services.dividend_scanner.yf")
+def test_dividend_capture_scanner_filters_option_symbols_before_yfinance(
+    mock_yf, mock_roll_cls, mock_opp_cls, mock_signal_cls, mock_mongo, mock_news
+):
+    from app.services.dividend_scanner import DividendScanner
+
+    scanner = DividendScanner()
+    mock_db = MagicMock()
+    mock_mongo.return_value.get_default_database.return_value = mock_db
+    mock_db.ibkr_holdings.find_one.return_value = None
+    mock_db.ibkr_holdings.find.return_value = []
+
+    def _ticker_factory(symbol):
+        ticker = MagicMock()
+        ticker.info = {"exDividendDate": None}
+        ticker.symbol = symbol
+        return ticker
+
+    mock_yf.Ticker.side_effect = _ticker_factory
+
+    scanner.scan_dividend_capture_opportunities(
+        [
+            "AMD  260220C00235000",
+            "AMD260220C00235000",
+            "AAPL",
+            "  ",
+            "msft",
+            "MSFT 260620P00400000",
+        ]
+    )
+
+    looked_up = [call.args[0] for call in mock_yf.Ticker.call_args_list]
+    assert looked_up == ["AMD", "AAPL", "MSFT"]

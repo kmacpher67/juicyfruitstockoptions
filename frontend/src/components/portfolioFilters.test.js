@@ -202,3 +202,39 @@ test('applyPortfolioFilters applies pending-effect focus with other filters usin
         ['TSLA', 'TSLA 2026-04-04 250 Call'],
     );
 });
+
+test('applyPortfolioFilters keeps export-visible rows aligned for Expiring + Near Money + Account + Coverage + Show STK on', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Covered',
+        account: 'U110638',
+        expiringOnly: true,
+        nearMoneyOnly: true,
+        dteLimit: 6,
+        nearMoneyPercent: 8,
+        showStocks: true,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMD 2026-04-02 202.5 Call'],
+    );
+});
+
+test('applyPortfolioFilters keeps export-visible rows aligned for same filter combo when Show STK is off', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Covered',
+        account: 'U110638',
+        expiringOnly: true,
+        nearMoneyOnly: true,
+        dteLimit: 6,
+        nearMoneyPercent: 8,
+        showStocks: false,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD 2026-04-02 202.5 Call'],
+    );
+});

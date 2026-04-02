@@ -1,6 +1,7 @@
 import yfinance as yf
 from datetime import datetime, timedelta, date
 import logging
+import re
 from app.services.opportunity_service import OpportunityService
 from app.models.opportunity import JuicyOpportunity, OpportunityStatus
 from app.services.signal_service import SignalService
@@ -11,6 +12,35 @@ from app.services.roll_service import RollService
 from app.services.news_service import NewsService
 from app.models_news import CorporateEvent
 import os
+
+
+_OPTION_OCC_WITH_SPACE = re.compile(r"^([A-Z]{1,6})\s+\d{6}[CP]\d+$")
+_OPTION_OCC_COMPACT = re.compile(r"^([A-Z]{1,6})\d{6}[CP]\d+$")
+_VALID_EQUITY_SYMBOL = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def _normalize_to_stk_symbol(raw_symbol: str | None) -> str | None:
+    """
+    Normalize raw symbols to an equity ticker for yfinance lookups.
+    Returns None for unsupported/invalid symbols.
+    """
+    if raw_symbol is None:
+        return None
+
+    symbol = str(raw_symbol).strip().upper()
+    if not symbol:
+        return None
+
+    compact = re.sub(r"\s+", "", symbol)
+
+    match = _OPTION_OCC_WITH_SPACE.match(symbol) or _OPTION_OCC_COMPACT.match(compact)
+    if match:
+        return match.group(1)
+
+    if _VALID_EQUITY_SYMBOL.match(symbol):
+        return symbol
+
+    return None
 
 class DividendScanner:
     def __init__(self):
@@ -164,6 +194,21 @@ class DividendScanner:
         logging.info(f"[DividendScanner] Starting scan for {len(tickers)} tickers.")
         opportunities = []
         now = datetime.utcnow()
+
+        normalized_symbols = []
+        seen_symbols = set()
+        for symbol in tickers:
+            normalized = _normalize_to_stk_symbol(symbol)
+            if not normalized or normalized in seen_symbols:
+                continue
+            seen_symbols.add(normalized)
+            normalized_symbols.append(normalized)
+
+        filtered_count = len(tickers) - len(normalized_symbols)
+        if filtered_count > 0:
+            logging.info(
+                f"[DividendScanner] Filtered out {filtered_count} non-equity/option symbols before yfinance lookup."
+            )
         
         # 1. Fetch Holdings for Account Mapping
         client = MongoClient(settings.MONGO_URI)
@@ -175,10 +220,19 @@ class DividendScanner:
              snapshot_id = latest.get("snapshot_id")
              query = {"snapshot_id": snapshot_id} if snapshot_id else {"report_date": latest.get("report_date")}
              for h in db.ibkr_holdings.find(query):
-                 sym = h.get("symbol")
+                 sec_type = str(
+                     h.get("secType")
+                     or h.get("AssetClass")
+                     or h.get("asset_class")
+                     or "STK"
+                 ).upper()
+                 if sec_type in {"OPT", "FOP"}:
+                     continue
+
+                 sym = _normalize_to_stk_symbol(h.get("symbol"))
                  acct = h.get("account_id", "Unknown")
                  qty = h.get("quantity", 0)
-                 if qty != 0:
+                 if sym and qty != 0:
                      if sym not in holdings_map: holdings_map[sym] = []
                      holdings_map[sym].append(f"{acct}: {qty}")
         
@@ -186,7 +240,7 @@ class DividendScanner:
         for k, v in holdings_map.items():
             holdings_map[k] = ", ".join(v)
 
-        for symbol in tickers:
+        for symbol in normalized_symbols:
             try:
                 # logging.debug(f"Checking {symbol}...")
                 ticker = yf.Ticker(symbol)

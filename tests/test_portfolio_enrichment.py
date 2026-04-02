@@ -908,3 +908,60 @@ def test_get_portfolio_holdings_defaults_pending_fields_when_no_active_orders(cl
             assert row["pending_cover_contracts"] == 0.0
             assert row["pending_buy_to_close_contracts"] == 0.0
             assert row["pending_roll_contracts"] == 0.0
+
+
+def test_get_portfolio_holdings_marks_exact_account_underlying_200_shares_and_2_short_calls_as_covered(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {
+                "symbol": "AMD",
+                "asset_class": "STK",
+                "account_id": "U110638",
+                "quantity": 200,
+            },
+            {
+                "symbol": "AMD  260402C00202500",
+                "asset_class": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "underlying_symbol": "AMD",
+                "right": "C",
+                "strike": 202.5,
+                "expiry": "2026-04-02",
+            },
+            {
+                "symbol": "AMD  260410C00207500",
+                "asset_class": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "underlying_symbol": "AMD",
+                "right": "C",
+                "strike": 207.5,
+                "expiry": "2026-04-10",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        stock_row = next(row for row in data if row["security_type"] == "STK")
+        option_rows = [row for row in data if row["security_type"] == "OPT"]
+
+        assert stock_row["coverage_status"] == "Covered"
+        assert stock_row["coverage_mismatch"] is False
+        assert stock_row["share_quantity_total"] == 200
+        assert stock_row["covered_shares"] == 200
+
+        assert len(option_rows) == 2
+        assert all(row["coverage_status"] == "Covered" for row in option_rows)

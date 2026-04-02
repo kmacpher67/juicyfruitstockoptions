@@ -5,24 +5,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ExternalLink } from 'lucide-react';
 import { applyPortfolioFilters, DEFAULT_PORTFOLIO_FILTERS } from './portfolioFilters';
-
-const getNumericValue = (value) => {
-    if (value === null || value === undefined || value === '') return null;
-    const numeric = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
-};
-
-const formatCurrency = (value, options = {}) => {
-    const numeric = getNumericValue(value);
-    if (numeric === null) return '-';
-    return `$${numeric.toLocaleString(undefined, options)}`;
-};
-
-const formatPercent = (value, digits = 2) => {
-    const numeric = getNumericValue(value);
-    if (numeric === null) return '-';
-    return `${(numeric * 100).toFixed(digits)}%`;
-};
+import { getNumericValue, formatCurrency, formatPercent } from './portfolioGridFormatters';
 
 const resolveSecurityTypeLabel = (row = {}) => {
     const rawType = row.security_type || row.asset_class || row.secType || row.sec_type;
