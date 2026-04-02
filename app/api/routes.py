@@ -162,6 +162,166 @@ def _is_short_call_position(row: dict) -> bool:
     return bool(re.search(r"\d{6}C\d+", local_symbol) or re.search(r"\d{6}C\d+", symbol))
 
 
+def _resolve_coverage_status(shares, short_calls):
+    """Return coverage status and mismatch flag as defined in requirements."""
+    shares = float(shares or 0)
+    short_calls = float(short_calls or 0)
+    covered_calls = abs(short_calls)
+
+    if shares == covered_calls:
+        return "Covered", False
+    if shares > covered_calls:
+        return "Uncovered", True
+    if shares < covered_calls:
+        return "Naked", True
+    return "", False
+
+
+def _normalize_order_action(raw_value):
+    value = str(raw_value or "").strip().upper()
+    if value in {"BOT", "BUY"}:
+        return "BUY"
+    if value in {"SLD", "SELL"}:
+        return "SELL"
+    return value
+
+
+def _is_active_pending_order(row: dict) -> bool:
+    status = str(row.get("status") or "").strip()
+    if status in {"Filled", "Cancelled", "ApiCancelled"}:
+        return False
+
+    remaining = _safe_float(row.get("remaining_quantity"))
+    if remaining is None:
+        remaining = _safe_float(row.get("total_quantity"))
+    if remaining is not None and remaining <= 0:
+        return False
+
+    return True
+
+
+def _is_call_order(row: dict) -> bool:
+    security_type = _canonical_security_type(row)
+    if security_type not in {"OPT", "FOP"}:
+        return False
+
+    right = str(row.get("right") or "").strip().upper()
+    if right == "C":
+        return True
+
+    _, parsed_right, _ = _extract_option_fields(row)
+    return str(parsed_right or "").strip().upper() == "C"
+
+
+def _load_pending_order_summaries(db, coverage_by_account) -> dict[tuple[str, str], dict]:
+    try:
+        orders = list(db.ibkr_orders.find({"source": {"$in": ["tws_open_order", "flex_order_history"]}}, {"_id": 0}))
+    except Exception:
+        orders = []
+
+    pending_by_account = defaultdict(
+        lambda: {
+            "pending_order_count": 0,
+            "pending_sell_call_contracts": 0.0,
+            "pending_sell_call_shares": 0.0,
+            "pending_buy_call_contracts": 0.0,
+            "pending_buy_call_shares": 0.0,
+            "has_unknown_orders": False,
+        }
+    )
+
+    for order in orders:
+        if not _is_active_pending_order(order):
+            continue
+
+        account_id = order.get("account_id") or order.get("account") or "UNKNOWN"
+        underlying = _extract_option_underlying(order) or order.get("symbol")
+        if not underlying:
+            continue
+
+        key = (account_id, underlying)
+        summary = pending_by_account[key]
+        summary["pending_order_count"] += 1
+
+        if not _is_call_order(order):
+            summary["has_unknown_orders"] = True
+            continue
+
+        remaining_quantity = _safe_float(order.get("remaining_quantity"))
+        if remaining_quantity is None:
+            remaining_quantity = _safe_float(order.get("total_quantity"))
+        if remaining_quantity is None:
+            summary["has_unknown_orders"] = True
+            continue
+
+        multiplier = _safe_float(order.get("multiplier"))
+        if multiplier is None:
+            multiplier = 100.0
+
+        action = _normalize_order_action(order.get("action"))
+        contract_count = abs(float(remaining_quantity))
+        share_count = contract_count * multiplier
+
+        if action == "SELL":
+            summary["pending_sell_call_contracts"] += contract_count
+            summary["pending_sell_call_shares"] += share_count
+        elif action == "BUY":
+            summary["pending_buy_call_contracts"] += contract_count
+            summary["pending_buy_call_shares"] += share_count
+        else:
+            summary["has_unknown_orders"] = True
+
+    result = {}
+    all_keys = set(coverage_by_account.keys()) | set(pending_by_account.keys())
+    for key in all_keys:
+        current = coverage_by_account.get(key, {"shares": 0.0, "short_calls": 0.0})
+        pending = pending_by_account.get(key, {})
+
+        shares = float(current.get("shares") or 0.0)
+        short_call_shares = float(current.get("short_calls") or 0.0)
+        pending_sell_shares = float(pending.get("pending_sell_call_shares") or 0.0)
+        pending_buy_shares = float(pending.get("pending_buy_call_shares") or 0.0)
+        pending_sell_contracts = float(pending.get("pending_sell_call_contracts") or 0.0)
+        pending_buy_contracts = float(pending.get("pending_buy_call_contracts") or 0.0)
+        pending_order_count = int(pending.get("pending_order_count") or 0)
+
+        projected_short_call_shares = max(0.0, short_call_shares - pending_buy_shares + pending_sell_shares)
+        current_status, _ = _resolve_coverage_status(shares, short_call_shares)
+        projected_status, _ = _resolve_coverage_status(shares, projected_short_call_shares)
+
+        pending_roll_contracts = min(pending_buy_contracts, pending_sell_contracts)
+        uncovered_shares_now = max(0.0, shares - short_call_shares)
+
+        if pending_order_count == 0:
+            effect = "none"
+        elif pending_buy_contracts > 0 and pending_sell_contracts > 0:
+            effect = "rolling"
+        elif pending_buy_contracts > 0:
+            effect = "buying_to_close"
+        elif pending_sell_contracts > 0:
+            if shares <= 0 or (short_call_shares + pending_sell_shares) > shares:
+                effect = "increasing_naked_risk"
+            else:
+                effect = "covering_uncovered"
+        elif pending.get("has_unknown_orders"):
+            effect = "unknown"
+        else:
+            effect = "none"
+
+        result[key] = {
+            "pending_order_count": pending_order_count,
+            "pending_order_effect": effect,
+            "coverage_status_if_filled": projected_status or current_status,
+            "pending_cover_shares": pending_sell_shares,
+            "pending_cover_contracts": pending_sell_contracts,
+            "pending_buy_to_close_contracts": pending_buy_contracts,
+            "pending_roll_contracts": pending_roll_contracts,
+            "uncovered_shares_now": uncovered_shares_now,
+        }
+
+    return result
+
+
 def _portfolio_row_key(row: dict) -> tuple:
     security_type = _canonical_security_type(row)
     account_id = row.get("account_id") or row.get("account") or "UNKNOWN"
@@ -912,7 +1072,16 @@ async def get_portfolio_holdings(
 
     # 3. Enhanced Metrics (Coverage, DTE, ITM/OTM)
     from app.services.options_analysis import OptionsAnalyzer
-    analyzer = OptionsAnalyzer(data)
+    analyzer_input = []
+    for row in data:
+        sanitized = dict(row)
+        if sanitized.get("cost_basis") is None:
+            sanitized["cost_basis"] = 0
+        if sanitized.get("quantity") is None:
+            sanitized["quantity"] = 0
+        analyzer_input.append(sanitized)
+
+    analyzer = OptionsAnalyzer(analyzer_input)
     grouped = analyzer.grouped
     now = datetime.now()
     coverage_by_account = defaultdict(lambda: {"shares": 0.0, "short_calls": 0.0})
@@ -943,24 +1112,7 @@ async def get_portfolio_holdings(
                 multiplier = 100.0
             coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
 
-    def resolve_coverage_status(shares, short_calls):
-        """Return coverage status and mismatch flag as defined in requirements.
-
-        - Covered: shares == abs(short_calls)
-        - Uncovered: shares > abs(short_calls)
-        - Naked: shares < abs(short_calls)
-        """
-        shares = float(shares or 0)
-        short_calls = float(short_calls or 0)
-        covered_calls = abs(short_calls)
-
-        if shares == covered_calls:
-            return "Covered", False
-        if shares > covered_calls:
-            return "Uncovered", True
-        if shares < covered_calls:
-            return "Naked", True
-        return "", False
+    pending_summary_by_account = _load_pending_order_summaries(db, coverage_by_account)
 
     for row in data:
         # A. Coverage Status
@@ -975,9 +1127,18 @@ async def get_portfolio_holdings(
             row["coverage_group_key"] = f"{account_id}:{und}"
             row["covered_shares"] = covered
             row["share_quantity_total"] = shares
-            status, mismatch = resolve_coverage_status(shares, covered)
+            status, mismatch = _resolve_coverage_status(shares, covered)
             row["coverage_status"] = status
             row["coverage_mismatch"] = mismatch
+            pending_summary = pending_summary_by_account.get((account_id, und), {})
+            row["pending_order_count"] = pending_summary.get("pending_order_count", 0)
+            row["pending_order_effect"] = pending_summary.get("pending_order_effect", "none")
+            row["coverage_status_if_filled"] = pending_summary.get("coverage_status_if_filled", status)
+            row["pending_cover_shares"] = pending_summary.get("pending_cover_shares", 0.0)
+            row["pending_cover_contracts"] = pending_summary.get("pending_cover_contracts", 0.0)
+            row["pending_buy_to_close_contracts"] = pending_summary.get("pending_buy_to_close_contracts", 0.0)
+            row["pending_roll_contracts"] = pending_summary.get("pending_roll_contracts", 0.0)
+            row["uncovered_shares_now"] = pending_summary.get("uncovered_shares_now", max(0.0, shares - covered))
 
         # B. Option Metrics
         sec_type = row.get("security_type") or row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")

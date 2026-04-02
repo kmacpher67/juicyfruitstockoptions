@@ -23,16 +23,20 @@ class FakeApp:
         self.req_positions_called = False
         self.req_account_updates_calls: list[tuple[bool, str]] = []
         self.req_executions_calls: list[tuple[int, object]] = []
+        self.req_all_open_orders_called = False
         self.disconnect_called = False
         self.managed_accounts = []
         self.next_valid_order_id = 1
         self.position_snapshot_complete = False
         self.execution_snapshot_complete = False
+        self.order_snapshot_complete = False
         self.last_position_update = None
         self.last_account_value_update = None
         self.last_execution_update = None
+        self.last_order_update = None
         self.last_error = None
         self.last_status = None
+        self.orders = {}
 
     def connect(self, host: str, port: int, client_id: int) -> None:
         self.connect_calls.append((host, port, client_id))
@@ -49,6 +53,9 @@ class FakeApp:
 
     def reqExecutions(self, req_id: int, execution_filter: object) -> None:
         self.req_executions_calls.append((req_id, execution_filter))
+
+    def reqAllOpenOrders(self) -> None:
+        self.req_all_open_orders_called = True
 
     def disconnect(self) -> None:
         self.disconnect_called = True
@@ -256,6 +263,114 @@ def test_execution_and_commission_callbacks_capture_state():
     assert stored["commission"] == 1.25
     assert stored["realized_pnl"] == 12.5
     assert app.execution_snapshot_complete is True
+
+
+def test_open_order_and_order_status_callbacks_capture_state():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="AMD",
+        localSymbol="AMD   260418C00115000",
+        secType="OPT",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260418",
+        strike=115.0,
+        right="C",
+        multiplier="100",
+        conId=123456,
+    )
+    order = SimpleNamespace(
+        permId=9001,
+        parentId=0,
+        clientId=7,
+        account="U110638",
+        action="SELL",
+        totalQuantity=2,
+        orderType="LMT",
+        tif="DAY",
+        lmtPrice=1.55,
+        auxPrice=0.0,
+        openClose="O",
+        orderRef="cover-amd",
+    )
+    order_state = SimpleNamespace(status="Submitted")
+
+    app.openOrder(77, contract, order, order_state)
+    app.orderStatus(77, "Submitted", 0, 2, 0.0, 9001, 0, 0.0, 7, "", 0.0)
+    app.openOrderEnd()
+
+    stored = app.orders["perm:9001"]
+    assert stored["order_id"] == 77
+    assert stored["perm_id"] == 9001
+    assert stored["account_id"] == "U110638"
+    assert stored["underlying_symbol"] == "AMD"
+    assert stored["action"] == "SELL"
+    assert stored["status"] == "Submitted"
+    assert stored["remaining_quantity"] == 2
+    assert stored["right"] == "C"
+    assert app.order_snapshot_complete is True
+
+
+def test_refresh_open_orders_requests_all_open_orders(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.connected = True
+    service = IBKRTWSService(
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+
+    requested = service.refresh_open_orders()
+
+    assert requested is True
+    assert fake_app.req_all_open_orders_called is True
+
+
+def test_upsert_open_orders_to_db_writes_ibkr_orders(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.connected = True
+    fake_app.orders = {
+        "perm:9001": {
+            "order_key": "perm:9001",
+            "order_id": 77,
+            "perm_id": 9001,
+            "account_id": "U110638",
+            "symbol": "AMD",
+            "underlying_symbol": "AMD",
+            "local_symbol": "AMD   260418C00115000",
+            "sec_type": "OPT",
+            "action": "SELL",
+            "status": "Submitted",
+            "total_quantity": 2,
+            "remaining_quantity": 2,
+            "multiplier": "100",
+            "right": "C",
+            "strike": 115.0,
+            "last_update": "2026-04-02T12:00:00+00:00",
+        }
+    }
+    service = IBKRTWSService(
+        enabled=True,
+        app_factory=lambda: fake_app,
+        sleep_fn=lambda _: None,
+    )
+    service._app = fake_app
+    mock_db = SimpleNamespace(ibkr_orders=SimpleNamespace(update_one=lambda *args, **kwargs: None))
+
+    update_calls = []
+    mock_db.ibkr_orders.update_one = lambda *args, **kwargs: update_calls.append((args, kwargs))
+
+    upserted = service.upsert_open_orders_to_db(db=mock_db)
+
+    assert upserted == 1
+    args, kwargs = update_calls[0]
+    assert args[0] == {"order_key": "perm:9001"}
+    assert args[1]["$set"]["source"] == "tws_open_order"
+    assert args[1]["$set"]["account_id"] == "U110638"
+    assert kwargs["upsert"] is True
 
 
 def test_refresh_executions_requests_tws_snapshot(monkeypatch):

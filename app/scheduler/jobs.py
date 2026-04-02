@@ -241,6 +241,41 @@ def run_tws_execution_sync():
     )
 
 
+def run_tws_order_sync():
+    """Persist active TWS open orders into ibkr_orders."""
+    if not settings.IBKR_TWS_ENABLED:
+        _log_tws_skip("TWS order sync", "disabled_flag")
+        return
+
+    tws_service = get_ibkr_tws_service()
+    if not tws_service.ensure_connected():
+        live_status = tws_service.get_live_status()
+        cause = {
+            "disabled": "disabled_flag",
+            "handshake_failed": "no_handshake",
+            "socket_unreachable": "socket_unreachable",
+            "disconnected": "disconnected",
+        }.get(live_status.get("connection_state"), "not_connected")
+        _log_tws_skip("TWS order sync", cause, live_status)
+        return
+
+    if not tws_service.refresh_open_orders():
+        live_status = tws_service.get_live_status()
+        _log_tws_skip("TWS order sync", "request_not_issued", live_status)
+        return
+
+    db = _get_db()
+    upserted = tws_service.upsert_open_orders_to_db(db=db)
+    live_status = tws_service.get_live_status()
+    logging.info(
+        "Scheduler: TWS order sync upserted %s open order(s). "
+        "order_count=%s last_order_update=%s",
+        upserted,
+        live_status.get("order_count"),
+        live_status.get("last_order_update"),
+    )
+
+
 def tag_existing_flex_sync_sources():
     """Additive metadata tag so downstream consumers can distinguish Flex from TWS."""
     db = _get_db()
@@ -375,6 +410,15 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info("Scheduled TWS Execution Sync every 30 seconds.")
+
+    scheduler.add_job(
+        run_tws_order_sync,
+        trigger="interval",
+        seconds=30,
+        id="tws_order_sync",
+        replace_existing=True
+    )
+    logging.info("Scheduled TWS Order Sync every 30 seconds.")
 
     # Portfolio Fixer (Keep existing 3am logic)
     scheduler.add_job(

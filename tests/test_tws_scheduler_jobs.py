@@ -5,14 +5,17 @@ import app.scheduler.jobs as jobs
 
 
 class FakeTwsService:
-    def __init__(self, *, connected=True, positions=None, account_values=None, executions=None):
+    def __init__(self, *, connected=True, positions=None, account_values=None, executions=None, orders=None):
         self._connected = connected
         self._positions = positions or []
         self._account_values = account_values or {}
         self._executions = executions or []
+        self._orders = orders or []
         self.app = SimpleNamespace(account_values=self._account_values)
         self.refresh_calls = []
+        self.refresh_order_calls = 0
         self.upsert_calls = []
+        self.upsert_order_calls = []
 
     def is_connected(self):
         return self._connected
@@ -34,9 +37,17 @@ class FakeTwsService:
         self.refresh_calls.append((account, req_id))
         return self._connected
 
+    def refresh_open_orders(self):
+        self.refresh_order_calls += 1
+        return self._connected
+
     def upsert_executions_to_db(self, db=None, account=None):
         self.upsert_calls.append((db, account))
         return len(self._executions)
+
+    def upsert_open_orders_to_db(self, db=None, account=None):
+        self.upsert_order_calls.append((db, account))
+        return len(self._orders)
 
     def get_live_status(self):
         return {
@@ -47,6 +58,8 @@ class FakeTwsService:
             "last_error": None,
             "execution_count": len(self._executions),
             "last_execution_update": "2026-03-31T12:15:00+00:00" if self._executions else None,
+            "order_count": len(self._orders),
+            "last_order_update": "2026-04-02T12:15:00+00:00" if self._orders else None,
         }
 
 
@@ -154,3 +167,23 @@ def test_run_tws_execution_sync_requests_and_upserts_live_executions(monkeypatch
     assert fake_service.refresh_calls == [("DU123456", 9100)]
     assert len(fake_service.upsert_calls) == 1
     assert fake_service.upsert_calls[0][0] is mock_db
+
+
+def test_run_tws_order_sync_requests_and_upserts_open_orders(monkeypatch):
+    mock_db = MagicMock()
+    mock_client = MagicMock()
+    mock_client.get_default_database.return_value = mock_db
+    monkeypatch.setattr(jobs, "MongoClient", MagicMock(return_value=mock_client))
+    monkeypatch.setattr(jobs.settings, "IBKR_TWS_ENABLED", True)
+    fake_service = FakeTwsService(
+        positions=[{"account": "DU123456", "symbol": "AAPL", "sec_type": "STK"}],
+        account_values={("DU123456", "NetLiquidation"): {"value": "25000.50"}},
+        orders=[{"order_key": "perm:1"}],
+    )
+    monkeypatch.setattr(jobs, "get_ibkr_tws_service", lambda: fake_service)
+
+    jobs.run_tws_order_sync()
+
+    assert fake_service.refresh_order_calls == 1
+    assert len(fake_service.upsert_order_calls) == 1
+    assert fake_service.upsert_order_calls[0][0] is mock_db

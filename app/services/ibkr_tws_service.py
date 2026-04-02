@@ -1,4 +1,5 @@
 import logging
+import re
 import socket
 import threading
 import time
@@ -40,6 +41,12 @@ except ImportError as exc:  # pragma: no cover - exercised indirectly in runtime
             return None
 
         def reqExecutions(self, req_id: int, execution_filter: Any) -> None:
+            return None
+
+        def reqOpenOrders(self) -> None:
+            return None
+
+        def reqAllOpenOrders(self) -> None:
             return None
 
         def isConnected(self) -> bool:
@@ -161,6 +168,58 @@ def _signed_execution_quantity(raw_quantity: Any, raw_side: Any) -> float:
     return quantity
 
 
+def _normalize_order_action(raw_value: Any) -> str:
+    value = str(raw_value or "").strip().upper()
+    if value in {"BOT", "BUY"}:
+        return "BUY"
+    if value in {"SLD", "SELL"}:
+        return "SELL"
+    return value
+
+
+def _normalize_order_status(raw_value: Any) -> str:
+    return str(raw_value or "").strip()
+
+
+def _extract_underlying_symbol(symbol: Any, local_symbol: Any) -> str:
+    local_value = str(local_symbol or "").strip()
+    if local_value:
+        match = re.match(r"^([A-Z]{1,6})\s+\d{6}[CP]\d+", local_value)
+        if match:
+            return match.group(1).strip()
+        root = local_value[:6].strip()
+        if root:
+            return root
+
+    symbol_value = str(symbol or "").strip()
+    if symbol_value:
+        match = re.match(r"^([A-Z]{1,6})\s+\d{6}[CP]\d+", symbol_value)
+        if match:
+            return match.group(1).strip()
+        return symbol_value
+
+    return ""
+
+
+def _order_storage_key(order_id: Any, perm_id: Any) -> str | None:
+    try:
+        if perm_id not in (None, "", 0, "0"):
+            return f"perm:{int(perm_id)}"
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if order_id not in (None, "", 0, "0"):
+            return f"order:{int(order_id)}"
+    except (TypeError, ValueError):
+        pass
+
+    return None
+
+
+FINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled"}
+
+
 INFO_ERROR_CODES = {2104, 2106, 2158}
 
 
@@ -188,6 +247,9 @@ class IBKRTWSApp(EWrapper, EClient):
         self.executions: dict[str, dict[str, Any]] = {}
         self.execution_snapshot_complete = False
         self.last_execution_update: str | None = None
+        self.orders: dict[str, dict[str, Any]] = {}
+        self.order_snapshot_complete = False
+        self.last_order_update: str | None = None
         self.last_error: dict[str, Any] | None = None
         self.last_status: dict[str, Any] | None = None
         self.account_update_subscriptions: set[str] = set()
@@ -382,6 +444,112 @@ class IBKRTWSApp(EWrapper, EClient):
             self.last_execution_update = payload["last_update"]
         self.logger.debug("Received commission report for execId=%s.", exec_id)
 
+    def openOrder(
+        self,
+        orderId: int,
+        contract: Contract,
+        order: Any,
+        orderState: Any,
+    ) -> None:
+        timestamp = self._mark_callback()
+        perm_id = getattr(order, "permId", None)
+        storage_key = _order_storage_key(orderId, perm_id)
+        if storage_key is None:
+            self.logger.warning("Received openOrder callback without usable order identifiers.")
+            return
+
+        symbol = getattr(contract, "symbol", "")
+        local_symbol = getattr(contract, "localSymbol", "")
+        payload = {
+            "order_key": storage_key,
+            "order_id": orderId,
+            "perm_id": perm_id,
+            "parent_id": getattr(order, "parentId", None),
+            "client_id": getattr(order, "clientId", None),
+            "account_id": getattr(order, "account", ""),
+            "symbol": symbol,
+            "underlying_symbol": _extract_underlying_symbol(symbol, local_symbol),
+            "local_symbol": local_symbol,
+            "sec_type": getattr(contract, "secType", ""),
+            "exchange": getattr(contract, "exchange", ""),
+            "currency": getattr(contract, "currency", ""),
+            "last_trade_date": getattr(contract, "lastTradeDateOrContractMonth", ""),
+            "strike": getattr(contract, "strike", None),
+            "right": getattr(contract, "right", ""),
+            "multiplier": getattr(contract, "multiplier", None),
+            "conid": getattr(contract, "conId", None),
+            "action": _normalize_order_action(getattr(order, "action", "")),
+            "status": _normalize_order_status(getattr(orderState, "status", "")),
+            "total_quantity": getattr(order, "totalQuantity", 0),
+            "order_type": getattr(order, "orderType", ""),
+            "tif": getattr(order, "tif", ""),
+            "limit_price": getattr(order, "lmtPrice", None),
+            "aux_price": getattr(order, "auxPrice", None),
+            "open_close": getattr(order, "openClose", ""),
+            "order_ref": getattr(order, "orderRef", ""),
+            "remaining_quantity": getattr(order, "totalQuantity", 0),
+            "last_update": timestamp,
+            "source": "tws_open_order",
+        }
+        with self._lock:
+            existing = self.orders.get(storage_key, {})
+            merged = {**existing, **payload}
+            self.orders[storage_key] = merged
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+            self.last_order_update = timestamp
+        self.logger.debug("Received open order update for %s.", storage_key)
+
+    def openOrderEnd(self) -> None:
+        timestamp = self._mark_callback()
+        with self._lock:
+            self.order_snapshot_complete = True
+            self.connected = True
+            self.connected_at = self.connected_at or timestamp
+        self.logger.info("Completed open-order snapshot with %s orders.", len(self.orders))
+
+    def orderStatus(
+        self,
+        orderId: int,
+        status: str,
+        filled: float,
+        remaining: float,
+        avgFillPrice: float,
+        permId: int,
+        parentId: int,
+        lastFillPrice: float,
+        clientId: int,
+        whyHeld: str,
+        mktCapPrice: float,
+    ) -> None:
+        storage_key = _order_storage_key(orderId, permId)
+        if storage_key is None:
+            self.logger.warning("Received orderStatus callback without usable order identifiers.")
+            return
+
+        payload = {
+            "order_key": storage_key,
+            "order_id": orderId,
+            "perm_id": permId,
+            "parent_id": parentId,
+            "client_id": clientId,
+            "status": _normalize_order_status(status),
+            "filled_quantity": filled,
+            "remaining_quantity": remaining,
+            "avg_fill_price": avgFillPrice,
+            "last_fill_price": lastFillPrice,
+            "why_held": whyHeld,
+            "market_cap_price": mktCapPrice,
+            "last_update": self._mark_callback(),
+            "source": "tws_open_order",
+        }
+        with self._lock:
+            existing = self.orders.get(storage_key, {})
+            merged = {**existing, **payload}
+            self.orders[storage_key] = merged
+            self.last_order_update = payload["last_update"]
+        self.logger.debug("Received order status update for %s.", storage_key)
+
     def error(
         self,
         reqId: int,
@@ -546,6 +714,7 @@ class IBKRTWSService:
             self._sleep_fn(1)
             app.reqPositions()
             self._wait_for_connection_signal(app)
+            self.refresh_open_orders()
 
             self._thread = thread
 
@@ -632,6 +801,26 @@ class IBKRTWSService:
         self.logger.info("Requested TWS executions for account=%s reqId=%s.", account or "*", req_id)
         return True
 
+    def refresh_open_orders(self) -> bool:
+        if self._is_disabled():
+            return False
+
+        with self._lock:
+            app = self._app
+        if app is None or not self.is_connected():
+            self.logger.warning("Cannot request open orders because TWS is not connected.")
+            return False
+
+        with app._lock:
+            app.order_snapshot_complete = False
+
+        if hasattr(app, "reqAllOpenOrders"):
+            app.reqAllOpenOrders()
+        else:  # pragma: no cover - fallback only
+            app.reqOpenOrders()
+        self.logger.info("Requested TWS open orders.")
+        return True
+
     def get_positions(self) -> list[dict[str, Any]]:
         if self._is_disabled():
             return []
@@ -666,6 +855,36 @@ class IBKRTWSService:
         if not account:
             return executions
         return [execution for execution in executions if execution.get("account") == account]
+
+    def get_open_orders(self, account: str | None = None, *, active_only: bool = True) -> list[dict[str, Any]]:
+        if self._is_disabled():
+            return []
+
+        with self._lock:
+            if self._app is None:
+                return []
+            orders = list(self._app.orders.values())
+
+        if account:
+            orders = [order for order in orders if order.get("account_id") == account]
+
+        if not active_only:
+            return orders
+
+        filtered: list[dict[str, Any]] = []
+        for order in orders:
+            status = _normalize_order_status(order.get("status"))
+            remaining = order.get("remaining_quantity")
+            try:
+                remaining_quantity = float(remaining if remaining is not None else order.get("total_quantity") or 0)
+            except (TypeError, ValueError):
+                remaining_quantity = 0.0
+            if status in FINAL_ORDER_STATUSES:
+                continue
+            if remaining_quantity <= 0 and status:
+                continue
+            filtered.append(order)
+        return filtered
 
     def upsert_executions_to_db(self, db: Any | None = None, account: str | None = None) -> int:
         executions = self.get_executions(account=account)
@@ -730,6 +949,66 @@ class IBKRTWSService:
             upserted += 1
 
         self.logger.info("Upserted %s TWS execution(s) into ibkr_trades.", upserted)
+        return upserted
+
+    def upsert_open_orders_to_db(self, db: Any | None = None, account: str | None = None) -> int:
+        orders = self.get_open_orders(account=account, active_only=False)
+        if not orders:
+            return 0
+
+        if db is None:
+            from pymongo import MongoClient
+
+            client = MongoClient(settings.MONGO_URI)
+            db = client.get_default_database("stock_analysis")
+
+        upserted = 0
+        for order in orders:
+            order_key = order.get("order_key")
+            if not order_key:
+                continue
+
+            order_doc = {
+                "order_key": order_key,
+                "account_id": order.get("account_id"),
+                "order_id": order.get("order_id"),
+                "perm_id": order.get("perm_id"),
+                "parent_id": order.get("parent_id"),
+                "client_id": order.get("client_id"),
+                "symbol": order.get("symbol"),
+                "underlying_symbol": order.get("underlying_symbol") or order.get("symbol"),
+                "local_symbol": order.get("local_symbol"),
+                "asset_class": order.get("sec_type"),
+                "secType": order.get("sec_type"),
+                "exchange": order.get("exchange"),
+                "currency": order.get("currency"),
+                "last_trade_date": order.get("last_trade_date"),
+                "strike": order.get("strike"),
+                "right": order.get("right"),
+                "multiplier": order.get("multiplier"),
+                "conid": order.get("conid"),
+                "action": order.get("action"),
+                "status": order.get("status"),
+                "total_quantity": order.get("total_quantity"),
+                "filled_quantity": order.get("filled_quantity"),
+                "remaining_quantity": order.get("remaining_quantity"),
+                "order_type": order.get("order_type"),
+                "tif": order.get("tif"),
+                "limit_price": order.get("limit_price"),
+                "aux_price": order.get("aux_price"),
+                "open_close": order.get("open_close"),
+                "order_ref": order.get("order_ref"),
+                "source": "tws_open_order",
+                "last_tws_update": order.get("last_update"),
+            }
+            db.ibkr_orders.update_one(
+                {"order_key": order_key},
+                {"$set": {**order, **order_doc}},
+                upsert=True,
+            )
+            upserted += 1
+
+        self.logger.info("Upserted %s TWS open order(s) into ibkr_orders.", upserted)
         return upserted
 
     def is_connected(self) -> bool:
@@ -815,12 +1094,15 @@ class IBKRTWSService:
                 "last_position_update": last_position_update,
                 "last_account_value_update": last_account_value_update,
                 "last_execution_update": getattr(app, "last_execution_update", None) if app is not None else None,
+                "last_order_update": getattr(app, "last_order_update", None) if app is not None else None,
                 "last_error": last_error,
                 "last_status": last_status,
                 "handshake_attempted": handshake_attempted,
                 "position_count": len(positions),
                 "execution_count": len(getattr(app, "executions", {})) if app is not None else 0,
                 "execution_snapshot_complete": getattr(app, "execution_snapshot_complete", False) if app is not None else False,
+                "order_count": len(getattr(app, "orders", {})) if app is not None else 0,
+                "order_snapshot_complete": getattr(app, "order_snapshot_complete", False) if app is not None else False,
                 "socket_connectable": socket_probe["tcp_connectable"],
                 "socket_probe_error": socket_probe["error"],
                 "socket_local_address": socket_probe["local_address"],

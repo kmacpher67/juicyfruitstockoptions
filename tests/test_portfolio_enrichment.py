@@ -1,23 +1,35 @@
 import pytest
+import asyncio
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from app.main import app
 from app.api import routes
 
 from app.models import User
 
+class _RouteResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _RouteClient:
+    def get(self, path: str):
+        assert path == "/api/portfolio/holdings"
+        payload = asyncio.run(
+            routes.get_portfolio_holdings(
+                current_user=User(username="testuser", role="admin", disabled=False)
+            )
+        )
+        return _RouteResponse(200, payload)
+
+
 @pytest.fixture
 def client():
-    """Fixture to provide a TestClient with dependency overrides."""
-    async def mock_get_current_active_user():
-        return User(username="testuser", role="admin", disabled=False)
-    
-    app.dependency_overrides[routes.get_current_active_user] = mock_get_current_active_user
-    
-    with TestClient(app) as c:
-        yield c
-    # app.dependency_overrides.clear() is handled by conftest.py autouse fixture
+    """Fixture to provide a lightweight route client without app lifespan startup."""
+    yield _RouteClient()
 
 def test_get_portfolio_holdings_enrichment(client):
     with patch("app.api.routes.MongoClient") as mock_mongo_cls, \
@@ -648,3 +660,158 @@ def test_get_portfolio_holdings_coverage_with_ibkr_pascal_case_asset_class(clien
         assert ero_stk["coverage_status"] == "Uncovered"
         assert ero_stk["share_quantity_total"] == 300
         assert ero_stk["covered_shares"] == 200
+
+
+def test_get_portfolio_holdings_adds_pending_cover_effect_for_uncovered_stock(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {"symbol": "AMD", "secType": "STK", "account_id": "U1", "quantity": 300, "market_price": 110.0},
+            {"symbol": "AMD", "secType": "OPT", "account_id": "U1", "quantity": -1, "underlying_symbol": "AMD", "right": "C", "strike": 115.0, "expiry": "2026-04-18"},
+        ]
+        mock_orders = [
+            {
+                "order_key": "perm:1",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD",
+                "underlying_symbol": "AMD",
+                "secType": "OPT",
+                "action": "SELL",
+                "status": "Submitted",
+                "remaining_quantity": 2,
+                "multiplier": "100",
+                "right": "C",
+                "strike": 120.0,
+                "last_trade_date": "20260425",
+            }
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = mock_orders
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        stock_row = next(h for h in data if h["security_type"] == "STK")
+        option_row = next(h for h in data if h["security_type"] == "OPT")
+
+        assert stock_row["coverage_status"] == "Uncovered"
+        assert stock_row["pending_order_effect"] == "covering_uncovered"
+        assert stock_row["coverage_status_if_filled"] == "Covered"
+        assert stock_row["pending_cover_shares"] == 200.0
+        assert stock_row["pending_cover_contracts"] == 2.0
+        assert stock_row["uncovered_shares_now"] == 200.0
+        assert option_row["pending_order_effect"] == "covering_uncovered"
+
+
+def test_get_portfolio_holdings_adds_pending_buy_to_close_effect(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {"symbol": "AMD", "secType": "STK", "account_id": "U1", "quantity": 100, "market_price": 110.0},
+            {"symbol": "AMD", "secType": "OPT", "account_id": "U1", "quantity": -1, "underlying_symbol": "AMD", "right": "C", "strike": 115.0, "expiry": "2026-04-18"},
+        ]
+        mock_orders = [
+            {
+                "order_key": "perm:2",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD",
+                "underlying_symbol": "AMD",
+                "secType": "OPT",
+                "action": "BUY",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "multiplier": "100",
+                "right": "C",
+                "strike": 115.0,
+                "last_trade_date": "20260418",
+            }
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = mock_orders
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        stock_row = next(h for h in response.json() if h["security_type"] == "STK")
+
+        assert stock_row["coverage_status"] == "Covered"
+        assert stock_row["pending_order_effect"] == "buying_to_close"
+        assert stock_row["coverage_status_if_filled"] == "Uncovered"
+        assert stock_row["pending_buy_to_close_contracts"] == 1.0
+
+
+def test_get_portfolio_holdings_adds_pending_roll_effect(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {"symbol": "AMD", "secType": "STK", "account_id": "U1", "quantity": 100, "market_price": 110.0},
+            {"symbol": "AMD", "secType": "OPT", "account_id": "U1", "quantity": -1, "underlying_symbol": "AMD", "right": "C", "strike": 115.0, "expiry": "2026-04-18"},
+        ]
+        mock_orders = [
+            {
+                "order_key": "perm:3",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD",
+                "underlying_symbol": "AMD",
+                "secType": "OPT",
+                "action": "BUY",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "multiplier": "100",
+                "right": "C",
+                "strike": 115.0,
+                "last_trade_date": "20260418",
+            },
+            {
+                "order_key": "perm:4",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD",
+                "underlying_symbol": "AMD",
+                "secType": "OPT",
+                "action": "SELL",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "multiplier": "100",
+                "right": "C",
+                "strike": 120.0,
+                "last_trade_date": "20260425",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = mock_orders
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        stock_row = next(h for h in response.json() if h["security_type"] == "STK")
+
+        assert stock_row["coverage_status"] == "Covered"
+        assert stock_row["pending_order_effect"] == "rolling"
+        assert stock_row["coverage_status_if_filled"] == "Covered"
+        assert stock_row["pending_buy_to_close_contracts"] == 1.0
+        assert stock_row["pending_cover_contracts"] == 1.0
+        assert stock_row["pending_roll_contracts"] == 1.0
