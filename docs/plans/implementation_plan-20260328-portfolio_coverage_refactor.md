@@ -88,15 +88,18 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
     - `uncovered`: Filter specifically for `coverage_status === 'Uncovered'`.
     - `naked`: New filter for `coverage_status === 'Naked'`.
     - `covered`: New filter for `coverage_status === 'Covered'`.
-- Update the UI toolbar to include these new filter buttons.
-- Ensure the "All" default works as expected.
+- Update the UI toolbar to include these filter buttons and treat coverage status as one filter dimension.
+- Make `Expiring (<ND)`, `Near Money (<5%)`, and `Account` combine with the selected coverage status using logical `AND` semantics.
+- Ensure the `All` action clears all active filter dimensions and restores the default `DTE=6`.
+- Extract the filter predicate into a small pure helper so regression tests can validate the combined filtering contract without a browser runner.
 
 ## Verification Plan
 
 ### Automated Tests
 - Run existing tests to ensure no regressions:
   `pytest tests/test_portfolio_enrichment.py`
-- Update `tests/test_portfolio_enrichment.py` to verify the more granular status logic if needed.
+- Add frontend filter regression coverage for combined `AND` filtering:
+  `node --test frontend/src/components/portfolioFilters.test.js`
 
 ### Manual Verification
 - Start the dev server: `npm run dev` in `frontend` and the FastAPI server.
@@ -104,4 +107,7 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
 - Click the "Uncovered" button and verify it ONLY shows positions with `coverage_status === 'Uncovered'`.
 - Click the "Naked" button and verify it shows positions with `coverage_status === 'Naked'`.
 - Click the "Covered" button and verify it shows positions with `coverage_status === 'Covered'`.
-- Verify that the "All" button resets filters.
+- Turn on `Expiring (<ND)` and verify it narrows the current coverage selection instead of replacing it.
+- Turn on `Near Money (<5%)` and verify it further narrows the result set instead of replacing the other filters.
+- Select an account and verify the visible rows satisfy coverage status, DTE, near-money, and account simultaneously.
+- Verify that the `All` button resets filters.

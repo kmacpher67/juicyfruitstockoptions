@@ -4,6 +4,7 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ExternalLink } from 'lucide-react';
+import { applyPortfolioFilters, DEFAULT_PORTFOLIO_FILTERS } from './portfolioFilters';
 
 const getNumericValue = (value) => {
     if (value === null || value === undefined || value === '') return null;
@@ -33,9 +34,7 @@ const resolveSecurityTypeLabel = (row = {}) => {
 const getDisplaySymbol = (row = {}) => row.display_symbol || row.description || row.local_symbol || row.symbol || '';
 
 const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
-    const [focus, setFocus] = useState('all'); // 'all', 'uncovered', 'expiring', 'near-money'
-    const [accountFilter, setAccountFilter] = useState('all');
-    const [dteLimit, setDteLimit] = useState(6);
+    const [filters, setFilters] = useState(DEFAULT_PORTFOLIO_FILTERS);
 
     const colDefs = useMemo(() => [
         {
@@ -220,37 +219,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
 
     // Filter Logic
     const rowData = useMemo(() => {
-        let processed = [...data];
-
-        if (filterTicker) {
-            const f = filterTicker.toUpperCase().trim();
-            processed = processed.filter(row => {
-                const sym = (row.symbol || "").toUpperCase();
-                const und = (row.underlying_symbol || "").toUpperCase();
-                const matchesSym = sym.includes(f);
-                const matchesUnd = und === f;
-                return matchesSym || matchesUnd;
-            });
-        }
-
-        if (accountFilter !== 'all') {
-            processed = processed.filter(r => r.account_id === accountFilter);
-        }
-
-        if (focus === 'uncovered') {
-            processed = processed.filter(r => r.coverage_status === 'Uncovered');
-        } else if (focus === 'naked') {
-            processed = processed.filter(r => r.coverage_status === 'Naked');
-        } else if (focus === 'covered') {
-            processed = processed.filter(r => r.coverage_status === 'Covered');
-        } else if (focus === 'expiring') {
-            processed = processed.filter(r => r.dte !== undefined && r.dte <= dteLimit);
-        } else if (focus === 'near-money') {
-            processed = processed.filter(r => r.dist_to_strike_pct !== undefined && r.dist_to_strike_pct < 0.05);
-        }
-
-        return processed;
-    }, [data, filterTicker, focus, accountFilter, dteLimit]);
+        return applyPortfolioFilters(data, filters, filterTicker);
+    }, [data, filterTicker, filters]);
 
     const defaultColDef = {
         // flex: 1, // Removed flex: 1 to respect manual widths and prevent squishing
@@ -258,11 +228,23 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         resizable: true,
     };
 
-    const Button = ({ label, value, current }) => (
+    const setCoverageFilter = (coverage) => {
+        setFilters((current) => ({ ...current, coverage }));
+    };
+
+    const toggleBooleanFilter = (key) => {
+        setFilters((current) => ({ ...current, [key]: !current[key] }));
+    };
+
+    const resetFilters = () => {
+        setFilters(DEFAULT_PORTFOLIO_FILTERS);
+    };
+
+    const Button = ({ label, active, onClick }) => (
         <button
-            onClick={() => setFocus(value)}
+            onClick={onClick}
             className={`px-3 py-1 text-xs font-bold rounded transiton-colors ${
-                current === value 
+                active
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
             }`}
@@ -295,18 +277,18 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         <div className="flex flex-col h-full w-full gap-2">
             <div className="flex flex-wrap items-center gap-4 pl-2 pb-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Focus:</span>
-                <Button label="All" value="all" current={focus} />
-                <Button label="Uncovered" value="uncovered" current={focus} />
-                <Button label="Naked" value="naked" current={focus} />
-                <Button label="Covered" value="covered" current={focus} />
-                <Button label={`Expiring (<${dteLimit}D)`} value="expiring" current={focus} />
-                <Button label="Near Money (<5%)" value="near-money" current={focus} />
+                <Button label="All" active={filters.coverage === 'all' && !filters.expiringOnly && !filters.nearMoneyOnly && filters.account === 'all'} onClick={resetFilters} />
+                <Button label="Uncovered" active={filters.coverage === 'Uncovered'} onClick={() => setCoverageFilter('Uncovered')} />
+                <Button label="Naked" active={filters.coverage === 'Naked'} onClick={() => setCoverageFilter('Naked')} />
+                <Button label="Covered" active={filters.coverage === 'Covered'} onClick={() => setCoverageFilter('Covered')} />
+                <Button label={`Expiring (<${filters.dteLimit}D)`} active={filters.expiringOnly} onClick={() => toggleBooleanFilter('expiringOnly')} />
+                <Button label="Near Money (<5%)" active={filters.nearMoneyOnly} onClick={() => toggleBooleanFilter('nearMoneyOnly')} />
 
                 <span className="ml-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Account:</span>
                 <select
                     className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
-                    value={accountFilter}
-                    onChange={e => setAccountFilter(e.target.value)}
+                    value={filters.account}
+                    onChange={e => setFilters((current) => ({ ...current, account: e.target.value }))}
                 >
                     <option value="all">All</option>
                     {accountList.map(acc => (
@@ -314,15 +296,15 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                     ))}
                 </select>
 
-                {focus === 'expiring' && (
+                {filters.expiringOnly && (
                     <span className="flex items-center gap-1 ml-2">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">DTE:</span>
                         <input
                             type="number"
                             min={1}
                             max={60}
-                            value={dteLimit}
-                            onChange={e => setDteLimit(Number(e.target.value))}
+                            value={filters.dteLimit}
+                            onChange={e => setFilters((current) => ({ ...current, dteLimit: Number(e.target.value) }))}
                             className="w-12 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
                         />
                     </span>
