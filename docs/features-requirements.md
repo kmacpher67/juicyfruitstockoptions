@@ -313,11 +313,16 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **OTM filter**: ITM In The Money & OTM Out of the Money filter for portfolio options including the underlying_symbol STK, given % of strike price and show all contracts that "near" the money to focused on. 
     - [ ] **Last Price**: Sort and filter by last price. 
     - [X] **Account Filter**: Portfolio list Sort and filter by account #. 
-    - [X] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). the link to "Uncovered filter" (existing) doesn't work. It should ONLY filter STKs that accountID.STK(qty)==accountID.OPT(qty)*100 by  NOTE:  
+    - [/] **Uncovered Filter**: Portfolio show STK & OPTS for all STK that do NOT have FULLY covered positions (ie: # of shares != # of contracts*100). the link to "Uncovered filter" (existing) doesn't work. It should ONLY filter STKs that accountID.STK(qty)==accountID.OPT(qty)*100 by  NOTE:  
             Covered     : account.STK == abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
             Uncovered   : account.STK > abs(account.OPT_SHORT*100) only absolute value of qty of shorts
             Naked       : account.STK < abs(account.OPT_SHORT*100) only absolute value of qty of shorts 
-    - [X]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
+    - [/]  **Covered/Uncovered/Naked Filter**: The Covered/Uncovered status should be uniquely filterable by the 3 status values.  No filter (aka: ALL) should be default value, uncovered is NOT the same as NAKED!  
+    - [/] **Portfolio Coverage Status Regression**: Re-verify the `?view=PORTFOLIO` coverage-status contract after later portfolio/live-grid changes so prior fixes do not silently regress. Reference: `docs/plans/implementation_plan-20260328-portfolio_coverage_refactor.md`, `docs/learning/bad-trade-heuristics.md`.
+        - [ ] **portfolio-coverage-001**: Coverage status must be calculated at `(account, underlying)` granularity using absolute short call quantity only: `Covered = STK_qty == abs(short_call_qty * 100)`, `Uncovered = STK_qty > abs(short_call_qty * 100)`, `Naked = STK_qty < abs(short_call_qty * 100)`.
+        - [ ] **portfolio-coverage-002**: User case regression: account `U110638` holding AMD with `200` shares and `-2` short call contracts must render as `Covered`, not `Uncovered`.
+        - [ ] **portfolio-coverage-003**: When a `(account, underlying)` group resolves to `Covered`, the underlying STK row and each related short-call row shown in the portfolio grid must display the same `Covered` status.
+        - [ ] **portfolio-coverage-004**: Add or refresh regression tests for the exact covered/uncovered/naked scenarios used by the portfolio filters so merged-source or row-shape changes cannot re-break coverage classification.
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
     - [ ] **LINK to Stock Analysis Detail**: Portfolio Page quick link next to ticker and existing Google / Yahoo links should use the external-link arrow-out-of-box glyph for Stock Analysis detail, not a `D` text label. Improve the glyph color/contrast so it reads clearly against the background, and keep using the same shared modal detail window logic used from the ticker analysis list.
