@@ -372,8 +372,8 @@ def test_get_portfolio_holdings_normalizes_live_tws_rows(client):
         assert option_row["cost_basis"] == 5.25
         assert option_row["display_symbol"] == "AMD 2026-04-02 202.5 Call"
         assert option_row["percent_of_nav"] is None
-        assert option_row["coverage_status"] == "Covered"
-        assert stock_row["coverage_status"] == "Covered"
+        assert option_row["coverage_status"] == "Uncovered"
+        assert stock_row["coverage_status"] == "Uncovered"
 
 
 def test_get_portfolio_holdings_counts_tws_local_symbol_short_calls_for_covered_status(client):

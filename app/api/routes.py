@@ -919,13 +919,17 @@ async def get_portfolio_holdings(
     underlying_price_by_account = {}
 
     for row in data:
-        account_id = row.get("account_id") or "UNKNOWN"
+        account_id = row.get("account_id") or row.get("account") or "UNKNOWN"
         und = row.get("underlying_symbol") or row.get("underlying") or row.get("symbol")
         if not und:
             continue
 
         sec_type = row.get("security_type") or row.get("asset_class") or row.get("AssetClass") or row.get("secType") or row.get("sec_type")
-        qty = float(row.get("quantity", 0) or 0)
+        qty = _safe_float(row.get("quantity"))
+        if qty is None:
+            qty = _safe_float(row.get("position"))
+        if qty is None:
+            qty = 0.0
         key = (account_id, und)
 
         if sec_type == "STK":
@@ -934,7 +938,9 @@ async def get_portfolio_holdings(
             if market_price is not None and market_price > 0:
                 underlying_price_by_account[key] = market_price
         elif _is_short_call_position(row):
-            multiplier = float(row.get("multiplier", 100) or 100)
+            multiplier = _safe_float(row.get("multiplier"))
+            if multiplier is None:
+                multiplier = 100.0
             coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
 
     def resolve_coverage_status(shares, short_calls):
@@ -959,7 +965,7 @@ async def get_portfolio_holdings(
     for row in data:
         # A. Coverage Status
         und = row.get("underlying_symbol") or row.get("underlying") or row.get("symbol")
-        account_id = row.get("account_id") or "UNKNOWN"
+        account_id = row.get("account_id") or row.get("account") or "UNKNOWN"
         account_stats = coverage_by_account.get((account_id, und), {"shares": 0.0, "short_calls": 0.0})
         # Keep the old grouped-based special case (not related to account-specific row rows)
         stats = grouped.get(und)
@@ -993,7 +999,9 @@ async def get_portfolio_holdings(
             
             # Strike Distance & ITM
             _, _, parsed_strike = _extract_option_fields(row)
-            strike = parsed_strike if parsed_strike is not None else float(row.get("strike", 0) or 0)
+            strike = parsed_strike if parsed_strike is not None else _safe_float(row.get("strike"))
+            if strike is None:
+                strike = 0.0
             underlying_price = underlying_price_by_account.get((account_id, und))
             if underlying_price is None:
                 underlying_price = _safe_float(row.get("underlying_price"))
