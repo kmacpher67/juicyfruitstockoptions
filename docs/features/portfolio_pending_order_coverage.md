@@ -74,6 +74,7 @@ Derived from filled positions only:
 - `Covered`
 - `Uncovered`
 - `Naked`
+- blank/no-status for flat rows where position quantity is `0` (do not classify these rows as covered/uncovered/naked)
 
 ### 2. Pending Order Effect
 
@@ -238,3 +239,4 @@ Example:
 |:---|:---|:---|
 | 2026-04-02 | **CREATED** | Defined pending-order-aware coverage requirements for portfolio holdings and working-order visibility. |
 | 2026-04-02 | **UPDATED** | Clarified that coverage truth must come from contract-level position snapshots; RT execution rows are context only and should not be used as direct coverage state. |
+| 2026-04-02 | **UPDATED** | Clarified flat-row handling: rows with `quantity == 0` are intentionally left without a coverage label so they do not appear in Covered/Uncovered/Naked focus filters. |

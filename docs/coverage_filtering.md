@@ -9,6 +9,7 @@ Coverage status is resolved per `(account_id, underlying_symbol)` group:
 - `Covered`: `STK_qty == abs(short_call_qty * 100)`
 - `Uncovered`: `STK_qty > abs(short_call_qty * 100)`
 - `Naked`: `STK_qty < abs(short_call_qty * 100)`
+- `No Status` (blank): row is a flat position (`abs(quantity) == 0`) and must not be labeled `Covered`, `Uncovered`, or `Naked`
 
 These rules are enforced by the backend enrichment returned from `GET /api/portfolio/holdings`.
 

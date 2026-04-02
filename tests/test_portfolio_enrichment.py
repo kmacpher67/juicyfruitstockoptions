@@ -454,6 +454,67 @@ def test_get_portfolio_holdings_counts_tws_local_symbol_short_calls_for_covered_
             assert option_row["covered_shares"] == 200
 
 
+def test_get_portfolio_holdings_leaves_zero_qty_option_rows_without_coverage_label(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {
+                "symbol": "ORCL",
+                "secType": "STK",
+                "account": "U1",
+                "position": 100,
+                "source": "tws",
+            },
+            {
+                "symbol": "ORCL",
+                "local_symbol": "ORCL  260402C00145000",
+                "secType": "OPT",
+                "account": "U1",
+                "position": -1,
+                "right": "C",
+                "strike": 145.0,
+                "last_trade_date": "20260402",
+                "source": "tws",
+            },
+            {
+                "symbol": "ORCL",
+                "local_symbol": "ORCL  260402C00144000",
+                "secType": "OPT",
+                "account": "U1",
+                "position": 0,
+                "right": "C",
+                "strike": 144.0,
+                "last_trade_date": "20260402",
+                "source": "tws",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        stock_row = next(h for h in data if h["security_type"] == "STK")
+        active_option_row = next(
+            h for h in data if h["security_type"] == "OPT" and h["quantity"] == -1
+        )
+        flat_option_row = next(
+            h for h in data if h["security_type"] == "OPT" and h["quantity"] == 0
+        )
+
+        assert stock_row["coverage_status"] == "Covered"
+        assert active_option_row["coverage_status"] == "Covered"
+        assert flat_option_row["coverage_status"] == ""
+        assert flat_option_row["coverage_mismatch"] is False
+
+
 def test_get_portfolio_holdings_percent_of_nav_remains_fraction_and_missing_values_stay_null(client):
     with patch("app.api.routes.MongoClient") as mock_mongo_cls:
         mock_client = MagicMock()

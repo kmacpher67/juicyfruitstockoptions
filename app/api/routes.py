@@ -177,6 +177,15 @@ def _resolve_coverage_status(shares, short_calls):
     return "", False
 
 
+def _is_flat_position_row(row: dict) -> bool:
+    quantity = _safe_float(row.get("quantity"))
+    if quantity is None:
+        quantity = _safe_float(row.get("position"))
+    if quantity is None:
+        return True
+    return abs(quantity) < 1e-9
+
+
 def _normalize_order_action(raw_value):
     value = str(raw_value or "").strip().upper()
     if value in {"BOT", "BUY"}:
@@ -1127,7 +1136,10 @@ async def get_portfolio_holdings(
             row["coverage_group_key"] = f"{account_id}:{und}"
             row["covered_shares"] = covered
             row["share_quantity_total"] = shares
-            status, mismatch = _resolve_coverage_status(shares, covered)
+            if _is_flat_position_row(row):
+                status, mismatch = "", False
+            else:
+                status, mismatch = _resolve_coverage_status(shares, covered)
             row["coverage_status"] = status
             row["coverage_mismatch"] = mismatch
             pending_summary = pending_summary_by_account.get((account_id, und), {})
