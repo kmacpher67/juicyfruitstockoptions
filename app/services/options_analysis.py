@@ -1,4 +1,23 @@
 from collections import defaultdict
+import re
+
+
+def _looks_like_short_call(holding):
+    sec_type = holding.get("asset_class") or holding.get("secType") or holding.get("sec_type")
+    if str(sec_type or "").upper() != "OPT":
+        return False
+
+    qty = float(holding.get("quantity", 0) or 0)
+    if qty >= 0:
+        return False
+
+    right = str(holding.get("right") or "").strip().upper()
+    if right == "C":
+        return True
+
+    local_symbol = str(holding.get("local_symbol") or holding.get("localSymbol") or "")
+    symbol = str(holding.get("symbol") or "")
+    return bool(re.search(r"\d{6}C\d+", local_symbol) or re.search(r"\d{6}C\d+", symbol))
 
 class OptionsAnalyzer:
     def __init__(self, holdings, market_data=None):
@@ -27,13 +46,7 @@ class OptionsAnalyzer:
             # Aggregate Options
             elif sec_type == "OPT":
                 grouped[und]["options"].append(h)
-                sym = h.get("symbol", "")
-                
-                # Check if it's a Call using strict OSI Regex
-                # Format: SYMBOL YYMMDDC00000000
-                import re
-                # Look for 6 digits followed by C and more digits
-                if qty < 0 and re.search(r'\d{6}C\d+', sym): 
+                if _looks_like_short_call(h):
                     multiplier = float(h.get("multiplier", 100))
                     contracts = abs(qty)
                     grouped[und]["short_calls"] += (contracts * multiplier)

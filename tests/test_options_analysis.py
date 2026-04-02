@@ -66,3 +66,34 @@ def test_analyze_profit():
     assert amd is not None
     assert amd['type'] == 'PROFIT_TAKE'
     assert amd['profit_pct'] == 0.90 # 450 / 500
+
+
+def test_group_by_underlying_counts_tws_style_local_symbol_short_calls():
+    holdings = [
+        {"account_id": "U110638", "symbol": "AMD", "secType": "STK", "quantity": 200, "underlying_symbol": "AMD"},
+        {
+            "account_id": "U110638",
+            "symbol": "AMD",
+            "local_symbol": "AMD   260402C00202500",
+            "secType": "OPT",
+            "quantity": -1,
+            "underlying_symbol": "AMD",
+            "right": "C",
+            "multiplier": 100,
+        },
+        {
+            "account_id": "U110638",
+            "symbol": "AMD",
+            "local_symbol": "AMD   260410C00207500",
+            "secType": "OPT",
+            "quantity": -1,
+            "underlying_symbol": "AMD",
+            "right": "C",
+            "multiplier": 100,
+        },
+    ]
+
+    analyzer = OptionsAnalyzer(holdings)
+
+    assert analyzer.grouped["AMD"]["shares"] == 200
+    assert analyzer.grouped["AMD"]["short_calls"] == 200

@@ -138,6 +138,30 @@ def _build_display_symbol(row: dict, security_type: str) -> str:
     return symbol or underlying
 
 
+def _is_short_call_position(row: dict) -> bool:
+    security_type = _canonical_security_type(row)
+    if security_type not in {"OPT", "FOP"}:
+        return False
+
+    quantity = _safe_float(row.get("quantity"))
+    if quantity is None:
+        quantity = _safe_float(row.get("position"))
+    if quantity is None or quantity >= 0:
+        return False
+
+    right = str(row.get("right") or "").strip().upper()
+    if right == "C":
+        return True
+
+    _, parsed_right, _ = _extract_option_fields(row)
+    if str(parsed_right or "").strip().upper() == "C":
+        return True
+
+    local_symbol = str(row.get("local_symbol") or row.get("localSymbol") or "")
+    symbol = str(row.get("symbol") or "")
+    return bool(re.search(r"\d{6}C\d+", local_symbol) or re.search(r"\d{6}C\d+", symbol))
+
+
 def _portfolio_row_key(row: dict) -> tuple:
     security_type = _canonical_security_type(row)
     account_id = row.get("account_id") or row.get("account") or "UNKNOWN"
@@ -905,11 +929,9 @@ async def get_portfolio_holdings(
 
         if sec_type == "STK":
             coverage_by_account[key]["shares"] += qty
-        elif sec_type in ["OPT", "FOP"] and qty < 0:
-            sym = row.get("symbol", "")
-            if re.search(r"\d{6}C\d+", sym):
-                multiplier = float(row.get("multiplier", 100) or 100)
-                coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
+        elif _is_short_call_position(row):
+            multiplier = float(row.get("multiplier", 100) or 100)
+            coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
 
     def resolve_coverage_status(shares, short_calls):
         """Return coverage status and mismatch flag as defined in requirements.

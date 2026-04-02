@@ -28,6 +28,44 @@ Added `test_get_portfolio_holdings_coverage_with_ibkr_pascal_case_asset_class` c
 | Date | Action | Reason |
 |------|--------|--------|
 | 2026-03-28 | FIX | Added `AssetClass` PascalCase to sec_type lookups in coverage logic |
+| 2026-04-02 | FIX | Count short calls from normalized option metadata (`right`, parsed OCC fields, `local_symbol`) so TWS/live rows with `symbol=AMD` still contribute to coverage totals |
+
+## Follow-Up Regression (2026-04-02)
+
+### Trigger
+
+In `?view=PORTFOLIO`, account `U110638` showed AMD as `Uncovered` while holding:
+
+- `200` AMD shares
+- `-1` AMD `2026-04-02 202.5 Call`
+- `-1` AMD `2026-04-10 207.5 Call`
+
+This position should be `Covered` because `200 == abs((-1 + -1) * 100)`.
+
+### Root Cause
+
+The coverage aggregation recognized short calls only when `row["symbol"]` matched an OCC call pattern. That worked for Flex-style option rows such as `AMD  260402C00202500`, but failed for TWS/live rows where:
+
+- `symbol` is just the underlying root, for example `AMD`
+- the option contract identity is stored in `local_symbol`, `right`, `strike`, and expiry fields
+
+As a result, TWS short calls were skipped during coverage aggregation, producing `shares=200` and `short_calls=0`, which incorrectly resolved to `Uncovered`.
+
+### Fix
+
+- Detect short calls from normalized option metadata, not only from `symbol`
+- Accept any of the following as evidence that a negative option row is a short call:
+  - `right == "C"`
+  - parsed OCC fields resolve to call
+  - `local_symbol` or `symbol` contains a call OCC pattern
+
+### Regression Test
+
+Added `test_get_portfolio_holdings_counts_tws_local_symbol_short_calls_for_covered_status` covering the exact `U110638` / AMD scenario with:
+
+- `200` stock shares
+- two separate TWS short call rows
+- expected `Covered` status on the stock row and both option rows
 
 Refactor the portfolio coverage logic to provide granular filtering for "Covered", "Uncovered", and "Naked" positions, resolving the issue where the "Uncovered" filter was too broad.
 

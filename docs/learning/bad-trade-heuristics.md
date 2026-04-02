@@ -100,8 +100,16 @@ When evaluating portfolio risk, the system now calculates per-account coverage e
 
 These rules are implemented in `app/api/routes.py` via `resolve_coverage_status(shares, short_calls)`.
 
+Important normalization note for future portfolio/live-grid work:
+
+- Short calls must be detected from normalized option metadata, not only from `symbol`.
+- Flex rows often encode the call contract directly in `symbol`.
+- TWS/live rows may use the root ticker in `symbol` and store the actual contract identity in `local_symbol`, `right`, expiry, and strike fields.
+- Coverage regressions can happen if a refactor counts short calls only from `symbol`, because live rows such as AMD with two separate `-1` calls would incorrectly resolve as `Uncovered` instead of `Covered`.
+
 Test coverage is in `tests/test_portfolio_enrichment.py` with:
 
 - `test_get_portfolio_holdings_coverage_scenario_matches_user_case`
+- `test_get_portfolio_holdings_counts_tws_local_symbol_short_calls_for_covered_status`
 
 This ensures filters and UI status remain consistent with the underlying data model, preventing misclassification between `Covered` and `Uncovered` states.
