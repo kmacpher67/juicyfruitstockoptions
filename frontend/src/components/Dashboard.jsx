@@ -252,6 +252,7 @@ const Dashboard = () => {
     // viewMode state moved to top for Deep Linking
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
+    const [selectedPortfolioAccount, setSelectedPortfolioAccount] = useState('all');
     const [openOrders, setOpenOrders] = useState([]);
     const [filterTicker, setFilterTicker] = useState(null);
     const [liveStatus, setLiveStatus] = useState(null);
@@ -260,8 +261,11 @@ const Dashboard = () => {
     const loadPortfolioData = async () => {
         setLoading(true);
         try {
+            const statsParams = selectedPortfolioAccount && selectedPortfolioAccount !== 'all'
+                ? { account_id: selectedPortfolioAccount }
+                : undefined;
             const [statsRes, holdingsRes, liveStatusRes] = await Promise.all([
-                api.get('/portfolio/stats'),
+                api.get('/portfolio/stats', { params: statsParams }),
                 api.get('/portfolio/holdings'),
                 api.get('/portfolio/live-status')
             ]);
@@ -413,7 +417,7 @@ const Dashboard = () => {
                 api.get('/portfolio/holdings').then(res => setPortfolioHoldings(res.data)).catch(e => console.error("Silent portfolio fetch failed", e));
             }
         }
-    }, [viewMode, user]);
+    }, [viewMode, user, selectedPortfolioAccount]);
 
     // Derived Portfolio Tickers set
     const portfolioTickers = React.useMemo(() => {
@@ -657,7 +661,7 @@ const Dashboard = () => {
                         </div>
                     )}
                     <div className="mb-4 w-full">
-                        <NAVStats stats={portfolioStats} />
+                        <NAVStats stats={portfolioStats} selectedAccount={selectedPortfolioAccount} />
                     </div>
 
 
@@ -673,6 +677,8 @@ const Dashboard = () => {
                             data={portfolioHoldings}
                             filterTicker={filterTicker}
                             onTickerClick={(ticker) => setSelectedTicker(ticker)}
+                            selectedAccount={selectedPortfolioAccount}
+                            onSelectedAccountChange={setSelectedPortfolioAccount}
                         />
                     </div>
                 </>

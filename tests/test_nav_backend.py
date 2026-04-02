@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models import NavReportType, IBKRConfig
 from app.services.ibkr_service import fetch_and_store_nav_report, get_nav_query_id
 from app.api.routes import (
@@ -167,6 +167,17 @@ def test_get_portfolio_live_nav_returns_latest_snapshot(mock_get_snapshot):
     assert response["source"] == "tws"
 
 
+@patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
+def test_get_portfolio_live_nav_supports_account_scope(mock_get_snapshot):
+    mock_get_snapshot.return_value = {"total_nav": 12000.0, "source": "tws", "accounts": ["DU111111"]}
+    user = MagicMock(role="portfolio")
+
+    response = asyncio.run(get_portfolio_live_nav(user, account_id="DU111111"))
+
+    mock_get_snapshot.assert_called_once_with(account_id="DU111111")
+    assert response["total_nav"] == 12000.0
+
+
 @patch("app.services.portfolio_analysis.get_nav_history_stats")
 def test_get_portfolio_stats_exposes_data_source_and_last_updated(mock_get_stats):
     mock_get_stats.return_value = {
@@ -181,6 +192,17 @@ def test_get_portfolio_stats_exposes_data_source_and_last_updated(mock_get_stats
 
     assert response["data_source"] == "tws_live"
     assert response["last_updated"] == "2026-03-30T18:25:00+00:00"
+
+
+@patch("app.services.portfolio_analysis.get_nav_history_stats")
+def test_get_portfolio_stats_supports_account_scope(mock_get_stats):
+    mock_get_stats.return_value = {"selected_account_id": "DU123456"}
+    user = MagicMock(role="portfolio")
+
+    response = asyncio.run(get_portfolio_stats(user, account_id="DU123456"))
+
+    mock_get_stats.assert_called_once_with(account_id="DU123456")
+    assert response["selected_account_id"] == "DU123456"
 
 
 @patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
@@ -225,3 +247,52 @@ def test_get_nav_history_stats_keeps_eod_nav_and_exposes_rt_metrics(mock_mongo, 
     assert stats["mtm_rt"] == 50.0
     assert stats["change_rt"] == 5.0
     assert stats["last_updated_rt"] == "2026-03-30T18:25:00+00:00"
+
+
+@patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
+@patch("app.services.portfolio_analysis.MongoClient")
+def test_get_nav_history_stats_updates_non_1d_ranges_with_fresh_rt_snapshot(mock_mongo, mock_live_snapshot):
+    from app.services.portfolio_analysis import get_nav_history_stats
+
+    mock_db = MagicMock()
+    mock_mongo.return_value.get_default_database.return_value = mock_db
+
+    def mock_find_one(query, sort=None):
+        report_type = query.get("ibkr_report_type")
+        return {"_report_date": "2026-03-30", "ibkr_report_type": report_type}
+
+    def mock_aggregate(pipeline):
+        match = pipeline[0]["$match"]
+        report_type = match.get("ibkr_report_type")
+        if report_type == NavReportType.NAV_1D.value:
+            return [{"total_start": 1000.0, "total_end": 1010.0}]
+        if report_type == NavReportType.NAV_7D.value:
+            return [{"total_start": 900.0, "total_end": 1010.0}]
+        if report_type == NavReportType.NAV_30D.value:
+            return [{"total_start": 800.0, "total_end": 1010.0}]
+        if report_type == NavReportType.NAV_MTD.value:
+            return [{"total_start": 850.0, "total_end": 1010.0}]
+        if report_type == NavReportType.NAV_YTD.value:
+            return [{"total_start": 700.0, "total_end": 1010.0}]
+        if report_type == NavReportType.NAV_1Y.value:
+            return [{"total_start": 600.0, "total_end": 1010.0}]
+        return []
+
+    mock_db.ibkr_nav_history.find_one.side_effect = mock_find_one
+    mock_db.ibkr_nav_history.aggregate.side_effect = mock_aggregate
+    mock_live_snapshot.return_value = {
+        "timestamp": datetime(2026, 3, 30, 18, 25),
+        "total_nav": 1050.0,
+        "unrealized_pnl": 25.0,
+        "realized_pnl": 10.0,
+        "accounts": ["DU123456"],
+        "source": "tws",
+        "last_tws_update": datetime.now(timezone.utc).isoformat(),
+    }
+
+    stats = get_nav_history_stats()
+
+    assert stats["change_1d"] == 1.0
+    assert stats["change_7d"] == ((1050.0 - 900.0) / 900.0) * 100
+    assert stats["timeframe_meta"]["1d"]["end_date_source"] == "flex_close"
+    assert stats["timeframe_meta"]["7d"]["end_date_source"] == "tws_rt"

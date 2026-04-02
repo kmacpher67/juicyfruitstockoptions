@@ -1,17 +1,57 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from pymongo import MongoClient
 from app.config import settings
 from app.models import NavReportType
 
 
-def get_latest_live_nav_snapshot():
+def _normalize_account_id(account_id: str | None) -> str | None:
+    if account_id is None:
+        return None
+    normalized = str(account_id).strip()
+    if not normalized:
+        return None
+    if normalized.upper() == "ALL":
+        return None
+    return normalized
+
+
+def _coerce_datetime(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        normalized = value
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(normalized)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_recent_live_timestamp(value, max_age_minutes: int = 5) -> bool:
+    parsed = _coerce_datetime(value)
+    if not parsed:
+        return False
+    now = datetime.now(timezone.utc)
+    return (now - parsed) <= timedelta(minutes=max_age_minutes)
+
+
+def get_latest_live_nav_snapshot(account_id: str | None = None):
     """Return the latest intraday TWS NAV snapshot if available."""
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
+    normalized_account = _normalize_account_id(account_id)
+    match_filter = {"source": "tws"}
+    if normalized_account:
+        match_filter["account_id"] = normalized_account
 
     pipeline = [
-        {"$match": {"source": "tws"}},
+        {"$match": match_filter},
         {"$sort": {"timestamp": -1}},
         {
             "$group": {
@@ -45,17 +85,21 @@ def get_latest_live_nav_snapshot():
         "last_tws_update": snapshot.get("last_tws_update") or snapshot.get("_id"),
     }
 
-def get_report_stats(rtype: NavReportType):
+def get_report_stats(rtype: NavReportType, account_id: str | None = None):
     """
     Get stats for a single report type.
     Returns dict with {start, end, change, mtm, date} or None.
     """
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
+    normalized_account = _normalize_account_id(account_id)
+    base_query = {"ibkr_report_type": rtype.value}
+    if normalized_account:
+        base_query["account_id"] = normalized_account
     
     # 1. Find the most recent date for this specific report type
     latest_entry = db.ibkr_nav_history.find_one(
-        {"ibkr_report_type": rtype.value},
+        base_query,
         sort=[("_report_date", -1)]
     )
     if not latest_entry:
@@ -65,10 +109,7 @@ def get_report_stats(rtype: NavReportType):
     
     # 2. Sum up all accounts for that specific date
     pipeline = [
-        {"$match": {
-            "ibkr_report_type": rtype.value, 
-            "_report_date": target_date
-        }},
+        {"$match": {**base_query, "_report_date": target_date}},
         {"$group": {
             "_id": None,
             "total_start": {"$sum": "$starting_value"},
@@ -93,7 +134,7 @@ def get_report_stats(rtype: NavReportType):
         "date": target_date
     }
 
-def get_nav_history_stats():
+def get_nav_history_stats(account_id: str | None = None):
     """
     Calculate NAV Stats using authoritative 'ibkr_nav_history' collection.
     Uses specific IBKR Report Types (1D, 7D, 30D, etc) for precise calculations.
@@ -101,6 +142,10 @@ def get_nav_history_stats():
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     from app.models import NavReportType
+    normalized_account = _normalize_account_id(account_id)
+    base_scope = {}
+    if normalized_account:
+        base_scope["account_id"] = normalized_account
 
     stats = {
         "current_nav": 0,
@@ -118,6 +163,16 @@ def get_nav_history_stats():
         "mtm_rt": None,
         "rt_unrealized_pnl": None,
         "rt_realized_pnl": None,
+        "selected_account_id": normalized_account or "ALL",
+        "timeframe_meta": {
+            "1d": {"value_source": "flex_report", "end_date_source": "flex_close", "end_date": None},
+            "7d": {"value_source": "flex_report", "end_date_source": "flex_report", "end_date": None},
+            "30d": {"value_source": "flex_report", "end_date_source": "flex_report", "end_date": None},
+            "mtd": {"value_source": "flex_report", "end_date_source": "flex_report", "end_date": None},
+            "ytd": {"value_source": "flex_report", "end_date_source": "flex_report", "end_date": None},
+            "yoy": {"value_source": "flex_report", "end_date_source": "flex_report", "end_date": None},
+            "rt": {"value_source": "tws_rt", "end_date_source": "tws_rt", "end_date": None},
+        },
     }
     
     # helper to aggregate across accounts for the latest available date
@@ -125,7 +180,7 @@ def get_nav_history_stats():
         # 1. Find the most recent date for this specific report type
         # We sort by _report_date descending to get the "latest batch"
         latest_entry = db.ibkr_nav_history.find_one(
-            {"ibkr_report_type": rtype.value},
+            {"ibkr_report_type": rtype.value, **base_scope},
             sort=[("_report_date", -1)]
         )
         if not latest_entry:
@@ -135,10 +190,7 @@ def get_nav_history_stats():
         
         # 2. Sum up all accounts for that specific date
         pipeline = [
-            {"$match": {
-                "ibkr_report_type": rtype.value, 
-                "_report_date": target_date
-            }},
+            {"$match": {"ibkr_report_type": rtype.value, "_report_date": target_date, **base_scope}},
             {"$group": {
                 "_id": None,
                 "total_start": {"$sum": "$starting_value"},
@@ -177,6 +229,9 @@ def get_nav_history_stats():
         stats[f"start_{suffix}"] = start
         stats[f"mtm_{suffix}"] = end - start
         stats[f"date_{suffix}"] = agg_res.get("_report_date")
+        meta = stats["timeframe_meta"].get(suffix)
+        if meta is not None:
+            meta["end_date"] = agg_res.get("_report_date")
         
         # Calculate % Change from the Totals
         # ((TotalEnd - TotalStart) / TotalStart) * 100
@@ -192,7 +247,7 @@ def get_nav_history_stats():
     extract_stats(s_ytd, "ytd")
     extract_stats(s_1y, "yoy")
 
-    live_snapshot = get_latest_live_nav_snapshot()
+    live_snapshot = get_latest_live_nav_snapshot(account_id=normalized_account)
     has_live_snapshot = bool(
         live_snapshot
         and (
@@ -200,6 +255,8 @@ def get_nav_history_stats():
             or live_snapshot.get("last_tws_update") is not None
         )
     )
+    live_end_date = live_snapshot.get("last_tws_update") if has_live_snapshot else None
+    live_is_recent = _is_recent_live_timestamp(live_end_date)
 
     if has_live_snapshot:
         live_nav = live_snapshot.get("total_nav")
@@ -209,10 +266,24 @@ def get_nav_history_stats():
         stats["last_updated_rt"] = stats["last_updated"]
         stats["rt_unrealized_pnl"] = live_snapshot.get("unrealized_pnl")
         stats["rt_realized_pnl"] = live_snapshot.get("realized_pnl")
+        stats["timeframe_meta"]["rt"]["end_date"] = stats["last_updated_rt"]
         if stats["start_1d"] not in (None, 0):
             stats["start_rt"] = stats["start_1d"]
             stats["mtm_rt"] = live_nav - stats["start_1d"]
             stats["change_rt"] = (stats["mtm_rt"] / stats["start_1d"]) * 100
+            stats["timeframe_meta"]["1d"]["value_source"] = "flex_close_plus_rt_current"
+        if live_is_recent and live_nav is not None:
+            for suffix in ("7d", "30d", "mtd", "ytd", "yoy"):
+                start_value = stats.get(f"start_{suffix}")
+                if start_value in (None, 0):
+                    continue
+                mtm_value = live_nav - start_value
+                stats[f"mtm_{suffix}"] = mtm_value
+                stats[f"change_{suffix}"] = (mtm_value / start_value) * 100
+                stats[f"date_{suffix}"] = live_end_date
+                stats["timeframe_meta"][suffix]["value_source"] = "tws_rt_calc"
+                stats["timeframe_meta"][suffix]["end_date_source"] = "tws_rt"
+                stats["timeframe_meta"][suffix]["end_date"] = live_end_date
     elif s_1d:
         stats["last_updated"] = s_1d.get("_report_date")
 
@@ -220,7 +291,7 @@ def get_nav_history_stats():
     # For the graph, we need a time seriesSum of all accounts per day.
     # We use the NAV_1D report type as the authoritative daily snapshot.
     pipeline = [
-        {"$match": {"ibkr_report_type": NavReportType.NAV_1D.value}},
+        {"$match": {"ibkr_report_type": NavReportType.NAV_1D.value, **base_scope}},
         {
             "$group": {
                 "_id": "$_report_date", # Group by Date
@@ -240,7 +311,7 @@ def get_nav_history_stats():
     # The old schema used "report_date" and "total_nav".
     if not history_docs:
          pipeline_legacy = [
-            {"$match": {"ibkr_report_type": {"$exists": False}}}, # Old records
+            {"$match": {"ibkr_report_type": {"$exists": False}, **base_scope}}, # Old records
             {
                 "$group": {
                     "_id": "$report_date",

@@ -134,3 +134,35 @@ class TestNavRefactor:
             assert stats["change_7d"] == 10.0
             assert stats["change_30d"] is None # Not mocked
             assert len(stats["history"]) == 2
+
+    def test_portfolio_stats_account_scope_query(self):
+        """Test get_nav_history_stats(account_id=...) applies account filter."""
+        from unittest.mock import patch, MagicMock
+
+        with patch("app.services.portfolio_analysis.MongoClient") as mock_client:
+            mock_db = mock_client.return_value.get_default_database.return_value
+            captured_queries = []
+
+            def mock_find_one(query, sort=None):
+                captured_queries.append(query)
+                rtype = query.get("ibkr_report_type")
+                if rtype == "NAV1D":
+                    return {
+                        "ibkr_report_type": "NAV1D",
+                        "_report_date": "2025-01-01"
+                    }
+                return None
+
+            def mock_aggregate(pipeline):
+                match = pipeline[0].get("$match", {})
+                if match.get("ibkr_report_type") == "NAV1D":
+                    return [{"total_start": 100.0, "total_end": 101.0}]
+                return []
+
+            mock_db.ibkr_nav_history.find_one.side_effect = mock_find_one
+            mock_db.ibkr_nav_history.aggregate.side_effect = mock_aggregate
+
+            stats = get_nav_history_stats(account_id="U123456")
+
+            assert stats["selected_account_id"] == "U123456"
+            assert any(q.get("account_id") == "U123456" for q in captured_queries)

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
+import { buildTimeframeSubtitle, normalizeAccountScopeParam } from './navStatsUtils';
 
 const REPORT_MAP = {
     "1 Day": "NAV1D",
@@ -37,18 +38,18 @@ const StatCard = ({ label, value, isCurrency = false, isPercent = false, startVa
         <div
             onClick={onClick}
             className={`
-                bg-gray-800 px-2 py-1.5 rounded flex flex-col items-center justify-center 
+                bg-gray-800 px-2 py-1 rounded flex flex-col items-center justify-center
                 border ${loading ? 'border-yellow-500 animate-pulse' : 'border-gray-700 hover:border-blue-500'} 
-                transition-all cursor-pointer relative group h-[74px] w-full select-none
+                transition-all cursor-pointer relative group h-[62px] w-full select-none
             `}
             title={tooltip}
         >
             <span className="text-gray-400 text-[10px] uppercase font-semibold">{label}</span>
-            <span className={`text-base lg:text-lg font-bold ${colorClass} font-mono`}>
+            <span className={`text-sm lg:text-base font-bold ${colorClass} font-mono`}>
                 {displayValue}
             </span>
             {subtitle ? (
-                <span className="mt-0.5 text-center text-[10px] text-gray-500">{subtitle}</span>
+                <span className="mt-0.5 text-center text-[9px] text-gray-500">{subtitle}</span>
             ) : null}
             {/* Loading Indicator Overlay */}
             {loading && (
@@ -134,9 +135,15 @@ const getStatusConfig = (stats) => {
     }
 };
 
-const NAVStats = ({ stats }) => {
+const NAVStats = ({ stats, selectedAccount = 'all' }) => {
     const [loadingStates, setLoadingStates] = useState({});
     const [localStats, setLocalStats] = useState({});
+    const scopedParams = useMemo(() => normalizeAccountScopeParam(selectedAccount), [selectedAccount]);
+
+    useEffect(() => {
+        setLocalStats({});
+        setLoadingStates({});
+    }, [selectedAccount]);
 
     // Merge props stats with local overrides
     const mergedStats = { ...stats, ...localStats };
@@ -150,7 +157,7 @@ const NAVStats = ({ stats }) => {
 
         try {
             // Trigger Backend Fetch (Simple GET as requested)
-            const res = await api.get(`/nav/report/${reportType}`);
+            const res = await api.get(`/nav/report/${reportType}`, { params: scopedParams });
 
             if (res.data.status === 'available' && res.data.stats) {
                 // Determine keys based on report type for local override
@@ -199,7 +206,7 @@ const NAVStats = ({ stats }) => {
         // Fire off requests in parallel
         Promise.all([
             ...allTypes.map(t => handleWidgetClick(t)),
-            api.get('/portfolio/nav/live'),
+            api.get('/portfolio/nav/live', { params: scopedParams }),
             api.get('/portfolio/live-status'),
         ])
             .then((results) => {
@@ -284,7 +291,7 @@ const NAVStats = ({ stats }) => {
                     <button
                         onClick={handleLiveSync}
                         className={`
-                            h-[74px] w-full rounded border border-gray-600 bg-gray-800 px-3 text-left transition-colors
+                            h-[62px] w-full rounded border border-gray-600 bg-gray-800 px-3 text-left transition-colors
                             hover:bg-gray-700
                         `}
                         title="Refresh NAV widgets and live TWS status"
@@ -297,12 +304,12 @@ const NAVStats = ({ stats }) => {
                                         {sourceLabel}
                                     </span>
                                 </div>
-                                <div className="text-[10px] uppercase tracking-wide text-gray-400">Current NAV</div>
-                                <div className="font-mono text-lg lg:text-[1.55rem] font-bold text-white leading-tight">
+                                <div className="text-[9px] uppercase tracking-wide text-gray-400">Current NAV</div>
+                                <div className="font-mono text-base lg:text-lg font-bold text-white leading-tight">
                                     {formatCurrency(currentNavValue)}
                                 </div>
                                 <div
-                                    className="text-[11px] text-gray-400"
+                                    className="text-[10px] text-gray-400"
                                     title={mergedStats.diagnosis || ''}
                                 >
                                     {statusDetail}
@@ -338,7 +345,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_1d}
                         endDate={mergedStats.date_1d}
                         mtmTot={mergedStats.mtm_1d}
-                        subtitle="Flex close"
+                        subtitle={buildTimeframeSubtitle('1d', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["1 Day"])}
                         loading={loadingStates[REPORT_MAP["1 Day"]]}
                     />
@@ -351,6 +358,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_7d}
                         endDate={mergedStats.date_7d}
                         mtmTot={mergedStats.mtm_7d}
+                        subtitle={buildTimeframeSubtitle('7d', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["7 Day"])}
                         loading={loadingStates[REPORT_MAP["7 Day"]]}
                     />
@@ -363,6 +371,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_30d}
                         endDate={mergedStats.date_30d}
                         mtmTot={mergedStats.mtm_30d}
+                        subtitle={buildTimeframeSubtitle('30d', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["30 Day"])}
                         loading={loadingStates[REPORT_MAP["30 Day"]]}
                     />
@@ -375,6 +384,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_mtd}
                         endDate={mergedStats.date_mtd}
                         mtmTot={mergedStats.mtm_mtd}
+                        subtitle={buildTimeframeSubtitle('mtd', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["MTD"])}
                         loading={loadingStates[REPORT_MAP["MTD"]]}
                     />
@@ -387,6 +397,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_ytd}
                         endDate={mergedStats.date_ytd}
                         mtmTot={mergedStats.mtm_ytd}
+                        subtitle={buildTimeframeSubtitle('ytd', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["YTD"])}
                         loading={loadingStates[REPORT_MAP["YTD"]]}
                     />
@@ -399,6 +410,7 @@ const NAVStats = ({ stats }) => {
                         startValue={mergedStats.start_yoy}
                         endDate={mergedStats.date_yoy}
                         mtmTot={mergedStats.mtm_yoy}
+                        subtitle={buildTimeframeSubtitle('yoy', mergedStats.timeframe_meta)}
                         onClick={() => handleWidgetClick(REPORT_MAP["1 Year"])}
                         loading={loadingStates[REPORT_MAP["1 Year"]]}
                     />

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -33,8 +33,12 @@ const resolveSecurityTypeLabel = (row = {}) => {
 
 const getDisplaySymbol = (row = {}) => row.display_symbol || row.description || row.local_symbol || row.symbol || '';
 
-const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
-    const [filters, setFilters] = useState(DEFAULT_PORTFOLIO_FILTERS);
+const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'all', onSelectedAccountChange }) => {
+    const [filters, setFilters] = useState({ ...DEFAULT_PORTFOLIO_FILTERS, account: selectedAccount || 'all' });
+
+    useEffect(() => {
+        setFilters((current) => ({ ...current, account: selectedAccount || 'all' }));
+    }, [selectedAccount]);
 
     const colDefs = useMemo(() => [
         {
@@ -237,7 +241,11 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
     };
 
     const resetFilters = () => {
-        setFilters(DEFAULT_PORTFOLIO_FILTERS);
+        const next = { ...DEFAULT_PORTFOLIO_FILTERS };
+        setFilters(next);
+        if (onSelectedAccountChange) {
+            onSelectedAccountChange(next.account);
+        }
     };
 
     const Button = ({ label, active, onClick }) => (
@@ -288,7 +296,13 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                 <select
                     className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
                     value={filters.account}
-                    onChange={e => setFilters((current) => ({ ...current, account: e.target.value }))}
+                    onChange={e => {
+                        const nextAccount = e.target.value;
+                        setFilters((current) => ({ ...current, account: nextAccount }));
+                        if (onSelectedAccountChange) {
+                            onSelectedAccountChange(nextAccount);
+                        }
+                    }}
                 >
                     <option value="all">All</option>
                     {accountList.map(acc => (

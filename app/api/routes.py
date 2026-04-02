@@ -1025,7 +1025,8 @@ async def sync_all_nav_reports(
 @router.get("/portfolio/stats")
 @log_endpoint
 async def get_portfolio_stats(
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    account_id: str | None = None,
 ):
     """Get calculated NAV stats (Current, 30d, YTD, etc)."""
     # Helper to protect View
@@ -1033,7 +1034,7 @@ async def get_portfolio_stats(
         raise HTTPException(status_code=403, detail="Portfolio access required")
         
     from app.services.portfolio_analysis import get_nav_history_stats
-    return get_nav_history_stats()
+    return get_nav_history_stats(account_id=account_id)
 
 
 @router.get("/portfolio/live-status")
@@ -1051,14 +1052,15 @@ async def get_portfolio_live_status(
 @router.get("/portfolio/nav/live")
 @log_endpoint
 async def get_portfolio_live_nav(
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    account_id: str | None = None,
 ):
     if current_user.role not in ["admin", "portfolio"]:
         raise HTTPException(status_code=403, detail="Portfolio access required")
 
     from app.services.portfolio_analysis import get_latest_live_nav_snapshot
 
-    snapshot = get_latest_live_nav_snapshot()
+    snapshot = get_latest_live_nav_snapshot(account_id=account_id)
     return snapshot or {
         "timestamp": None,
         "total_nav": 0,
@@ -1130,7 +1132,8 @@ async def get_order_live_status(
 def get_nav_report_endpoint(
     report_type: NavReportType,
     background_tasks: BackgroundTasks,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    account_id: str | None = None,
 ):
     """
     Get generic NAV report data.
@@ -1139,7 +1142,7 @@ def get_nav_report_endpoint(
     """
     # 1. Check if we have stats
     from app.services.portfolio_analysis import get_report_stats
-    stats_data = get_report_stats(report_type)
+    stats_data = get_report_stats(report_type, account_id=account_id)
     
     if stats_data:
         return {
