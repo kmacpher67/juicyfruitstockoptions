@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import yfinance as yf
 import pandas as pd
 import time
@@ -22,7 +23,6 @@ class StockLiveComparison:
         if not self.output_dir.exists():
             self.output_dir.mkdir(parents=True, exist_ok=True)
         self.now = datetime.now()
-        self.filename = None
         self.filename = None
         self.latest_file = None
         self.logger = logging.getLogger(__name__)
@@ -181,6 +181,26 @@ class StockLiveComparison:
         latest_file = files[0]
         file_time = datetime.fromtimestamp(latest_file.stat().st_mtime)
         return latest_file, file_time
+
+    @staticmethod
+    def parse_report_date(report_path: Path, base_name="AI_Stock_Live_Comparison_"):
+        match = re.match(rf"{re.escape(base_name)}(\d{{8}})_\d{{6}}\.xlsx$", report_path.name)
+        if not match:
+            return None
+        try:
+            return datetime.strptime(match.group(1), "%Y%m%d").date()
+        except ValueError:
+            return None
+
+    @classmethod
+    def get_latest_spreadsheet_for_date(cls, directory: Path, target_date, base_name="AI_Stock_Live_Comparison_"):
+        files = list(directory.glob(f"{base_name}*.xlsx"))
+        same_day = [f for f in files if cls.parse_report_date(f, base_name=base_name) == target_date]
+        if not same_day:
+            return None, None
+        same_day.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+        latest_file = same_day[0]
+        return latest_file, datetime.fromtimestamp(latest_file.stat().st_mtime)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -933,10 +953,35 @@ class StockLiveComparison:
             
         return default_list
 
-    def run(self):
+    def select_output_report_file(self, force_new_file=False, allow_create_if_missing=True):
+        """Pick output report file based on trigger semantics.
+
+        - force_new_file=True: always create a new timestamped file.
+        - force_new_file=False:
+            - reuse today's existing report if present
+            - else reuse latest existing report when allow_create_if_missing=False
+            - else create new timestamped report
+        """
+        if force_new_file:
+            return self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+        today_file, _ = self.get_latest_spreadsheet_for_date(self.output_dir, self.now.date())
+        if today_file:
+            return today_file
+
+        if not allow_create_if_missing:
+            latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
+            if latest_file:
+                return latest_file
+
+        return self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    def run(self, force_new_file=False, allow_create_if_missing=True):
         self.now = datetime.now()
-        self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
-        self.filename = self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+        self.filename = self.select_output_report_file(
+            force_new_file=force_new_file,
+            allow_create_if_missing=allow_create_if_missing,
+        )
         self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
         logging.info(f"Latest spreadsheet: {self.latest_file}")
         

@@ -342,3 +342,27 @@ def test_run_merge_logic(monkeypatch, tmp_path, caplog):
     assert len(result) == 2
     assert "AAA" in result["Ticker"].values
     assert "NEW" in result["Ticker"].values
+
+
+def test_select_output_report_file_sync_reuses_latest_without_creating_new(tmp_path):
+    comp = StockLiveComparison(["AAA"])
+    comp.output_dir = tmp_path
+    comp.now = pd.Timestamp("2026-04-02 12:00:00")
+
+    existing = tmp_path / "AI_Stock_Live_Comparison_20260401_052900.xlsx"
+    existing.write_text("placeholder", encoding="utf-8")
+
+    selected = comp.select_output_report_file(force_new_file=False, allow_create_if_missing=False)
+    assert selected == existing
+
+
+def test_select_output_report_file_scheduled_reuses_today_file(tmp_path):
+    comp = StockLiveComparison(["AAA"])
+    comp.output_dir = tmp_path
+    comp.now = pd.Timestamp("2026-04-02 16:44:40")
+
+    today = tmp_path / "AI_Stock_Live_Comparison_20260402_052900.xlsx"
+    today.write_text("placeholder", encoding="utf-8")
+
+    selected = comp.select_output_report_file(force_new_file=False, allow_create_if_missing=True)
+    assert selected == today

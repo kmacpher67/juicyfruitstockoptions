@@ -34,6 +34,11 @@
 
 ## 0. Bugs, Fixes, & Maintenance
 - [ ] **stock-analysis-broken-202603**: Stock Analysis "Run Live Analysis" feature broken after 2026-03-27 changes. AI_Stock_Live_Comparison XLSX and onscreen grid no longer populate. Investigate `stock_live_comparison.py` and `app/services/stock_live_comparison.py` for root cause.
+- [ ] **stock-analysis-report-churn-20260402**: Stock Analysis keeps generating multiple `AI_Stock_Live_Comparison_*.xlsx` files in the same day (many empty/partial). Enforce trigger-based report file policy and remove duplicate run enqueue.
+    - [ ] `run/stock-live-comparison` must enqueue exactly one background job per click.
+    - [ ] Manual **Run Live Comparison** creates a new timestamped XLSX.
+    - [ ] Scheduled daily run creates at most one new XLSX per calendar day (reuse same-day file if re-run).
+    - [ ] Background sync paths (ticker auto-discovery/add ticker) must refresh data without creating a new XLSX file.
 - [ ] **portfolio-live-grid-undefined-values**: Portfolio grid renders JavaScript literal `undefined` for Price, Value, Basis, and Unrealized PnL when merged live+Flex rows have missing fields. Guard all currency/number renders. Tracked under `portfolio-live-grid-001..006`.
 - [ ] **events-stk-filter-bug**: Corporate events/xdiv scanner fetches yfinance for OPT contract symbols (e.g., `AMD 260220C00235000`), causing HTTP 404 errors. Filter to underlying STK symbols only before any yfinance fetch.
 
@@ -256,6 +261,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [x] **Stock Analysis**: Ticker list research grades averages and creates a .xlsx report for download of Call/Put Skew. 
 - [x] **Stock Analysis**: Run Live Analsis runs the live analysis of a ticker list updates the list.
     - [ ] **Stock Analysis**: Bug fix the entire feature quit working after AI_Stock_Live_Comparison_20260327_203220.xlsx  and AI_Stock_Live_Comparison_20260327_165708.xlsx basically yesterday's changees broke this feature as it was previously working. 
+    - [ ] **Stock Analysis**: Report file lifecycle policy — new XLSX only from manual Run Live Comparison or first scheduled run of a day; no extra file creation from ticker sync/update paths.
     - [ ] **Stock Analysis**: columns in spread sheet Ticker	Current Price	1D % Change	Market Cap (T$)	P/E	YoY Price %	EMA_20	HMA_20	TSMOM_60	RSI_14	ATR_14	MA_30	MA_60	MA_120	MA_200	EMA_20_highlight	HMA_20_highlight	TSMOM_60_highlight	Ex-Div Date	Div Yield	Analyst 1-yr Target	1-yr 6% OTM PUT Price	Annual Yield Put Prem	3-mo Call Yield	6-mo Call Yield	1-yr Call Yield	Annual Yield Call Prem	Call/Put Skew	6-mo Call Strike	Error	Last Update	_PutExpDate_365	_CallExpDate_365	_CallExpDate_90	_CallExpDate_180	MA_30_highlight	MA_60_highlight	MA_120_highlight	MA_200_highlight
     - [X] **Stock Analysis**: Create a spreadsheet for downloading AI_Stock_Live_Comparison_YYYYMMDD_HHMMSS.xlsx with all the columns store a copy in the local file system. 
     - [X] **Stock Analysis**: Put most of the columns in the spreadsheet into a onscreen table for interactive viewing, sorting, and filtering. Ticker, Last/Current Price, Call/Put Skew (6% OTM 1 YR Options), YoY % (Year over Year percentage), TSMOM 60 (Time Series Momentum - 60 day), 200 MA (200-day Moving Average), EMA 20 (20-day Exponential Moving Average), HMA 20 (20-day Hull Moving Average), Div Yield 

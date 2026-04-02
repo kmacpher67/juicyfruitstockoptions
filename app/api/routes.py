@@ -691,10 +691,11 @@ def run_stock_live_comparison_endpoint(
     job = create_job()
     
     # Add to Background Tasks
-    background_tasks.add_task(background_job_wrapper, job.id, run_stock_live_comparison)
-    
-    # Add to Background Tasks
-    background_tasks.add_task(background_job_wrapper, job.id, run_stock_live_comparison)
+    background_tasks.add_task(
+        background_job_wrapper,
+        job.id,
+        lambda: run_stock_live_comparison(trigger="manual"),
+    )
     
     return {"job_id": job.id, "status": "queued"}
 
@@ -2099,7 +2100,7 @@ def get_tracked_tickers(
                 background_tasks.add_task(
                     background_job_wrapper, 
                     f"auto_add_{len(new_list)}", 
-                    lambda: run_stock_live_comparison(new_list)
+                    lambda: run_stock_live_comparison(new_list, trigger="sync")
                 )
         except Exception as e:
             # Log but don't fail the request
@@ -2140,7 +2141,11 @@ def add_tracked_ticker(
     job = create_job()
     
     # We use the existing function but pass only this ticker to limit scope
-    background_tasks.add_task(background_job_wrapper, job.id, lambda: run_stock_live_comparison([ticker]))
+    background_tasks.add_task(
+        background_job_wrapper,
+        job.id,
+        lambda: run_stock_live_comparison([ticker], trigger="sync"),
+    )
     
     return {"status": "success", "message": f"Added {ticker} to tracking list.", "job_id": job.id}
 
