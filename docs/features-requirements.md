@@ -33,7 +33,9 @@
 - **No Floating Modals for Core Data**: Use an expandable "Detail Drawer" on the right side of the screen to maintain context of the portfolio list.
 
 ## 0. Bugs, Fixes, & Maintenance
-- [ ] 
+- [ ] **stock-analysis-broken-202603**: Stock Analysis "Run Live Analysis" feature broken after 2026-03-27 changes. AI_Stock_Live_Comparison XLSX and onscreen grid no longer populate. Investigate `stock_live_comparison.py` and `app/services/stock_live_comparison.py` for root cause.
+- [ ] **portfolio-live-grid-undefined-values**: Portfolio grid renders JavaScript literal `undefined` for Price, Value, Basis, and Unrealized PnL when merged live+Flex rows have missing fields. Guard all currency/number renders. Tracked under `portfolio-live-grid-001..006`.
+- [ ] **events-stk-filter-bug**: Corporate events/xdiv scanner fetches yfinance for OPT contract symbols (e.g., `AMD 260220C00235000`), causing HTTP 404 errors. Filter to underlying STK symbols only before any yfinance fetch.
 
 ## 1. Project Mission & Context
 The goal of this project is to build a robust, semi-automated trading dashboard ("Juicy Fruit") that aids **Trader Ken** in analyzing options, managing risk, and executing strategies (e.g., covered calls, wheel strategy). It combines data from IBKR, algorithmic analysis, and modern web technologies.
@@ -55,7 +57,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **[?] QUESTION**: Do we have a specific Google Service Account or OAuth Client setup, or need one created?
     - [ ] Implement Google Drive API client wrapper.
     - [ ] Define folder structure mapping (Local <-> Drive).
-- [ ] **RAG System (Documentation)**: Implement RAG (Retrieval-Augmented Generation) for asking questions about the codebase/docs.
+- [ ] **RAG System (Documentation)**: Implement RAG (Retrieval-Augmented Generation) for asking questions about the codebase/docs. `[!] Needs decomposition: min viable scope = ChromaDB + docs/ ingestion only. Full chat interface is a separate downstream item.`
     - [ ] Select Vector Database (e.g., ChromaDB, Pinecone, FAISS).
     - [ ] Develop Document Ingestion Pipeline (Markdown -> Embeddings).
     - [ ] Create Chat Interface for querying docs.
@@ -101,7 +103,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] Automate backup to GitHub (current manual process).
     - [X] Investigate Google Drive as alternative storage.
     - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
-- [ ] **IBKR Real-Time Data — IB Gateway Docker Container**: Add IB Gateway as a Docker Compose service for a persistent headless IBKR socket connection. Prerequisite for all TWS real-time tasks below.
+- [ ] **IBKR Real-Time Data — IB Gateway Docker Container**: Add IB Gateway as a Docker Compose service for a persistent headless IBKR socket connection. Prerequisite for all TWS real-time tasks below. `[!] Needs decomposition: evaluate whether standalone TWS on host already satisfies all use cases before containerizing. Only proceed if containerized gateway adds measurable reliability.`
     - [ ] **ibkr-tws-gateway-001**: Research and select IB Gateway Docker image (`waytrade/ib-gateway` vs `mvberg`). Validate paper port (4002) and live port (4001). Document in `docs/learning/ibkr-realtime-data-integration.md`.
     - [ ] **ibkr-tws-gateway-002**: Add `ib-gateway` service to `docker-compose.yml` with env vars `TWS_USERID`, `TWS_PASSWORD`, `TRADING_MODE`. Map port 4002. Add VNC port 5900 for dev debugging only.
     - [ ] **ibkr-tws-gateway-003**: Add new env vars to `.env` and `app/config.py` (Pydantic settings): `IBKR_TWS_HOST`, `IBKR_TWS_PORT`, `IBKR_TWS_CLIENT_ID`, `IBKR_TWS_ENABLED` (feature flag, default `false`). Zero disruption to existing Flex pipeline when flag is off.
@@ -164,11 +166,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **ibkr-tws-ui-navstat**: Add status badge to `NAVStats.jsx` — green dot = TWS live, yellow = EOD only, grey = disabled. Show `last_updated` as relative time ("updated 12s ago").
     - [x] **ibkr-tws-ui-navstat**: FIX. Current NAV location takes too much vertical realestate, move that to be inside with Sync All Widget button, why is the real time data not showing as working? Reviewed 2026-03-30: compacted Current NAV into the Sync All card and fixed missing TWS `reqAccountUpdates()` subscription so live NAV/account freshness can populate.
     - [x] **ibkr-tws-ui-current**: Can realtime get the current NAV and/or update the 1 day NAV with tws realtime? Reviewed 2026-03-30: yes. `current_nav` now prefers latest TWS NAV snapshot and `1 Day` is recalculated from the Flex 1D start value plus live TWS current NAV.
-    - [ ] **ibkr-tws-ui-nav-date-001**: `1 Day` card date semantics. Keep `1 Day` anchored to the Flex close batch and show the close date explicitly as "as of COB <date>" (derived from the `NAV1D` `_report_date`, not a generic "Flex Date" label).
-    - [ ] **ibkr-tws-ui-nav-date-002**: `7 Day`, `30 Day`, `MTD`, `YTD`, and `1 Year` end-date semantics. Use realtime "as of" timestamp (`last_tws_update`) only when a fresh TWS NAV snapshot is available; otherwise show the corresponding Flex report date/time for that range.
-    - [ ] **ibkr-tws-ui-nav-date-003**: Add explicit source/date metadata fields in `/api/portfolio/stats` so each timeframe can render both value source and end-date source (`flex_close`, `flex_report`, `tws_rt`) without frontend inference.
-    - [ ] **ibkr-tws-api-nav-account-001**: Add optional `account_id` query support to `/api/portfolio/stats` and `/api/portfolio/nav/live`. `account_id=ALL` (or omitted) returns portfolio aggregate; a concrete account returns scoped NAV metrics for that account only.
-    - [ ] **ibkr-tws-ui-nav-account-001**: Wire the existing Portfolio `Account` dropdown to NAV cards so displayed RT/1D/7D/30D/MTD/YTD/1Y values follow the selected account. `All` must show aggregate totals; a specific account must show only that account's NAV metrics.
+    - [/] **ibkr-tws-ui-nav-date-001**: `1 Day` card date semantics. Keep `1 Day` anchored to the Flex close batch and show the close date explicitly as "as of COB <date>" (derived from the `NAV1D` `_report_date`, not a generic "Flex Date" label).
+    - [/] **ibkr-tws-ui-nav-date-002**: `7 Day`, `30 Day`, `MTD`, `YTD`, and `1 Year` end-date semantics. Use realtime "as of" timestamp (`last_tws_update`) only when a fresh TWS NAV snapshot is available; otherwise show the corresponding Flex report date/time for that range.
+    - [/] **ibkr-tws-ui-nav-date-003**: Add explicit source/date metadata fields in `/api/portfolio/stats` so each timeframe can render both value source and end-date source (`flex_close`, `flex_report`, `tws_rt`) without frontend inference.
+    - [/] **ibkr-tws-api-nav-account-001**: Add optional `account_id` query support to `/api/portfolio/stats` and `/api/portfolio/nav/live`. `account_id=ALL` (or omitted) returns portfolio aggregate; a concrete account returns scoped NAV metrics for that account only.
+    - [/] **ibkr-tws-ui-nav-account-001**: Wire the existing Portfolio `Account` dropdown to NAV cards so displayed RT/1D/7D/30D/MTD/YTD/1Y values follow the selected account. `All` must show aggregate totals; a specific account must show only that account's NAV metrics.
     - [ ] **ibkr-tws-ui-nav-compact-001**: Reduce NAV card vertical footprint in `?view=PORTFOLIO` while retaining readability (smaller paddings/heights, concise subtitles, and inline "as of" labeling).
     - [ ] **ibkr-tws-tests-nav-account-001**: Add backend and frontend regression tests for account-scoped NAV stats and timeframe source/date labeling (including market-open realtime vs Flex fallback branches).
     - [x] **ibkr-tws-portfolio-rt-dedupe-001**: Integrate realtime portfolio items into `?view=PORTFOLIO` with duplicate-safe row merging. Reviewed 2026-03-31: `GET /api/portfolio/holdings` now merges the latest Flex/EOD and TWS/live snapshots by canonical portfolio row key so the grid renders one visible row, prefers fresh live market fields, and retains Flex-only fields such as cost basis when live data does not provide them.
@@ -371,7 +373,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **portfolio-export-004**: Add or refresh regression coverage to verify portfolio CSV export stays aligned with the on-screen filtered row set, including `Expiring`, `Near Money`, coverage status, account, and `Show "STK ?"` combinations.
     - [ ] **LINK to Stock Analysis Detail**: Portfolio Page quick link next to ticker and existing Google / Yahoo links should use the external-link arrow-out-of-box glyph for Stock Analysis detail, not a `D` text label. Improve the glyph color/contrast so it reads clearly against the background, and keep using the same shared modal detail window logic used from the ticker analysis list.
     - [ ] **Ticker Column Width / 3 Link Fit**: Make the default ticker column width on grid views wide enough for long OPT ticker names plus the 3 ticker links (Google, Yahoo, Stock Analysis detail) so users do not need to manually drag the column wider. Prevent truncation that hides contract identity or link actions.
-- [ ] **Portfolio View — TWS Live Grid Regression Fixes**: Review and fix the 2026-03-31 `?view=PORTFOLIO` regressions introduced or exposed during TWS realtime integration. Reference: `docs/features/portfolio_tws_live_grid_regressions_20260331.md`.
+- [/] **Portfolio View — TWS Live Grid Regression Fixes**: Review and fix the 2026-03-31 `?view=PORTFOLIO` regressions introduced or exposed during TWS realtime integration. Reference: `docs/features/portfolio_tws_live_grid_regressions_20260331.md`. Tracked as `portfolio-live-grid-undefined-values` bug in Section 0.
     - [ ] **portfolio-live-grid-001**: Price, Value, Basis, and Unrealized PnL must not render the JavaScript literal `undefined`. If live fields are absent, use explicit fallback/null rendering rather than broken currency text.
     - [ ] **portfolio-live-grid-002**: `% NAV` must not render `NaN%`. Guard row-level percentage math when NAV, market value, or live fields are missing or zero.
     - [ ] **portfolio-live-grid-003**: Restore correct `Type` detection and display for `STK` vs `OPT` in the portfolio grid when records come from Flex, TWS, or merged sources.
@@ -658,3 +660,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-02 | **UPDATED** | Added a compact far-left Portfolio `Pending BTC` column (`P.BTC`) to improve visibility while reducing header width usage. |
 | 2026-04-02 | **FIXED** | TWS position persistence now uses a contract-level key so multiple option legs (for example diagonals on the same underlying/account) are stored independently instead of overwriting each other. |
 | 2026-04-02 | **FIXED** | Portfolio coverage labeling now leaves flat rows (`quantity == 0`) with blank `coverage_status` so zero-qty options do not appear as `Covered` in focus filters. |
+| 2026-04-02 | **REVIEWED** | Full F-R review: added 3 new bug items to Section 0, promoted NAV date/account-scope items to `[/]`, promoted portfolio live-grid regression block to `[/]`, added decomposition guards to IB Gateway container and RAG System. See `docs/plans/F-R-review-2026-04-02.md`. |
