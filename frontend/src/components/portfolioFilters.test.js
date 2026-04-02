@@ -38,6 +38,7 @@ test('applyPortfolioFilters combines coverage, expiring, near-money, and account
         expiringOnly: true,
         nearMoneyOnly: true,
         dteLimit: 6,
+        nearMoneyPercent: 8,
     });
 
     assert.equal(filtered.length, 1);
@@ -62,4 +63,32 @@ test('applyPortfolioFilters respects ticker matching against symbol and underlyi
 
     assert.equal(filtered.length, 1);
     assert.equal(filtered[0].symbol, 'TSLA');
+});
+
+test('applyPortfolioFilters uses configurable near-money percent threshold', () => {
+    const filteredAtEightPercent = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Covered',
+        account: 'U110638',
+        nearMoneyOnly: true,
+        nearMoneyPercent: 8,
+    });
+
+    assert.deepEqual(
+        filteredAtEightPercent.map((row) => row.symbol),
+        ['AMD'],
+    );
+
+    const filteredAtTenPercent = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Covered',
+        account: 'U110638',
+        nearMoneyOnly: true,
+        nearMoneyPercent: 10,
+    });
+
+    assert.deepEqual(
+        filteredAtTenPercent.map((row) => row.symbol),
+        ['AMD', 'AMZN'],
+    );
 });

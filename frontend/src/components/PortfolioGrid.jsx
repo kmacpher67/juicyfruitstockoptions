@@ -108,7 +108,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
         },
         {
             field: "dist_to_strike_pct",
-            headerName: "OTM %",
+            headerName: "NtM %",
             width: 80,
             sortable: true,
             valueFormatter: p => formatPercent(p.value, 1),
@@ -282,7 +282,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                 <Button label="Naked" active={filters.coverage === 'Naked'} onClick={() => setCoverageFilter('Naked')} />
                 <Button label="Covered" active={filters.coverage === 'Covered'} onClick={() => setCoverageFilter('Covered')} />
                 <Button label={`Expiring (<${filters.dteLimit}D)`} active={filters.expiringOnly} onClick={() => toggleBooleanFilter('expiringOnly')} />
-                <Button label="Near Money (<5%)" active={filters.nearMoneyOnly} onClick={() => toggleBooleanFilter('nearMoneyOnly')} />
+                <Button label={`Near Money (<${filters.nearMoneyPercent}%)`} active={filters.nearMoneyOnly} onClick={() => toggleBooleanFilter('nearMoneyOnly')} />
 
                 <span className="ml-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Account:</span>
                 <select
@@ -310,12 +310,30 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick }) => {
                     </span>
                 )}
 
+                {filters.nearMoneyOnly && (
+                    <span className="flex items-center gap-1 ml-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">NM %:</span>
+                        <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={filters.nearMoneyPercent}
+                            onChange={e => setFilters((current) => ({ ...current, nearMoneyPercent: Number(e.target.value) }))}
+                            className="w-12 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
+                        />
+                    </span>
+                )}
+
                 <button
                     onClick={handleExportCSV}
                     className="ml-4 px-3 py-1 text-xs font-bold rounded bg-green-700 hover:bg-green-600 text-white shadow"
                 >
                     Export CSV
                 </button>
+
+                <span className="ml-2 text-xs font-bold text-slate-300">
+                    Rows: {rowData.length}
+                </span>
             </div>
             <div className="ag-theme-alpine-dark flex-grow w-full">
                 <AgGridReact

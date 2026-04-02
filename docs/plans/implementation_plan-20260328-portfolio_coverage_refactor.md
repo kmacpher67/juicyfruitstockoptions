@@ -89,7 +89,10 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
     - `naked`: New filter for `coverage_status === 'Naked'`.
     - `covered`: New filter for `coverage_status === 'Covered'`.
 - Update the UI toolbar to include these filter buttons and treat coverage status as one filter dimension.
-- Make `Expiring (<ND)`, `Near Money (<5%)`, and `Account` combine with the selected coverage status using logical `AND` semantics.
+- Make `Expiring (<ND)`, `Near Money (<N%)`, and `Account` combine with the selected coverage status using logical `AND` semantics.
+- Add a configurable Near Money threshold selector with default `8`, allowed range `0` to `20`, and dynamic button text.
+- Add a toolbar row counter that reflects the currently visible filtered result set.
+- Define Near Money from underlying stock price vs option strike using absolute percentage distance in either direction around the strike. Do not use option premium as the reference value.
 - Ensure the `All` action clears all active filter dimensions and restores the default `DTE=6`.
 - Extract the filter predicate into a small pure helper so regression tests can validate the combined filtering contract without a browser runner.
 
@@ -108,6 +111,9 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
 - Click the "Naked" button and verify it shows positions with `coverage_status === 'Naked'`.
 - Click the "Covered" button and verify it shows positions with `coverage_status === 'Covered'`.
 - Turn on `Expiring (<ND)` and verify it narrows the current coverage selection instead of replacing it.
-- Turn on `Near Money (<5%)` and verify it further narrows the result set instead of replacing the other filters.
+- Turn on `Near Money (<8%)` and verify it further narrows the result set instead of replacing the other filters.
+- Change the Near Money percent value and verify the visible rows update to reflect the selected threshold.
+- Verify that a contract such as AMD `202.5C` with underlying around `210.21` reports roughly `3.7%` distance, not `95%+`.
 - Select an account and verify the visible rows satisfy coverage status, DTE, near-money, and account simultaneously.
+- Verify the row counter matches the number of visible rows after filtering.
 - Verify that the `All` button resets filters.

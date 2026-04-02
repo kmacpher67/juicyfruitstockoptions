@@ -38,6 +38,7 @@ def test_get_portfolio_holdings_enrichment(client):
                 "asset_class": "STK",
                 "account_id": "U1",
                 "quantity": 150,
+                "mark_price": 160.0,
                 "report_date": "2026-03-27"
             },
             # Short Call Expiring Soon & ITM
@@ -48,7 +49,7 @@ def test_get_portfolio_holdings_enrichment(client):
                 "quantity": -1,
                 "expiry": (now + timedelta(days=5)).strftime("%Y-%m-%d"),
                 "strike": 150.0,
-                "mark_price": 160.0, # ITM
+                "mark_price": 12.5,
                 "underlying_symbol": "AAPL"
             }
         ]
@@ -92,8 +93,65 @@ def test_get_portfolio_holdings_enrichment(client):
         
         # ITM & Distance
         assert aapl_opt["is_itm"] == True
-        # strike 150, price 160 -> dist (160-150)/150 = 10/150 = 0.0666...
-        assert aapl_opt["dist_to_strike_pct"] == pytest.approx(0.0666, 0.1)
+        # strike 150, underlying 160 -> dist (160-150)/160 = 0.0625
+        assert aapl_opt["dist_to_strike_pct"] == pytest.approx(0.0625, 0.001)
+        assert aapl_opt["underlying_market_price"] == pytest.approx(160.0, 0.001)
+
+
+def test_get_portfolio_holdings_otm_distance_uses_underlying_price_not_option_premium(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls, \
+         patch("app.services.options_analysis.OptionsAnalyzer") as mock_analyzer_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {
+                "symbol": "AMD",
+                "asset_class": "STK",
+                "account_id": "U110638",
+                "quantity": 200,
+                "mark_price": 210.21,
+                "report_date": "2026-04-02",
+            },
+            {
+                "symbol": "AMD  260402C00202500",
+                "asset_class": "OPT",
+                "account_id": "U110638",
+                "quantity": -1,
+                "strike": 202.5,
+                "mark_price": 8.21,
+                "expiry": "2026-04-02",
+                "underlying_symbol": "AMD",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+
+        mock_analyzer = MagicMock()
+        mock_analyzer_cls.return_value = mock_analyzer
+        mock_analyzer.grouped = {
+            "AMD": {
+                "shares": 200,
+                "short_calls": 100,
+                "options": [mock_holdings[1]],
+            }
+        }
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        amd_opt = next(h for h in data if h["asset_class"] == "OPT")
+
+        expected_distance = abs(210.21 - 202.5) / 210.21
+        assert amd_opt["dist_to_strike_pct"] == pytest.approx(expected_distance, 0.001)
+        assert amd_opt["dist_to_strike_pct"] == pytest.approx(0.0367, 0.001)
+        assert amd_opt["underlying_market_price"] == pytest.approx(210.21, 0.001)
+        assert amd_opt["is_itm"] is True
 
 
 def test_get_portfolio_holdings_coverage_is_grouped_by_account(client):

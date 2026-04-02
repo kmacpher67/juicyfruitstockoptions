@@ -4,6 +4,7 @@ export const DEFAULT_PORTFOLIO_FILTERS = Object.freeze({
     expiringOnly: false,
     nearMoneyOnly: false,
     dteLimit: 6,
+    nearMoneyPercent: 8,
 });
 
 const normalizeNumber = (value) => {
@@ -45,7 +46,9 @@ export const rowMatchesPortfolioFilters = (row, filterState, filterTicker = '') 
 
     if (filterState.nearMoneyOnly) {
         const distance = normalizeNumber(row.dist_to_strike_pct);
-        if (distance === null || distance >= 0.05) {
+        const threshold = normalizeNumber(filterState.nearMoneyPercent);
+        const maxDistance = threshold === null ? 0.08 : threshold / 100;
+        if (distance === null || distance >= maxDistance) {
             return false;
         }
     }

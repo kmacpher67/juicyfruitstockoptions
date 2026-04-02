@@ -916,6 +916,7 @@ async def get_portfolio_holdings(
     grouped = analyzer.grouped
     now = datetime.now()
     coverage_by_account = defaultdict(lambda: {"shares": 0.0, "short_calls": 0.0})
+    underlying_price_by_account = {}
 
     for row in data:
         account_id = row.get("account_id") or "UNKNOWN"
@@ -929,6 +930,9 @@ async def get_portfolio_holdings(
 
         if sec_type == "STK":
             coverage_by_account[key]["shares"] += qty
+            market_price = _safe_float(row.get("market_price"))
+            if market_price is not None and market_price > 0:
+                underlying_price_by_account[key] = market_price
         elif _is_short_call_position(row):
             multiplier = float(row.get("multiplier", 100) or 100)
             coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
@@ -990,18 +994,28 @@ async def get_portfolio_holdings(
             # Strike Distance & ITM
             _, _, parsed_strike = _extract_option_fields(row)
             strike = parsed_strike if parsed_strike is not None else float(row.get("strike", 0) or 0)
-            price = _safe_float(row.get("market_price"))
-            if strike > 0 and price is not None and price > 0:
-                row["dist_to_strike_pct"] = abs(price - strike) / strike
+            underlying_price = underlying_price_by_account.get((account_id, und))
+            if underlying_price is None:
+                underlying_price = _safe_float(row.get("underlying_price"))
+            if underlying_price is None:
+                underlying_price = _safe_float(row.get("underlying_last"))
+            if underlying_price is None:
+                underlying_price = _safe_float(row.get("underlying_market_price"))
+
+            if strike > 0 and underlying_price is not None and underlying_price > 0:
+                # Near-money / OTM distance should compare option strike to the underlying stock price,
+                # not to the option premium itself. We use absolute distance so "near" works in either direction.
+                row["dist_to_strike_pct"] = abs(underlying_price - strike) / underlying_price
+                row["underlying_market_price"] = underlying_price
                 
                 # ITM Check using OSI symbol (AAPL  250117C00150000)
                 # re is already imported in routes.py (line 34 in options_analysis, but I need it here)
                 # But I can just check for 'C' or 'P' after the date.
                 sym = row.get("local_symbol") or row.get("symbol", "")
                 if re.search(r'\d{6}C\d+', sym):
-                    row["is_itm"] = price >= strike
+                    row["is_itm"] = underlying_price >= strike
                 elif re.search(r'\d{6}P\d+', sym):
-                    row["is_itm"] = price <= strike
+                    row["is_itm"] = underlying_price <= strike
                 else:
                     row["is_itm"] = False
 
