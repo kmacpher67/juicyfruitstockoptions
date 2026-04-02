@@ -33,6 +33,24 @@ def _today_live_trade_query(today_prefix: str) -> dict:
     }
 
 
+def _map_dividend_to_trade_row(doc: dict) -> dict:
+    pay_date = str(doc.get("pay_date") or "").replace("-", "")
+    raw_id = doc.get("_id")
+    dividend_id = str(raw_id) if raw_id is not None else f"{doc.get('account_id')}_{doc.get('symbol')}_{pay_date}"
+    return {
+        "trade_id": f"div_{dividend_id}",
+        "symbol": doc.get("symbol"),
+        "account_id": doc.get("account_id"),
+        "date_time": pay_date,
+        "quantity": 0,
+        "price": 0,
+        "buy_sell": "DIVIDEND",
+        "asset_class": "DIV",
+        "source": "dividend",
+        "realized_pnl": float(doc.get("net_amount", 0) or 0),
+    }
+
+
 @router.get("/live-status", response_model=dict)
 async def get_trade_live_status(
     current_user: User = Depends(get_current_active_user)
@@ -113,22 +131,10 @@ async def get_trades(
     # but sufficient for combined view.
     div_query = {"code": "RE"}
     if symbol: div_query["symbol"] = symbol
-    div_cursor = db.ibkr_dividends.find(div_query).limit(limit)
+    div_cursor = db.ibkr_dividends.find(div_query).sort("pay_date", -1).limit(limit)
     
     for doc in div_cursor:
-        # Convert YYYY-MM-DD to YYYYMMDD string for sorting/display compatibility if needed,
-        # or just use the string directly if UI handles it.
-        dt = (doc.get("pay_date") or "").replace("-", "")
-        raw_trades.append(TradeRecord(
-            trade_id=f"div_{doc.get('_id')}",
-            symbol=doc.get("symbol"),
-            account_id=doc.get("account_id"),
-            date_time=dt,
-            quantity=0,
-            price=0,
-            buy_sell="DIVIDEND",
-            realized_pnl=doc.get("net_amount", 0) # Store straight as extra field or map depending on UI needs
-        ))
+        raw_trades.append(TradeRecord(**_map_dividend_to_trade_row(doc)))
         
     # Sort combined results descending
     raw_trades.sort(key=lambda x: str(x.date_time) if x.date_time else "", reverse=True)
@@ -187,17 +193,7 @@ async def get_trade_analysis(
         div_count = 0
         for doc in div_cursor:
             div_count += 1
-            dt = (doc.get("pay_date") or "").replace("-", "")
-            raw_trades.append({
-                "trade_id": f"div_{doc.get('_id')}",
-                "symbol": doc.get("symbol"),
-                "account_id": doc.get("account_id"),
-                "date_time": dt,
-                "quantity": 0,
-                "price": 0,
-                "buy_sell": "DIVIDEND",
-                "realized_pnl": doc.get("net_amount", 0)
-            })
+            raw_trades.append(_map_dividend_to_trade_row(doc))
             
         t_fetch_divs = time.time() - t0
         logger.info(f"Retrieved {div_count} dividends in {t_fetch_divs:.4f}s")

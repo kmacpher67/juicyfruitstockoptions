@@ -44,15 +44,13 @@ This bug cluster overlaps older portfolio UI work and should reference it instea
 - `portfolio-live-grid-002`: Prevent `NaN%` in `% NAV`.
   Percentage calculations must short-circuit when numerator or denominator is missing, null, or zero.
 - `portfolio-live-grid-003`: Restore reliable `STK` vs `OPT` typing.
-  The grid must consistently resolve security type from normalized fields such as `secType`, `sec_type`, `asset_class`, or equivalent merged-source contract metadata.
+  Status: completed 2026-04-02. Type normalization is now centralized in `frontend/src/components/portfolioPresentation.js` and used by `PortfolioGrid`.
 - `portfolio-live-grid-004`: Restore option description rendering.
-  Option rows should show a meaningful contract label including underlying, expiry, strike, and put/call when available.
+  Status: completed 2026-04-02. Backend row normalization now guarantees a fallback description/display symbol for option rows.
 - `portfolio-live-grid-005`: Normalize the merged portfolio row schema before rendering.
-  Flex/EOD and TWS/live rows should expose the same canonical names for price, value, basis, unrealized PnL, `% NAV`, security type, and description.
-- `portfolio-live-grid-006`: Deduplicate merged-source portfolio rows.
-  Status: completed 2026-03-31. The backend now merges latest Flex/EOD and TWS/live rows by canonical portfolio key so the UI renders one visible row with deterministic source precedence instead of showing duplicates.
-- `portfolio-live-grid-007`: Add regression coverage.
-  Tests should cover live-only, Flex-only, and merged-source rows so older Type fallback behavior does not regress when realtime data is present.
+  Status: completed 2026-04-02. `routes.py::_normalize_portfolio_row` now handles mixed alias/casing fields (`marketValue`, `avgCost`, `unrealizedPnL`, etc.) and emits canonical keys.
+- `portfolio-live-grid-006`: Add regression coverage for merged-source row mapping.
+  Status: completed 2026-04-02. Coverage now includes backend row-normalization tests plus frontend presentation utility tests.
 
 ## Acceptance Criteria
 
@@ -71,3 +69,9 @@ This bug cluster overlaps older portfolio UI work and should reference it instea
 3. Normalize the row schema before table rendering.
 4. Only after normalization, re-check formatting helpers for currency and percent columns.
 5. Add regression tests for the row-mapping contract.
+
+## Changelog
+
+| Date | Action | Notes |
+|---|---|---|
+| 2026-04-02 | Updated | Marked `portfolio-live-grid-003..006` complete; documented canonical row-shape + type/description normalization and regression test coverage. |

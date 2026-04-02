@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
+import { buildTickerHeaderModel } from './tickerModalHeader';
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -51,6 +52,8 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
 
     if (!isOpen) return null;
 
+    const headerModel = buildTickerHeaderModel({ ticker, tickerData });
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-gray-700">
@@ -58,36 +61,36 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                 <div className="flex justify-between items-center p-6 border-b border-gray-800 bg-gray-850 rounded-t-lg">
                     <div className="flex items-baseline gap-3 flex-wrap">
                         <a
-                            href={`https://www.google.com/finance/quote/${ticker}`}
+                            href={`https://www.google.com/finance/quote/${headerModel.ticker}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-3xl font-bold text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-                            title={`View ${ticker} on Google Finance`}
+                            title={`View ${headerModel.ticker} on Google Finance`}
                         >
-                            {ticker}
+                            {headerModel.ticker}
                         </a>
-                        {tickerData?.company_name && tickerData.company_name !== ticker && (
+                        {headerModel.descriptor && headerModel.descriptor !== headerModel.ticker && (
                             <a
-                                href={`https://finance.yahoo.com/quote/${ticker}/`}
+                                href={`https://finance.yahoo.com/quote/${headerModel.ticker}/`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-sm text-gray-400 hover:text-yellow-400 hover:underline transition-colors"
-                                title={`View ${tickerData.company_name} on Yahoo Finance`}
+                                title={`View ${headerModel.descriptor} on Yahoo Finance`}
                             >
-                                {tickerData.company_name}
+                                {headerModel.descriptor}
                             </a>
                         )}
                         {tickerData?.data ? (
                             <>
-                                <span className="text-xl font-mono text-blue-400">${tickerData?.data?.['Current Price']}</span>
-                                <span className={`text-sm ${tickerData?.data?.['1D % Change'] >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {tickerData?.data?.['1D % Change']}%
-                                </span>
-                                {tickerData?.data?.['Last Update'] && (
-                                    <span className="text-xs text-gray-500" title="Last data update">
-                                        {tickerData.data['Last Update']}
+                                {headerModel.priceText && <span className="text-xl font-mono text-blue-400">{headerModel.priceText}</span>}
+                                {headerModel.changeText && (
+                                    <span className={`text-sm ${headerModel.changeTone}`}>
+                                        {headerModel.changeText}
                                     </span>
                                 )}
+                                <span className="text-xs text-gray-500" title="Last data update">
+                                    {headerModel.lastUpdateText}
+                                </span>
                             </>
                         ) : (
                             <span className="text-sm text-gray-500">Loading price...</span>

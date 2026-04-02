@@ -86,6 +86,30 @@ test('applyPortfolioFilters keeps coverage mutually exclusive while leaving othe
     );
 });
 
+test('applyPortfolioFilters matches coverage focus regardless of coverage_status casing', () => {
+    const rows = [
+        ...sampleRows,
+        {
+            symbol: 'NVDA',
+            underlying_symbol: 'NVDA',
+            account_id: 'U110638',
+            asset_class: 'STK',
+            coverage_status: 'uncovered',
+        },
+    ];
+
+    const filtered = applyPortfolioFilters(rows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Uncovered',
+        account: 'U110638',
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['NVDA'],
+    );
+});
+
 test('applyPortfolioFilters respects ticker matching against symbol and underlying symbol', () => {
     const filtered = applyPortfolioFilters(sampleRows, DEFAULT_PORTFOLIO_FILTERS, 'tsla');
 

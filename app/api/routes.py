@@ -440,10 +440,18 @@ def _normalize_portfolio_row(row: dict) -> dict:
     market_price = _safe_float(normalized.get("market_price"))
     if market_price is None:
         market_price = _safe_float(normalized.get("mark_price"))
+    if market_price is None:
+        market_price = _safe_float(normalized.get("marketPrice"))
+    if market_price is None:
+        market_price = _safe_float(normalized.get("last_price"))
 
     market_value = _safe_float(normalized.get("market_value"))
     if market_value is None:
         market_value = _safe_float(normalized.get("position_value"))
+    if market_value is None:
+        market_value = _safe_float(normalized.get("marketValue"))
+    if market_value is None:
+        market_value = _safe_float(normalized.get("positionValue"))
     if market_value is None and market_price is not None and quantity is not None:
         multiplier = _safe_float(normalized.get("multiplier"))
         if multiplier is None:
@@ -455,13 +463,29 @@ def _normalize_portfolio_row(row: dict) -> dict:
         cost_basis = _safe_float(normalized.get("avg_cost"))
     if cost_basis is None:
         cost_basis = _safe_float(normalized.get("averageCost"))
+    if cost_basis is None:
+        cost_basis = _safe_float(normalized.get("avgCost"))
 
     unrealized_pnl = _safe_float(normalized.get("unrealized_pnl"))
+    if unrealized_pnl is None:
+        unrealized_pnl = _safe_float(normalized.get("unrealizedPnL"))
+    if unrealized_pnl is None:
+        unrealized_pnl = _safe_float(normalized.get("unrealizedPNL"))
     percent_of_nav = _safe_float(normalized.get("percent_of_nav"))
     if percent_of_nav is not None and percent_of_nav > 1:
         percent_of_nav = percent_of_nav / 100.0
 
     account_id = normalized.get("account_id") or normalized.get("account")
+    display_symbol = _build_display_symbol(normalized, security_type)
+    description = (
+        normalized.get("description")
+        or normalized.get("Description")
+        or normalized.get("display_symbol")
+        or display_symbol
+        or normalized.get("local_symbol")
+        or normalized.get("localSymbol")
+        or normalized.get("symbol")
+    )
     normalized.update(
         {
             "account_id": account_id,
@@ -475,7 +499,8 @@ def _normalize_portfolio_row(row: dict) -> dict:
             "asset_class": security_type,
             "secType": security_type,
             "underlying_symbol": underlying_symbol,
-            "display_symbol": _build_display_symbol(normalized, security_type),
+            "display_symbol": display_symbol,
+            "description": description,
         }
     )
     return normalized

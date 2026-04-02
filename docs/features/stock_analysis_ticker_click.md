@@ -10,6 +10,12 @@
 
 When a user clicks any **ticker symbol** in the Stock Analysis grid (`StockGrid.jsx`), a full-screen modal (`TickerModal.jsx`) opens with **six tabbed views**, each pulling data from a dedicated backend API endpoint.
 
+The modal header now includes:
+- ticker linked to Google Finance
+- company name/description linked to Yahoo Finance quote page
+- normalized price and `%` change formatting
+- explicit last-update timestamp text
+
 ### Data Flow
 
 ```
@@ -140,3 +146,4 @@ These items from `features-requirements.md` remain incomplete:
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-03-28 | **CREATED** | Initial feature overview documenting existing ticker click behavior, data flow, tabs, API endpoints, and all related docs |
+| 2026-04-02 | **UPDATED** | Header enrichment completed in `TickerModal`: ticker/descriptive link targets, `%` formatting fix, and last-update normalization with utility tests |

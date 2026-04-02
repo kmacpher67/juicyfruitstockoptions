@@ -35,6 +35,14 @@ const getUnderlyingGroupKey = (row) => {
 
 const hasOptionFocusedFilter = (filterState) => filterState.expiringOnly || filterState.nearMoneyOnly;
 
+const normalizeCoverageStatus = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'covered') return 'Covered';
+    if (normalized === 'uncovered') return 'Uncovered';
+    if (normalized === 'naked') return 'Naked';
+    return '';
+};
+
 const matchesPendingEffectFilter = (row, pendingEffect) => {
     if (pendingEffect === 'all') return true;
     const effect = String(row.pending_order_effect || 'none').toLowerCase();
@@ -64,7 +72,7 @@ export const rowMatchesPortfolioFilters = (row, filterState, filterTicker = '') 
         return false;
     }
 
-    if (filterState.coverage !== 'all' && row.coverage_status !== filterState.coverage) {
+    if (filterState.coverage !== 'all' && normalizeCoverageStatus(row.coverage_status) !== normalizeCoverageStatus(filterState.coverage)) {
         return false;
     }
 

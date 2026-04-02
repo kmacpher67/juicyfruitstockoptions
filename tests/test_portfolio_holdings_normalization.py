@@ -51,6 +51,33 @@ def test_normalize_portfolio_row_keeps_missing_live_values_null_and_percent_frac
     assert row["unrealized_pnl"] is None
 
 
+def test_normalize_portfolio_row_supports_camel_case_realtime_fields_and_description_fallback():
+    row = _normalize_portfolio_row(
+        {
+            "symbol": "AMD",
+            "localSymbol": "AMD   260402C00202500",
+            "secType": "opt",
+            "account": "U110638",
+            "position": -1,
+            "marketPrice": "2.95",
+            "marketValue": "-295",
+            "avgCost": "4.75",
+            "unrealizedPnL": "180",
+            "lastTradeDateOrContractMonth": "20260402",
+            "right": "C",
+            "strike": 202.5,
+        }
+    )
+
+    assert row["security_type"] == "OPT"
+    assert row["market_price"] == 2.95
+    assert row["market_value"] == -295.0
+    assert row["cost_basis"] == 4.75
+    assert row["unrealized_pnl"] == 180.0
+    assert row["display_symbol"] == "AMD 2026-04-02 202.5 Call"
+    assert row["description"] == "AMD 2026-04-02 202.5 Call"
+
+
 def test_portfolio_row_key_matches_flex_and_tws_option_shapes():
     flex_row = _normalize_portfolio_row(
         {

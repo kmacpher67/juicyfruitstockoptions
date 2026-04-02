@@ -6,15 +6,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ExternalLink } from 'lucide-react';
 import { applyPortfolioFilters, DEFAULT_PORTFOLIO_FILTERS } from './portfolioFilters';
 import { getNumericValue, formatCurrency, formatPercent } from './portfolioGridFormatters';
-
-const resolveSecurityTypeLabel = (row = {}) => {
-    const rawType = row.security_type || row.asset_class || row.secType || row.sec_type;
-    if (rawType === 'OPT' || rawType === 'FOP') return 'Option';
-    if (rawType === 'STK') return 'Stock';
-    return rawType || 'Stock';
-};
-
-const getDisplaySymbol = (row = {}) => row.display_symbol || row.description || row.local_symbol || row.symbol || '';
+import { getDisplaySymbol, getVisibleRowCounterLabel, resolveSecurityTypeLabel } from './portfolioPresentation';
 
 const getPendingEffectUi = (effect) => {
     switch (effect) {
@@ -419,7 +411,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 </button>
 
                 <span className="ml-2 text-xs font-bold text-slate-300">
-                    Rows: {rowData.length}
+                    {getVisibleRowCounterLabel(rowData.length)}
                 </span>
             </div>
             <div className="ag-theme-alpine-dark flex-grow w-full">

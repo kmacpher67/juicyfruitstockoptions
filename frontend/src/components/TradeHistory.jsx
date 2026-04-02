@@ -99,16 +99,19 @@ const getLiveStatusTone = (state) => {
 };
 
 const SourceBadge = ({ source }) => {
-    const normalized = source === 'tws_live' ? 'tws_live' : 'flex_history';
+    const normalized = source === 'tws_live' ? 'tws_live' : (source === 'dividend' ? 'dividend' : 'flex_history');
     const isLive = normalized === 'tws_live';
+    const isDividend = normalized === 'dividend';
 
     return (
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
             isLive
                 ? 'border-green-500/40 bg-green-500/10 text-green-200'
-                : 'border-gray-600 bg-gray-900 text-gray-300'
+                : isDividend
+                    ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
+                    : 'border-gray-600 bg-gray-900 text-gray-300'
         }`}>
-            {isLive ? 'TWS Live' : 'Flex'}
+            {isLive ? 'TWS Live' : (isDividend ? 'Dividend' : 'Flex')}
         </span>
     );
 };
@@ -244,12 +247,16 @@ const TradeHistory = ({ onTickerClick }) => {
             headerName: "Quantity",
             type: "numericColumn",
             width: 90,
-            valueGetter: p => Math.abs(p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity),
+            valueGetter: p => {
+                if ((p.data.buy_sell || '').toUpperCase() === 'DIVIDEND') return 0;
+                return Math.abs(p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity);
+            },
         },
         {
             field: "trade_price",
             headerName: "Price",
             valueGetter: p => {
+                if ((p.data.buy_sell || '').toUpperCase() === 'DIVIDEND') return null;
                 if (p.data.price !== undefined && p.data.price !== null) return p.data.price;
                 if (p.data.trade_price !== undefined) return p.data.trade_price;
                 return p.data.TradePrice;
@@ -260,6 +267,7 @@ const TradeHistory = ({ onTickerClick }) => {
             field: "ib_commission",
             headerName: "Comm",
             valueGetter: p => {
+                if ((p.data.buy_sell || '').toUpperCase() === 'DIVIDEND') return null;
                 if (p.data.commission !== undefined && p.data.commission !== null) return p.data.commission;
                 if (p.data.ib_commission !== undefined) return p.data.ib_commission;
                 return p.data.IBCommission;
@@ -282,16 +290,19 @@ const TradeHistory = ({ onTickerClick }) => {
             headerName: "Type",
             width: 80,
             valueGetter: p => {
-                let ac = p.data.asset_class || p.data.AssetClass;
+                if ((p.data.buy_sell || '').toUpperCase() === 'DIVIDEND') return 'Dividend';
+
+                let ac = p.data.asset_class || p.data.AssetClass || p.data.secType || p.data.security_type;
                 const sym = p.data.symbol || p.data.Symbol || "";
 
                 if (!ac) {
-                    if (sym.includes("  ") || (sym.length > 5 && /\d/.test(sym) && (sym.endsWith("C") || sym.endsWith("P")))) ac = "OPT";
+                    if (/\d{6}[CP]\d+/.test(sym) || /\d{6}[CP]\d+/.test(String(p.data.local_symbol || p.data.localSymbol || ''))) ac = "OPT";
                     else ac = "STK";
                 }
 
-                if (ac === "OPT" || ac === "FOP") return "Option";
-                if (ac === "STK") return "Stock";
+                const normalized = String(ac).toUpperCase();
+                if (normalized === "OPT" || normalized === "FOP") return "Option";
+                if (normalized === "STK") return "Stock";
                 return ac;
             }
         },

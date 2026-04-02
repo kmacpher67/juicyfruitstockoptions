@@ -20,7 +20,7 @@ def test_get_trades_endpoint():
         mock_find = MagicMock()
         mock_find.sort.return_value.skip.return_value.limit.return_value = mock_cursor
         mock_db.ibkr_trades.find.return_value = mock_find
-        mock_db.ibkr_dividends.find.return_value.limit.return_value = []
+        mock_db.ibkr_dividends.find.return_value.sort.return_value.limit.return_value = []
 
         data = asyncio.run(trades.get_trades(current_user=_admin_user()))
 
@@ -45,6 +45,52 @@ def test_get_analysis_endpoint():
     assert "metrics" in data
     assert data["metrics"].total_pl == 100.0
     assert data["metrics"].win_rate == 100.0
+
+
+def test_get_trades_endpoint_includes_dividend_rows_with_explicit_source_and_type():
+    mock_trade_cursor = [
+        {"TradeID": "2", "Symbol": "GOOG", "Quantity": 5, "TradePrice": 2000.0, "DateTime": "20240102"},
+    ]
+    mock_dividends = [
+        {"_id": "abc1", "symbol": "GOOG", "account_id": "U1", "pay_date": "2024-01-03", "net_amount": 42.5, "code": "RE"},
+    ]
+
+    with patch("app.api.trades.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.find.return_value.sort.return_value.skip.return_value.limit.return_value = mock_trade_cursor
+        mock_db.ibkr_dividends.find.return_value.sort.return_value.limit.return_value = mock_dividends
+
+        data = asyncio.run(trades.get_trades(current_user=_admin_user()))
+
+    assert len(data) == 2
+    dividend_row = next(row for row in data if row.buy_sell == "DIVIDEND")
+    assert dividend_row.trade_id == "div_abc1"
+    assert dividend_row.asset_class == "DIV"
+    assert dividend_row.source == "dividend"
+    assert dividend_row.realized_pnl == 42.5
+
+
+def test_get_analysis_endpoint_includes_dividend_cash_events():
+    mock_trade_cursor = [
+        {"TradeID": "1", "Symbol": "AAPL", "Quantity": 10, "TradePrice": 100.0, "DateTime": "20240101"},
+        {"TradeID": "2", "Symbol": "AAPL", "Quantity": -10, "TradePrice": 110.0, "DateTime": "20240102"},
+    ]
+    mock_dividends = [
+        {"_id": "div123", "symbol": "AAPL", "account_id": "U1", "pay_date": "2024-01-03", "net_amount": 5.0, "code": "RE"},
+    ]
+
+    with patch("app.api.trades.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.find.return_value.sort.return_value = mock_trade_cursor
+        mock_db.ibkr_dividends.find.return_value = mock_dividends
+        mock_db.ibkr_holdings.find.return_value = []
+
+        data = asyncio.run(trades.get_trade_analysis(symbol="AAPL", current_user=_admin_user()))
+
+    dividend_row = next(row for row in data["trades"] if getattr(row, "buy_sell", None) == "DIVIDEND")
+    assert dividend_row.asset_class == "DIV"
+    assert dividend_row.source == "dividend"
+    assert dividend_row.realized_pl == 5.0
 
 
 def test_get_trade_live_status_endpoint():
