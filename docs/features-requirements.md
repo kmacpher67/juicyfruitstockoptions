@@ -240,6 +240,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Run Live Analysis**: Disables button while analysis is running. Changes to "running" until ready again, reloads the grid.
     - [x] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
     - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
+    - [ ] **Stock Analysis — Ticker Quick Links**: Add the standard ticker quick links directly on the `?view=ANALYSIS` page ticker column so each analysis row exposes Google Finance, Yahoo Finance, and Stock Analysis detail/modal actions without requiring manual navigation elsewhere.
     - [ ] **Tickers — Composite Rating**: Aggregate all ticker metrics (momentum TSMOM_60, Call/Put Skew, news sentiment, technicals EMA/HMA/MA, RSI, ATR) into a single "Ticker Health" score column in the StockGrid. Should be color-coded (green/yellow/red) and sortable. Currently no composite score exists in the grid.
     - [/] **Stock Analysis — Ticker Click Popup**: Pop-up modal (`TickerModal.jsx`) when clicking a ticker in StockGrid or PortfolioGrid. See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md). **Implemented:** 6-tab modal with parallel API fetches. **Source:** `TickerModal.jsx`, `Dashboard.jsx`.
         - [x] **Backend API — Ticker Data**: `GET /api/ticker/{symbol}` — returns stock data from MongoDB `stock_data` collection (`routes.py` L1090).
@@ -302,6 +303,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **trade history UI**: fix Trade Count add a line break between All and Account1, <BR>Account2, <BR> Account3 (between each break out line item.
     - [x] **trade history UI**: All the widgets should have a ALL amount, <br> Acct1 amount, <br> Acct2 amount break out 
     - [x] **trade history UI**: Fix Unrealized P&L does not update when switching the time frame. 
+    - [ ] **trade history UI — Ticker Quick Links**: Add the standard ticker quick links on the `?view=TRADES` page ticker column so each trade row exposes Google Finance, Yahoo Finance, and Stock Analysis detail/modal actions directly from trade history.
+    - [ ] **trade history UI — Ticker Column Width**: Size the ticker column on `?view=TRADES` wide enough for long OPT contract symbols plus 3 quick-link actions. Default sizing should avoid manual resizing, clipping, overlap, or hidden link actions.
 
 ### Portfolio 
 - [x] **Portfolio View**: Remove all the opportunities from the portfolio view (the entire grid)
@@ -318,7 +321,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] **Options Due in X Days**: Modify the "Expiring (<6D)" filter to allow user changeable control/field for specifying the days to expiration. Expiring <## field. 
     - [X] **Export**: Export current view of portfolio to CSV (inclusive of filters). 
     - [ ] **LINK to Stock Analysis Detail**: Portfolio Page quick link next to ticker and existing Google / Yahoo links should use the external-link arrow-out-of-box glyph for Stock Analysis detail, not a `D` text label. Improve the glyph color/contrast so it reads clearly against the background, and keep using the same shared modal detail window logic used from the ticker analysis list.
-    - [ ] **Links on tickers**: Standard link next to any time a ticker is displayed (analysis page, portfolio, or trades)
+    - [ ] **Ticker Column Width / 3 Link Fit**: Make the default ticker column width on grid views wide enough for long OPT ticker names plus the 3 ticker links (Google, Yahoo, Stock Analysis detail) so users do not need to manually drag the column wider. Prevent truncation that hides contract identity or link actions.
 - [ ] **Portfolio View — TWS Live Grid Regression Fixes**: Review and fix the 2026-03-31 `?view=PORTFOLIO` regressions introduced or exposed during TWS realtime integration. Reference: `docs/features/portfolio_tws_live_grid_regressions_20260331.md`.
     - [ ] **portfolio-live-grid-001**: Price, Value, Basis, and Unrealized PnL must not render the JavaScript literal `undefined`. If live fields are absent, use explicit fallback/null rendering rather than broken currency text.
     - [ ] **portfolio-live-grid-002**: `% NAV` must not render `NaN%`. Guard row-level percentage math when NAV, market value, or live fields are missing or zero.
