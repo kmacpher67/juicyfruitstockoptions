@@ -22,6 +22,20 @@ The portfolio toolbar must support combined filtering with logical `AND` semanti
 - Account filter: when selected, only show rows for that `account_id`
 - Row counter: toolbar must show the count of currently visible rows after all active filters are applied
 
+## Underlying Stock Inclusion
+
+When an option-focused filter is active, the result set must include the matching underlying stock row for each visible option group:
+
+- Option-focused filters are currently `Expiring` and `Near Money`
+- Visible option rows remain the primary selector
+- For each matched `(account_id, underlying_symbol)` option group, include the corresponding stock row
+- Do not include stock rows whose `(account_id, underlying_symbol)` group has no matched option rows
+
+Example:
+
+- If `Near Money` matches AMZN option rows in account `U110638`, include the `AMZN` stock row for `U110638`
+- Do not include unrelated stocks such as `ERO` or `GOOG` unless their option rows also match the active option-focused filters
+
 ## Near Money Formula
 
 For portfolio filtering, "Near Money" is the absolute percentage distance between the option strike and the underlying stock price:

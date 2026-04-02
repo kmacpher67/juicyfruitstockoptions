@@ -13,6 +13,26 @@ const normalizeNumber = (value) => {
     return Number.isFinite(numeric) ? numeric : null;
 };
 
+const getSecurityType = (row) => {
+    const rawType = row.security_type || row.asset_class || row.secType || row.sec_type;
+    return String(rawType || '').toUpperCase();
+};
+
+const isOptionRow = (row) => {
+    const type = getSecurityType(row);
+    return type === 'OPT' || type === 'FOP';
+};
+
+const isStockRow = (row) => getSecurityType(row) === 'STK';
+
+const getUnderlyingGroupKey = (row) => {
+    const accountId = row.account_id || 'UNKNOWN';
+    const underlying = row.underlying_symbol || row.underlying || row.symbol || '';
+    return `${accountId}:${String(underlying).toUpperCase()}`;
+};
+
+const hasOptionFocusedFilter = (filterState) => filterState.expiringOnly || filterState.nearMoneyOnly;
+
 const matchesTickerFilter = (row, filterTicker) => {
     if (!filterTicker) return true;
 
@@ -56,5 +76,26 @@ export const rowMatchesPortfolioFilters = (row, filterState, filterTicker = '') 
     return true;
 };
 
-export const applyPortfolioFilters = (rows, filterState, filterTicker = '') =>
-    rows.filter((row) => rowMatchesPortfolioFilters(row, filterState, filterTicker));
+export const applyPortfolioFilters = (rows, filterState, filterTicker = '') => {
+    const matchedRows = rows.filter((row) => rowMatchesPortfolioFilters(row, filterState, filterTicker));
+
+    if (!hasOptionFocusedFilter(filterState)) {
+        return matchedRows;
+    }
+
+    const matchedOptionKeys = new Set(
+        matchedRows.filter((row) => isOptionRow(row)).map((row) => getUnderlyingGroupKey(row)),
+    );
+
+    if (matchedOptionKeys.size === 0) {
+        return matchedRows;
+    }
+
+    return rows.filter((row) => {
+        if (matchedRows.includes(row)) {
+            return true;
+        }
+
+        return isStockRow(row) && matchedOptionKeys.has(getUnderlyingGroupKey(row));
+    });
+};

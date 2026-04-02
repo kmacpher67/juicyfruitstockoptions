@@ -8,6 +8,14 @@ const sampleRows = [
         symbol: 'AMD',
         underlying_symbol: 'AMD',
         account_id: 'U110638',
+        asset_class: 'STK',
+        coverage_status: 'Covered',
+    },
+    {
+        symbol: 'AMD 2026-04-02 202.5 Call',
+        underlying_symbol: 'AMD',
+        account_id: 'U110638',
+        asset_class: 'OPT',
         coverage_status: 'Covered',
         dte: 0,
         dist_to_strike_pct: 0.04,
@@ -16,6 +24,14 @@ const sampleRows = [
         symbol: 'AMZN',
         underlying_symbol: 'AMZN',
         account_id: 'U110638',
+        asset_class: 'STK',
+        coverage_status: 'Covered',
+    },
+    {
+        symbol: 'AMZN 2026-04-10 210 Call',
+        underlying_symbol: 'AMZN',
+        account_id: 'U110638',
+        asset_class: 'OPT',
         coverage_status: 'Covered',
         dte: 12,
         dist_to_strike_pct: 0.09,
@@ -24,6 +40,14 @@ const sampleRows = [
         symbol: 'TSLA',
         underlying_symbol: 'TSLA',
         account_id: 'U280132',
+        asset_class: 'STK',
+        coverage_status: 'Uncovered',
+    },
+    {
+        symbol: 'TSLA 2026-04-04 250 Call',
+        underlying_symbol: 'TSLA',
+        account_id: 'U280132',
+        asset_class: 'OPT',
         coverage_status: 'Uncovered',
         dte: 3,
         dist_to_strike_pct: 0.03,
@@ -41,8 +65,10 @@ test('applyPortfolioFilters combines coverage, expiring, near-money, and account
         nearMoneyPercent: 8,
     });
 
-    assert.equal(filtered.length, 1);
-    assert.equal(filtered[0].symbol, 'AMD');
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMD 2026-04-02 202.5 Call'],
+    );
 });
 
 test('applyPortfolioFilters keeps coverage mutually exclusive while leaving other toggles optional', () => {
@@ -54,15 +80,17 @@ test('applyPortfolioFilters keeps coverage mutually exclusive while leaving othe
 
     assert.deepEqual(
         filtered.map((row) => row.symbol),
-        ['AMD', 'AMZN'],
+        ['AMD', 'AMD 2026-04-02 202.5 Call', 'AMZN', 'AMZN 2026-04-10 210 Call'],
     );
 });
 
 test('applyPortfolioFilters respects ticker matching against symbol and underlying symbol', () => {
     const filtered = applyPortfolioFilters(sampleRows, DEFAULT_PORTFOLIO_FILTERS, 'tsla');
 
-    assert.equal(filtered.length, 1);
-    assert.equal(filtered[0].symbol, 'TSLA');
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['TSLA', 'TSLA 2026-04-04 250 Call'],
+    );
 });
 
 test('applyPortfolioFilters uses configurable near-money percent threshold', () => {
@@ -76,7 +104,7 @@ test('applyPortfolioFilters uses configurable near-money percent threshold', () 
 
     assert.deepEqual(
         filteredAtEightPercent.map((row) => row.symbol),
-        ['AMD'],
+        ['AMD', 'AMD 2026-04-02 202.5 Call'],
     );
 
     const filteredAtTenPercent = applyPortfolioFilters(sampleRows, {
@@ -89,6 +117,32 @@ test('applyPortfolioFilters uses configurable near-money percent threshold', () 
 
     assert.deepEqual(
         filteredAtTenPercent.map((row) => row.symbol),
-        ['AMD', 'AMZN'],
+        ['AMD', 'AMD 2026-04-02 202.5 Call', 'AMZN', 'AMZN 2026-04-10 210 Call'],
+    );
+});
+
+test('applyPortfolioFilters includes underlying stock rows only for the matched option groups', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        nearMoneyOnly: true,
+        nearMoneyPercent: 5,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMD 2026-04-02 202.5 Call', 'TSLA', 'TSLA 2026-04-04 250 Call'],
+    );
+});
+
+test('applyPortfolioFilters does not include unrelated stock rows when option-focused filters are active', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        expiringOnly: true,
+        dteLimit: 1,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMD 2026-04-02 202.5 Call'],
     );
 });

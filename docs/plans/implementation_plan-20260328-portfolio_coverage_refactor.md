@@ -93,6 +93,7 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
 - Add a configurable Near Money threshold selector with default `8`, allowed range `0` to `20`, and dynamic button text.
 - Add a toolbar row counter that reflects the currently visible filtered result set.
 - Define Near Money from underlying stock price vs option strike using absolute percentage distance in either direction around the strike. Do not use option premium as the reference value.
+- When option-focused filters are active, include the matching stock row for each visible option `(account, underlying)` group and exclude unrelated stock rows.
 - Ensure the `All` action clears all active filter dimensions and restores the default `DTE=6`.
 - Extract the filter predicate into a small pure helper so regression tests can validate the combined filtering contract without a browser runner.
 
@@ -114,6 +115,7 @@ Refactor the portfolio coverage logic to provide granular filtering for "Covered
 - Turn on `Near Money (<8%)` and verify it further narrows the result set instead of replacing the other filters.
 - Change the Near Money percent value and verify the visible rows update to reflect the selected threshold.
 - Verify that a contract such as AMD `202.5C` with underlying around `210.21` reports roughly `3.7%` distance, not `95%+`.
+- Verify that option-focused results include the matching underlying stock row and do not include unrelated stock rows.
 - Select an account and verify the visible rows satisfy coverage status, DTE, near-money, and account simultaneously.
 - Verify the row counter matches the number of visible rows after filtering.
 - Verify that the `All` button resets filters.
