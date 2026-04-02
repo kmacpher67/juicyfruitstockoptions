@@ -98,8 +98,12 @@ def run_tws_position_sync():
         account_id = position.get("account") or position.get("account_id")
         symbol = position.get("symbol")
         sec_type = position.get("sec_type") or position.get("secType") or "UNKNOWN"
+        position_key = position.get("position_key")
         if not account_id or not symbol:
             continue
+        if not position_key:
+            local_symbol = position.get("local_symbol") or symbol
+            position_key = f"{account_id}:{sec_type}:{local_symbol}"
 
         doc = dict(position)
         doc.update(
@@ -108,6 +112,7 @@ def run_tws_position_sync():
                 "date": now,
                 "report_date": report_date,
                 "snapshot_id": snapshot_id,
+                "position_key": position_key,
                 "quantity": position.get("position", 0),
                 "secType": sec_type,
                 "source": "tws",
@@ -118,9 +123,8 @@ def run_tws_position_sync():
         db.ibkr_holdings.update_one(
             {
                 "snapshot_id": snapshot_id,
+                "position_key": position_key,
                 "account_id": account_id,
-                "symbol": symbol,
-                "secType": sec_type,
                 "source": "tws",
             },
             {"$set": doc},

@@ -217,6 +217,39 @@ def _order_storage_key(order_id: Any, perm_id: Any) -> str | None:
     return None
 
 
+def _position_storage_key(
+    account: Any,
+    sec_type: Any,
+    symbol: Any,
+    local_symbol: Any,
+    last_trade_date: Any,
+    right: Any,
+    strike: Any,
+    conid: Any,
+) -> str:
+    account_value = str(account or "").strip() or "UNKNOWN"
+    sec_type_value = str(sec_type or "").strip().upper() or "UNKNOWN"
+    symbol_value = str(symbol or "").strip().upper()
+    local_value = str(local_symbol or "").strip().upper()
+    right_value = str(right or "").strip().upper()
+    expiry_value = str(last_trade_date or "").strip()
+    strike_value = "" if strike in (None, "") else str(strike).strip()
+
+    if sec_type_value in {"OPT", "FOP"}:
+        try:
+            if conid not in (None, "", 0, "0"):
+                return f"{account_value}:{sec_type_value}:conid:{int(conid)}"
+        except (TypeError, ValueError):
+            pass
+
+        contract_label = local_value or ":".join(
+            [part for part in [symbol_value, expiry_value, right_value, strike_value] if part]
+        )
+        return f"{account_value}:{sec_type_value}:{contract_label or symbol_value}"
+
+    return f"{account_value}:{sec_type_value}:{local_value or symbol_value}"
+
+
 FINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled"}
 
 
@@ -233,7 +266,7 @@ class IBKRTWSApp(EWrapper, EClient):
             f"{__name__}.{self.__class__.__name__}"
         )
         self._lock = threading.RLock()
-        self.positions: dict[tuple[str, str, str], dict[str, Any]] = {}
+        self.positions: dict[str, dict[str, Any]] = {}
         self.account_values: dict[tuple[str, str], dict[str, Any]] = {}
         self.connected = False
         self.connection_attempted_at: str | None = None
@@ -310,29 +343,47 @@ class IBKRTWSApp(EWrapper, EClient):
         position: float,
         avgCost: float,
     ) -> None:
+        symbol = getattr(contract, "symbol", "")
+        local_symbol = getattr(contract, "localSymbol", "")
+        sec_type = getattr(contract, "secType", "")
+        last_trade_date = getattr(contract, "lastTradeDateOrContractMonth", "")
+        right = getattr(contract, "right", "")
+        strike = getattr(contract, "strike", None)
+        conid = getattr(contract, "conId", None)
+        storage_key = _position_storage_key(
+            account=account,
+            sec_type=sec_type,
+            symbol=symbol,
+            local_symbol=local_symbol,
+            last_trade_date=last_trade_date,
+            right=right,
+            strike=strike,
+            conid=conid,
+        )
         payload = {
             "account": account,
-            "symbol": getattr(contract, "symbol", ""),
-            "underlying_symbol": getattr(contract, "symbol", ""),
-            "local_symbol": getattr(contract, "localSymbol", ""),
-            "sec_type": getattr(contract, "secType", ""),
+            "position_key": storage_key,
+            "symbol": symbol,
+            "underlying_symbol": symbol,
+            "local_symbol": local_symbol,
+            "sec_type": sec_type,
             "exchange": getattr(contract, "exchange", ""),
             "currency": getattr(contract, "currency", ""),
-            "last_trade_date": getattr(contract, "lastTradeDateOrContractMonth", ""),
-            "strike": getattr(contract, "strike", None),
-            "right": getattr(contract, "right", ""),
+            "last_trade_date": last_trade_date,
+            "strike": strike,
+            "right": right,
             "multiplier": getattr(contract, "multiplier", None),
+            "conid": conid,
             "position": position,
             "avg_cost": avgCost,
             "last_update": self._mark_callback(),
         }
-        key = (payload["account"], payload["symbol"], payload["sec_type"])
         with self._lock:
             self.connected = True
             self.connected_at = self.connected_at or payload["last_update"]
-            self.positions[key] = payload
+            self.positions[storage_key] = payload
             self.last_position_update = payload["last_update"]
-        self.logger.debug("Received position update for %s.", key)
+        self.logger.debug("Received position update for %s.", storage_key)
         self._subscribe_account_updates(account)
 
     def positionEnd(self) -> None:

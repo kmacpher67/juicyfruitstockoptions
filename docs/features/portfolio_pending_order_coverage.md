@@ -20,6 +20,8 @@ The key rule is simple:
 - current positions define the current truth
 - pending orders define a separate "if filled" or "intent" layer
 
+Execution history (including RT trade fills) is supporting context, but must not replace the current position snapshot used for `coverage_status`.
+
 Pending orders should enrich the portfolio view, not rewrite filled-position reality.
 
 ---
@@ -235,3 +237,4 @@ Example:
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-04-02 | **CREATED** | Defined pending-order-aware coverage requirements for portfolio holdings and working-order visibility. |
+| 2026-04-02 | **UPDATED** | Clarified that coverage truth must come from contract-level position snapshots; RT execution rows are context only and should not be used as direct coverage state. |

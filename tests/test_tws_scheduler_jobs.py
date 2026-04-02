@@ -90,14 +90,53 @@ def test_run_tws_position_sync_upserts_live_snapshot(monkeypatch):
     assert mock_db.ibkr_holdings.update_one.call_count == 1
     args, kwargs = mock_db.ibkr_holdings.update_one.call_args
     assert args[0]["account_id"] == "DU123456"
-    assert args[0]["symbol"] == "AAPL"
-    assert args[0]["secType"] == "STK"
+    assert args[0]["position_key"] == "DU123456:STK:AAPL"
     assert args[0]["source"] == "tws"
     stored_doc = args[1]["$set"]
     assert stored_doc["quantity"] == 10
+    assert stored_doc["position_key"] == "DU123456:STK:AAPL"
     assert stored_doc["source"] == "tws"
     assert "snapshot_id" in stored_doc
     assert kwargs["upsert"] is True
+
+
+def test_run_tws_position_sync_keeps_multiple_option_legs(monkeypatch):
+    mock_db = MagicMock()
+    mock_client = MagicMock()
+    mock_client.get_default_database.return_value = mock_db
+    monkeypatch.setattr(jobs, "MongoClient", MagicMock(return_value=mock_client))
+    monkeypatch.setattr(jobs.settings, "IBKR_TWS_ENABLED", True)
+    monkeypatch.setattr(
+        jobs,
+        "get_ibkr_tws_service",
+        lambda: FakeTwsService(
+            positions=[
+                {
+                    "account": "U110638",
+                    "position_key": "U110638:OPT:conid:111111",
+                    "symbol": "AMD",
+                    "local_symbol": "AMD   260402C00202500",
+                    "sec_type": "OPT",
+                    "position": -1,
+                },
+                {
+                    "account": "U110638",
+                    "position_key": "U110638:OPT:conid:222222",
+                    "symbol": "AMD",
+                    "local_symbol": "AMD   260410C00207500",
+                    "sec_type": "OPT",
+                    "position": -1,
+                },
+            ]
+        ),
+    )
+
+    jobs.run_tws_position_sync()
+
+    assert mock_db.ibkr_holdings.update_one.call_count == 2
+    first_call = mock_db.ibkr_holdings.update_one.call_args_list[0][0][0]
+    second_call = mock_db.ibkr_holdings.update_one.call_args_list[1][0][0]
+    assert first_call["position_key"] != second_call["position_key"]
 
 
 def test_run_tws_nav_snapshot_inserts_account_values(monkeypatch):

@@ -197,6 +197,42 @@ def test_option_position_callback_captures_contract_details():
     assert stored["multiplier"] == "100"
 
 
+def test_option_positions_with_same_underlying_do_not_overwrite_each_other():
+    app = IBKRTWSApp()
+    near_contract = SimpleNamespace(
+        symbol="AMD",
+        localSymbol="AMD   260402C00202500",
+        secType="OPT",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260402",
+        strike=202.5,
+        right="C",
+        multiplier="100",
+        conId=111111,
+    )
+    far_contract = SimpleNamespace(
+        symbol="AMD",
+        localSymbol="AMD   260410C00207500",
+        secType="OPT",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260410",
+        strike=207.5,
+        right="C",
+        multiplier="100",
+        conId=222222,
+    )
+
+    app.position("U110638", near_contract, -1, 5.25)
+    app.position("U110638", far_contract, -1, 3.15)
+
+    positions = list(app.positions.values())
+    assert len(positions) == 2
+    local_symbols = {position["local_symbol"] for position in positions}
+    assert local_symbols == {"AMD   260402C00202500", "AMD   260410C00207500"}
+
+
 def test_get_account_values_filters_by_account(monkeypatch):
     monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
     fake_app = FakeApp()

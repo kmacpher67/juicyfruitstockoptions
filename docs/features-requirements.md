@@ -178,6 +178,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **ibkr-orders-003**: If Flex queries expose order-related rows for this account configuration, ingest them as `source: "flex_order_history"` or similar for backfill / audit only. Flex order rows must not override fresher TWS working-order state.
         - [x] **ibkr-orders-004**: Add API support so `?view=PORTFOLIO` can fetch pending-order summaries per `(account, underlying)` group without re-implementing order matching logic in the frontend.
         - [ ] **ibkr-orders-005**: Add regression coverage for order normalization across stock orders, single-leg option orders, and roll-like paired orders so merged-source changes do not silently break pending-order visibility.
+    - [x] **ibkr-tws-positions-001**: Reviewed 2026-04-02. Persist TWS positions using a contract-level `position_key` (not only `(account, symbol, secType)`) so diagonal/multi-leg option positions on the same underlying do not overwrite each other in memory or `ibkr_holdings` snapshots.
     - [x] **ibkr-tws-ui-002**: Poll `GET /api/portfolio/live-status` every 60s from `Dashboard.jsx`. Update badge state without full page reload.
     - [x] **ibkr-tws-ui-003**: Toast notification if TWS drops from `connected: true` to `connected: false` mid-session.
 
@@ -636,3 +637,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-03-31 | **REVIEWED** | Compared `docs/features/roadmap-proposal-20260331.md` against the master F-R, skipped redundant items already captured in the source-of-truth, and merged new settings/debug-console requirements into `docs/features-requirements.md`. |
 | 2026-04-02 | **ADDED** | Added pending-order-aware portfolio coverage requirements, including TWS working-order ingestion, optional Flex order-history backfill, and current-vs-if-filled coverage state rules. |
 | 2026-04-02 | **UPDATED** | Implemented the first backend slice for pending-order-aware coverage: TWS open-order capture, Mongo `ibkr_orders` persistence, additive portfolio pending-effect fields, and regression tests. |
+| 2026-04-02 | **FIXED** | TWS position persistence now uses a contract-level key so multiple option legs (for example diagonals on the same underlying/account) are stored independently instead of overwriting each other. |
