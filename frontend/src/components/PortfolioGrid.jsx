@@ -43,26 +43,6 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
 
     const colDefs = useMemo(() => [
         {
-            field: "pending_buy_to_close_contracts",
-            headerName: "P.BTC",
-            headerTooltip: "Pending Buy-to-Close",
-            width: 82,
-            pinned: 'left',
-            sortable: true,
-            valueGetter: (params) => {
-                const contracts = getNumericValue(params.data?.pending_buy_to_close_contracts);
-                return contracts && contracts > 0 ? contracts : null;
-            },
-            cellRenderer: (params) => {
-                if (!params.value) return '';
-                return (
-                    <span className="inline-flex items-center rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
-                        BTC {params.value}
-                    </span>
-                );
-            },
-        },
-        {
             field: "account_id",
             headerName: "Account",
             width: 90,
@@ -245,6 +225,26 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                     </div>
                 );
             }
+        },
+        {
+            field: "pending_buy_to_close_contracts",
+            headerName: "P.BTC",
+            headerTooltip: "Pending Buy-to-Close",
+            width: 82,
+            pinned: 'right',
+            sortable: true,
+            valueGetter: (params) => {
+                const contracts = getNumericValue(params.data?.pending_buy_to_close_contracts);
+                return contracts && contracts > 0 ? contracts : null;
+            },
+            cellRenderer: (params) => {
+                if (!params.value) return '';
+                return (
+                    <span className="inline-flex items-center rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                        BTC {params.value}
+                    </span>
+                );
+            },
         }
     ], []);
 
