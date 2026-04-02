@@ -95,7 +95,7 @@ const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolio
                 sortable: true,
                 checkboxSelection: true,
                 pinned: 'left',
-                maxWidth: 110,
+                width: 200,
                 cellRenderer: LinkRenderer
             },
             { field: "Current Price", headerName: "Price", filter: "agNumberColumnFilter", sortable: true, valueFormatter: p => p.value ? `$${parseFloat(p.value).toFixed(2)}` : '' },

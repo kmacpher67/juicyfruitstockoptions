@@ -356,6 +356,128 @@ def reschedule_daily_job(hour: int, minute: int):
     save_schedule_config(hour, minute)
     logging.info(f"Rescheduled Daily Jobs to {hour:02d}:{minute:02d}")
 
+def run_dividend_scan_wrapper():
+    """Wrapper to instantiate scanner and run."""
+    
+    # 1. Fetch Tickers
+    try:
+         client = MongoClient(settings.MONGO_URI)
+         db = client.get_default_database("stock_analysis")
+         latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+         if latest:
+             query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+             
+             # Fetch extra fields to filter options
+             holdings = list(db.ibkr_holdings.find(query, {"symbol": 1, "secType": 1, "AssetClass": 1, "asset_class": 1, "underlying_symbol": 1}))
+             
+             symbols = set()
+             for h in holdings:
+                 sym = h.get("symbol")
+                 underlying = h.get("underlying_symbol")
+                 
+                 if underlying:
+                     symbols.add(underlying)
+                     continue
+                 
+                 is_opt = h.get("secType") in ["OPT", "FOP"] or h.get("AssetClass") in ["OPT", "FOP"] or h.get("asset_class") in ["OPT", "FOP"]
+                 
+                 if is_opt:
+                     if sym and len(sym) > 6:
+                         parts = sym.split()
+                         if parts:
+                             symbols.add(parts[0])
+                     continue
+                 
+                 if not sym: continue
+                 
+                 if len(sym) > 10:
+                     parts = sym.split()
+                     if parts: symbols.add(parts[0])
+                     continue
+                     
+                 symbols.add(sym)
+             
+             tickers = list(symbols)
+             
+             if tickers:
+                 logging.info(f"Scheduler: Starting Dividend Scan for {len(tickers)} tickers.")
+                 scanner = DividendScanner()
+                 scanner.scan_dividend_capture_opportunities(tickers)
+                 logging.info("Scheduler: Dividend Scan Completed.")
+    except Exception as e:
+        logging.error(f"Scheduler: Failed to run dividend scan: {e}")
+
+def run_dividend_calendar_job():
+    """Wrapper for ICS generation."""
+    try:
+         from app.services.dividend_scanner import DividendScanner
+         logging.info("Scheduler: Starting Dividend Calendar Generation.")
+         scanner = DividendScanner()
+         scanner.generate_corporate_events_calendar()
+         logging.info("Scheduler: Dividend Calendar Generation Completed.")
+    except Exception as e:
+        logging.error(f"Scheduler: Failed to generate dividend calendar: {e}")
+
+def run_expiration_scan_wrapper():
+    """Wrapper to run Expiration Scanner."""
+    try:
+         logging.info("Scheduler: Starting Expiration Scan.")
+         scanner = ExpirationScanner()
+         scanner.scan_portfolio_expirations(days_threshold=7)
+         logging.info("Scheduler: Expiration Scan Completed.")
+    except Exception as e:
+        logging.error(f"Scheduler: Failed to run expiration scan: {e}")
+
+def run_recommendation_scans():
+    """Run daily scans and persist validation."""
+    import logging
+    from app.services.scanner_service import scan_momentum_calls, scan_juicy_candidates
+    from app.services.roll_service import RollService
+    from app.services.signal_service import SignalService
+    from pymongo import MongoClient
+    
+    logging.info("Scheduler: Starting Recommendation Scans (Persistence Enabled)")
+    
+    # 1. Scanners (Market Wide)
+    try:
+         scan_momentum_calls(persist=True)
+         scan_juicy_candidates(persist=True)
+         logging.info("Scheduler: Scanners completed.")
+    except Exception as e:
+         logging.error(f"Scheduler: Scanner failed: {e}")
+
+    # 2. Portfolio Rolls & Signals (Holdings)
+    try:
+         client = MongoClient(settings.MONGO_URI)
+         db = client.get_default_database("stock_analysis")
+         
+         # Get Tickers
+         latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+         if latest:
+             query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
+             holdings = list(db.ibkr_holdings.find(query))
+             # Filter valid tickers
+             tickers = []
+             for h in holdings:
+                 sym = h.get("underlying_symbol") or h.get("symbol")
+                 if sym: tickers.append(sym)
+             tickers = list(set(tickers))
+             
+             # Roll Service
+             roll_service = RollService()
+             roll_service.analyze_portfolio_rolls(holdings, persist=True)
+             logging.info("Scheduler: Portfolio Rolls analysis completed.")
+             
+             # Signal Service
+             signal_service = SignalService()
+             signal_service.scan_and_persist_signals(tickers)
+             logging.info("Scheduler: Signal Scan completed.")
+             
+    except Exception as e:
+         logging.error(f"Scheduler: Portfolio/Signal scan failed: {e}")
+         
+    logging.info("Scheduler: Recommendation Scans Finished.")
+
 def start_scheduler():
     """Configure and start the background scheduler."""
     logging.info("Starting Scheduler...")
@@ -436,29 +558,6 @@ def start_scheduler():
     logging.info("Scheduled Portfolio Fixer for 03:00 daily.")
 
     # --- Dividend Scanner Jobs ---
-    def run_dividend_scan_wrapper():
-        """Wrapper to instantiate scanner and run."""
-        from app.services.dividend_scanner import DividendScanner
-        from pymongo import MongoClient
-        
-        # 1. Fetch Tickers
-        try:
-             client = MongoClient(settings.MONGO_URI)
-             db = client.get_default_database("stock_analysis")
-             latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-             if latest:
-                 query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
-                 holdings = list(db.ibkr_holdings.find(query, {"symbol": 1}))
-                 tickers = list(set([h["symbol"] for h in holdings]))
-                 
-                 if tickers:
-                     logging.info(f"Scheduler: Starting Dividend Scan for {len(tickers)} tickers.")
-                     scanner = DividendScanner()
-                     scanner.scan_dividend_capture_opportunities(tickers)
-                     logging.info("Scheduler: Dividend Scan Completed.")
-        except Exception as e:
-            logging.error(f"Scheduler: Failed to run dividend scan: {e}")
-
     # 1. Market Hours (Monday-Friday, 9:30 - 16:00, every 30 mins)
     # Cron: Mon-Fri, 9-16 hour, 0,30 minute
     scheduler.add_job(
@@ -494,17 +593,6 @@ def start_scheduler():
     )
     logging.info("Scheduled Dividend Scans (Pre/Market/Post).")
     # --- Dividend Calendar Generation Job ---
-    def run_dividend_calendar_job():
-        """Wrapper for ICS generation."""
-        try:
-             from app.services.dividend_scanner import DividendScanner
-             logging.info("Scheduler: Starting Dividend Calendar Generation.")
-             scanner = DividendScanner()
-             scanner.generate_corporate_events_calendar()
-             logging.info("Scheduler: Dividend Calendar Generation Completed.")
-        except Exception as e:
-            logging.error(f"Scheduler: Failed to generate dividend calendar: {e}")
-
     # Run daily at 6:00 AM
     scheduler.add_job(
         run_dividend_calendar_job,
@@ -518,16 +606,6 @@ def start_scheduler():
     logging.info("Scheduled Dividend Calendar Generation (Daily 06:00).")
 
     # --- Expiration Scanner Job ---
-    def run_expiration_scan_wrapper():
-        """Wrapper to run Expiration Scanner."""
-        try:
-             logging.info("Scheduler: Starting Expiration Scan.")
-             scanner = ExpirationScanner()
-             scanner.scan_portfolio_expirations(days_threshold=7)
-             logging.info("Scheduler: Expiration Scan Completed.")
-        except Exception as e:
-            logging.error(f"Scheduler: Failed to run expiration scan: {e}")
-
     # Daily at 9:30 AM (Market Open)
     scheduler.add_job(
         run_expiration_scan_wrapper,
@@ -541,56 +619,6 @@ def start_scheduler():
     logging.info("Scheduled Expiration Scanner (Daily 09:30).")
 
     # --- Recommendation Database Scans ---
-    def run_recommendation_scans():
-        """Run daily scans and persist validation."""
-        import logging
-        from app.services.scanner_service import scan_momentum_calls, scan_juicy_candidates
-        from app.services.roll_service import RollService
-        from app.services.signal_service import SignalService
-        from pymongo import MongoClient
-        
-        logging.info("Scheduler: Starting Recommendation Scans (Persistence Enabled)")
-        
-        # 1. Scanners (Market Wide)
-        try:
-             scan_momentum_calls(persist=True)
-             scan_juicy_candidates(persist=True)
-             logging.info("Scheduler: Scanners completed.")
-        except Exception as e:
-             logging.error(f"Scheduler: Scanner failed: {e}")
-
-        # 2. Portfolio Rolls & Signals (Holdings)
-        try:
-             client = MongoClient(settings.MONGO_URI)
-             db = client.get_default_database("stock_analysis")
-             
-             # Get Tickers
-             latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
-             if latest:
-                 query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
-                 holdings = list(db.ibkr_holdings.find(query))
-                 # Filter valid tickers
-                 tickers = []
-                 for h in holdings:
-                     sym = h.get("underlying_symbol") or h.get("symbol")
-                     if sym: tickers.append(sym)
-                 tickers = list(set(tickers))
-                 
-                 # Roll Service
-                 roll_service = RollService()
-                 roll_service.analyze_portfolio_rolls(holdings, persist=True)
-                 logging.info("Scheduler: Portfolio Rolls analysis completed.")
-                 
-                 # Signal Service
-                 signal_service = SignalService()
-                 signal_service.scan_and_persist_signals(tickers)
-                 logging.info("Scheduler: Signal Scan completed.")
-                 
-        except Exception as e:
-             logging.error(f"Scheduler: Portfolio/Signal scan failed: {e}")
-             
-        logging.info("Scheduler: Recommendation Scans Finished.")
-
     # Schedule: 10:15 AM (Morning)
     scheduler.add_job(
         run_recommendation_scans,
