@@ -1,6 +1,6 @@
 """
 Tests for the profile field returned by GET /ticker/{symbol}.
-Covers: profile present in DB, lazy hydration, and yfinance error fallback.
+Covers: profile present in DB and DB-first fallback behavior.
 """
 import pytest
 from unittest.mock import patch, MagicMock
@@ -74,8 +74,8 @@ class TestTickerProfileEndpoint:
 
     @patch('app.api.routes.MongoClient')
     @patch('app.api.routes.yf')
-    def test_lazy_hydrates_profile_when_absent(self, mock_yf, mock_mongo_cls, client):
-        """Profile absent from DB — fetches from yfinance and writes back."""
+    def test_returns_empty_profile_when_absent_without_yfinance(self, mock_yf, mock_mongo_cls, client):
+        """Profile absent from DB — endpoint remains DB-first and does not call yfinance."""
         stock_doc = {"Ticker": "TST", "Company Name": "Test Corp", "Current Price": 100}
         mock_collection = MagicMock()
         mock_collection.find_one.return_value = stock_doc
@@ -83,50 +83,19 @@ class TestTickerProfileEndpoint:
         mock_db.get_default_database.return_value.stock_data = mock_collection
         mock_mongo_cls.return_value = mock_db
 
-        mock_ticker = MagicMock()
-        mock_ticker.info = {
-            "sector": "Energy",
-            "industry": "Oil & Gas",
-            "longBusinessSummary": "An energy company.",
-            "quoteType": "EQUITY",
-            "category": None,
-            "exchange": "NYSE",
-            "country": "United States",
-            "fullTimeEmployees": 5000,
-            "website": "https://energy.com",
-            "recommendationKey": "hold",
-            "numberOfAnalystOpinions": 15,
-            "beta": 0.9,
-            "forwardPE": 12.0,
-            "priceToBook": 1.5,
-            "returnOnEquity": 0.10,
-            "debtToEquity": 0.8,
-            "earningsGrowth": 0.05,
-            "revenueGrowth": 0.03,
-        }
-        mock_ticker.news = [
-            {"title": "Energy rally", "publisher": "Bloomberg",
-             "link": "http://news.com", "providerPublishTime": 1700000000}
-        ]
-        mock_yf.Ticker.return_value = mock_ticker
-
         response = client.get("/api/ticker/TST")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["profile"]["sector"] == "Energy"
-        assert data["profile"]["recommendation"] == "hold"
-        assert len(data["profile"]["news"]) == 1
-        # Should have written profile back to DB
-        mock_collection.update_one.assert_called_once()
-        call_args = mock_collection.update_one.call_args
-        assert call_args[0][0] == {"Ticker": "TST"}
-        assert "profile" in call_args[0][1]["$set"]
+        assert data["found"] is True
+        assert data["profile"] == {"news": []}
+        mock_collection.update_one.assert_not_called()
+        mock_yf.Ticker.assert_not_called()
 
     @patch('app.api.routes.MongoClient')
     @patch('app.api.routes.yf')
-    def test_returns_empty_profile_on_yfinance_error(self, mock_yf, mock_mongo_cls, client):
-        """yfinance raises during lazy hydration — profile returned as empty dict, no crash."""
+    def test_returns_empty_profile_without_calling_yfinance_when_missing(self, mock_yf, mock_mongo_cls, client):
+        """Even if yfinance is broken, DB-first response succeeds when profile is missing."""
         stock_doc = {"Ticker": "TST", "Company Name": "Test Corp", "Current Price": 100}
         mock_collection = MagicMock()
         mock_collection.find_one.return_value = stock_doc
@@ -141,4 +110,5 @@ class TestTickerProfileEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["found"] is True
-        assert data["profile"] == {}
+        assert data["profile"] == {"news": []}
+        mock_yf.Ticker.assert_not_called()

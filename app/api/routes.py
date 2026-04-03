@@ -1880,64 +1880,14 @@ def get_ticker_analysis(
         # transform default structure if not found
         return {"symbol": symbol, "found": False, "price": 0.0}
 
-    # Provide company_name at top level for header convenience
-    company_name = stock.get("Company Name")
-    if not company_name:
-        try:
-            info = yf.Ticker(symbol).info
-            company_name = info.get("longName") or info.get("shortName") or symbol
-            # Backfill to DB for future requests
-            db.stock_data.update_one(
-                stock_query,
-                {"$set": {"Company Name": company_name}}
-            )
-            logging.info(f"routes.get_ticker_analysis - Backfilled Company Name for {symbol}: {company_name}")
-        except Exception as e:
-            logging.warning(f"routes.get_ticker_analysis - Could not fetch company name for {symbol}: {e}")
-            company_name = symbol
+    # DB-first path: do not block modal rendering on live yfinance calls.
+    company_name = stock.get("Company Name") or symbol
 
-    # Return profile sub-document; lazy-hydrate from yfinance if absent
     profile = stock.get("profile")
-    if not profile:
-        try:
-            ticker_obj = yf.Ticker(symbol)
-            info = ticker_obj.info
-            raw_news = ticker_obj.news or []
-            profile = {
-                "sector": info.get("sector", ""),
-                "industry": info.get("industry", ""),
-                "description": info.get("longBusinessSummary", ""),
-                "style": info.get("quoteType", ""),
-                "category": info.get("category", ""),
-                "exchange": info.get("exchange", ""),
-                "country": info.get("country", ""),
-                "employees": info.get("fullTimeEmployees"),
-                "website": info.get("website", ""),
-                "recommendation": info.get("recommendationKey", ""),
-                "analyst_opinions": info.get("numberOfAnalystOpinions"),
-                "beta": info.get("beta"),
-                "forward_pe": info.get("forwardPE"),
-                "price_to_book": info.get("priceToBook"),
-                "roe": info.get("returnOnEquity"),
-                "debt_to_equity": info.get("debtToEquity"),
-                "earnings_growth": info.get("earningsGrowth"),
-                "revenue_growth": info.get("revenueGrowth"),
-                "news": [
-                    {
-                        "title": n.get("title", ""),
-                        "publisher": n.get("publisher", ""),
-                        "link": n.get("link", ""),
-                        "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
-                        if n.get("providerPublishTime") else "",
-                    }
-                    for n in raw_news[:5]
-                ],
-            }
-            db.stock_data.update_one(stock_query, {"$set": {"profile": profile}})
-            logging.info(f"routes.get_ticker_analysis - Lazy-hydrated profile for {symbol}")
-        except Exception as e:
-            logging.warning(f"routes.get_ticker_analysis - Could not fetch profile for {symbol}: {e}")
-            profile = {}
+    if not isinstance(profile, dict):
+        profile = {}
+    if "news" not in profile:
+        profile["news"] = []
 
     return {"symbol": symbol, "found": True, "data": stock, "company_name": company_name, "profile": profile}
 
