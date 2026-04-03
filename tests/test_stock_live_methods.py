@@ -1,6 +1,7 @@
 import pandas as pd
 import openpyxl
 import pytest
+from unittest.mock import MagicMock
 from stock_live_comparison import StockLiveComparison
 
 
@@ -437,3 +438,74 @@ def test_run_rejects_suspiciously_small_result_set(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="Suspicious stock-analysis output"):
         comp.run()
+
+
+def test_merge_detail_record_preserves_existing_profile_and_price_action_when_incoming_sparse():
+    existing = {
+        "Ticker": "AAPL",
+        "profile": {"sector": "Technology", "news": [{"title": "x"}]},
+        "Price Action": {"trend": "Bullish"},
+    }
+    incoming = {
+        "Ticker": "AAPL",
+        "Current Price": 201.2,
+        "profile": {},
+        "Price Action": {},
+    }
+    merged = StockLiveComparison.merge_detail_record(incoming, existing)
+    assert merged["Current Price"] == 201.2
+    assert merged["profile"]["sector"] == "Technology"
+    assert merged["profile"]["news"][0]["title"] == "x"
+    assert merged["Price Action"]["trend"] == "Bullish"
+
+
+def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
+    comp = StockLiveComparison(["AAPL"])
+    df = pd.DataFrame(
+        [
+            {
+                "Ticker": "aapl",
+                "Company Name": "Apple Inc.",
+                "Current Price": 199.5,
+                "1D % Change": "+1.23%",
+                "Last Update": "2026-04-03 13:20:00",
+                "Call/Put Skew": 1.4,
+                "Price Action": {"trend": "Bullish"},
+                "profile": {"sector": "Technology", "news": []},
+            }
+        ]
+    )
+
+    fake_collection = MagicMock()
+    fake_collection.find_one.return_value = {}
+    fake_db = MagicMock()
+    fake_db.collection = fake_collection
+
+    db_ctor = MagicMock(return_value=fake_db)
+    monkeypatch.setattr("stock_live_comparison.AiStockDatabase", db_ctor)
+
+    comp.upsert_to_mongo(df)
+
+    db_ctor.assert_called_once_with(collection_name="stock_data")
+    fake_db.upsert_stock_record.assert_called_once()
+    args, kwargs = fake_db.upsert_stock_record.call_args
+    persisted = args[0]
+    assert persisted["Ticker"] == "AAPL"
+    assert "profile" in persisted
+    assert "Price Action" in persisted
+    assert kwargs["key_fields"] == ("Ticker",)
+
+
+def test_missing_required_detail_fields_requires_profile_news_key():
+    record = {
+        "Ticker": "MSFT",
+        "Company Name": "Microsoft",
+        "Current Price": 400,
+        "1D % Change": "0.4%",
+        "Last Update": "2026-04-03 10:00:00",
+        "Call/Put Skew": 1.2,
+        "Price Action": {"trend": "Bullish"},
+        "profile": {"sector": "Technology"},
+    }
+    missing = StockLiveComparison.missing_required_detail_fields(record)
+    assert "profile.news" in missing

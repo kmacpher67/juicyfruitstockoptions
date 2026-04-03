@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from datetime import datetime
 
 from stock_live_comparison import StockLiveComparison
 
@@ -12,6 +13,7 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
     - sync: background ticker sync/update -> refresh data without creating a new report file
     """
     try:
+        logging.info("run_stock_live_comparison.start trigger=%s explicit_tickers=%s", trigger, bool(tickers))
         if trigger not in {"manual", "scheduled", "sync"}:
             logging.warning(f"Unknown stock comparison trigger '{trigger}', defaulting to scheduled")
             trigger = "scheduled"
@@ -26,6 +28,7 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                  logging.error(f"Auto-discovery failed: {e}")
 
              tickers = StockLiveComparison.get_default_tickers()
+        logging.info("run_stock_live_comparison.ticker_count=%s trigger=%s", len(tickers or []), trigger)
 
         comp = StockLiveComparison(tickers)
 
@@ -35,17 +38,27 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                 min_bytes=comp.min_viable_report_bytes,
             )
             if not latest_viable:
-                return {
+                result = {
                     "status": "skipped",
                     "reason": "no_viable_existing_report_for_sync",
                     "file": None,
                 }
+                logging.info("run_stock_live_comparison.skipped trigger=sync reason=no_viable_existing_report_for_sync")
+                return result
 
+        started = datetime.now()
         comp.run(
             force_new_file=(trigger == "manual"),
             allow_create_if_missing=(trigger != "sync"),
         )
-        return {"status": "success", "file": comp.filename}
+        result = {"status": "success", "file": comp.filename, "ticker_count": len(tickers or [])}
+        logging.info(
+            "run_stock_live_comparison.success trigger=%s file=%s elapsed_sec=%s",
+            trigger,
+            comp.filename,
+            round((datetime.now() - started).total_seconds(), 2),
+        )
+        return result
     except Exception as exc:
         logging.exception("Stock live comparison failed")
         return {"status": "error", "error": str(exc)}

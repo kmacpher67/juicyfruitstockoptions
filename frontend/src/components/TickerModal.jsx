@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
 import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
 import { buildTickerHeaderModel } from './tickerModalHeader';
@@ -12,6 +12,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [optimizerData, setOptimizerData] = useState(null);
     const [smartRollsData, setSmartRollsData] = useState(null);
     const [signalData, setSignalData] = useState(null);
+    const requestSeq = useRef(0);
 
     // Reset state when ticker changes
     useEffect(() => {
@@ -29,25 +30,70 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
 
     const fetchData = async () => {
         setLoading(true);
+        requestSeq.current += 1;
+        const seq = requestSeq.current;
+        const timeoutMs = 12000;
+        const hardStopMs = 15000;
+        const hardStop = setTimeout(() => {
+            if (requestSeq.current !== seq) return;
+            setLoading(false);
+            setTickerData((current) => current ?? { found: false, symbol: ticker, data: null });
+        }, hardStopMs);
         try {
-            // Parallel fetch for all data derived from this ticker
-            const [tickerRes, oppRes, optRes, rollRes, sigRes] = await Promise.all([
-                api.get(`/ticker/${ticker}`),
-                api.get(`/opportunity/${ticker}`),
-                api.get(`/portfolio/optimizer/${ticker}`),
-                api.get(`/analysis/rolls/${ticker}`).catch(e => ({ data: [] })),
-                api.get(`/analysis/signals/${ticker}`).catch(e => ({ data: null }))
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                setTickerData({ found: false, symbol: ticker, data: null });
+                setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
+                setOptimizerData([]);
+                setSmartRollsData([]);
+                setSignalData(null);
+                return;
+            }
+
+            // Use independent timeouts + settled results so one slow tab endpoint
+            // does not block the entire modal behind a perpetual spinner.
+            const settled = await Promise.allSettled([
+                api.get(`/ticker/${ticker}`, { timeout: timeoutMs }),
+                api.get(`/opportunity/${ticker}`, { timeout: timeoutMs }),
+                api.get(`/portfolio/optimizer/${ticker}`, { timeout: timeoutMs }),
+                api.get(`/analysis/rolls/${ticker}`, { timeout: timeoutMs }),
+                api.get(`/analysis/signals/${ticker}`, { timeout: timeoutMs }),
             ]);
 
-            setTickerData(tickerRes.data);
-            setOpportunityData(oppRes.data);
-            setOptimizerData(optRes.data);
-            setSmartRollsData(rollRes.data);
-            setSignalData(sigRes.data);
+            if (requestSeq.current !== seq) return;
+            const [tickerRes, oppRes, optRes, rollRes, sigRes] = settled;
+
+            setTickerData(
+                tickerRes.status === 'fulfilled'
+                    ? tickerRes.value.data
+                    : { found: false, symbol: ticker, data: null }
+            );
+            setOpportunityData(
+                oppRes.status === 'fulfilled'
+                    ? oppRes.value.data
+                    : { symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} }
+            );
+            setOptimizerData(
+                optRes.status === 'fulfilled'
+                    ? optRes.value.data
+                    : []
+            );
+            setSmartRollsData(
+                rollRes.status === 'fulfilled'
+                    ? rollRes.value.data
+                    : []
+            );
+            setSignalData(
+                sigRes.status === 'fulfilled'
+                    ? sigRes.value.data
+                    : null
+            );
         } catch (error) {
             console.error("Failed to fetch ticker data", error);
         } finally {
-            setLoading(false);
+            clearTimeout(hardStop);
+            if (requestSeq.current === seq) {
+                setLoading(false);
+            }
         }
     };
 

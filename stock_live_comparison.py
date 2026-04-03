@@ -516,7 +516,8 @@ class StockLiveComparison:
         tickers_to_fetch = StockLiveComparison.unique_tickers(tickers_to_fetch)
         if not tickers_to_fetch:
             return []
-        logging.info(f"Downloading historical data for {len(tickers_to_fetch)} tickers...")
+        total = len(tickers_to_fetch)
+        logging.info(f"Downloading historical data for {total} tickers...")
         try:
             hist = yf.download(
                 tickers_to_fetch,
@@ -541,11 +542,13 @@ class StockLiveComparison:
                 for t in tickers_to_fetch
             ]
         records = []
-        for t in tickers_to_fetch:
+        for idx, t in enumerate(tickers_to_fetch, start=1):
             tries = 0
             success = False
             while tries < 3 and not success:
                 try:
+                    if tries == 0 and (idx == 1 or idx % 10 == 0 or idx == total):
+                        logging.info("Stock analysis progress: %s/%s (ticker=%s)", idx, total, t)
                     logging.debug(f"Processing ticker {t} (Attempt {tries + 1}/3)...")
                     # Visual interaction for console (optional, keeps user happy)
                     # print(f"Processing {t}...", end="\r", flush=True) 
@@ -560,6 +563,7 @@ class StockLiveComparison:
                     records.append(record)
                     success = True
                 except Exception as e:
+                    logging.warning("Stock analysis ticker failed: %s error=%s", t, e)
                     record = {
                         "Ticker": t,
                         "Error": str(e),
@@ -567,6 +571,7 @@ class StockLiveComparison:
                     }
                     records.append(record)
                     success = True
+        logging.info("Stock analysis fetch complete: %s records produced for %s requested tickers.", len(records), total)
         return records
 
     # ------------------------------------------------------------------
@@ -906,22 +911,87 @@ class StockLiveComparison:
     # ------------------------------------------------------------------
     def upsert_to_mongo(self, df):
         """
-        Upsert each row of the DataFrame to MongoDB using Ticker and Last Update as unique keys.
-        Includes moving averages and highlight status.
-        Prints errors but does not crash the program.
+        Upsert each row of the DataFrame into the canonical `stock_data` collection
+        using `Ticker` as the unique key used by ticker detail APIs.
+
+        This method preserves required detail payload fields (for modal reliability)
+        when a row originated from spreadsheet merge data that omits nested fields
+        such as `profile`.
         """
         try:
-            db = AiStockDatabase()
+            db = AiStockDatabase(collection_name="stock_data")
             records = df.to_dict(orient="records")
+            required = self.required_detail_fields()
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for record in records:
                 try:
-                    # Use Ticker and Last Update as unique key for idempotency
-                    db.upsert_stock_record(record, key_fields=("Ticker", "Last Update"))
+                    ticker = str(record.get("Ticker") or "").strip().upper()
+                    if not ticker:
+                        continue
+
+                    # Spreadsheet merge rows can omit nested detail fields; preserve
+                    # existing canonical values when incoming row is sparse.
+                    existing = db.collection.find_one({"Ticker": ticker}) or {}
+                    merged = self.merge_detail_record(record, existing)
+                    merged["Ticker"] = ticker
+                    merged["_last_persisted_at"] = now_ts
+                    db.upsert_stock_record(merged, key_fields=("Ticker",))
+
+                    missing = self.missing_required_detail_fields(merged, required_fields=required)
+                    if missing:
+                        logging.warning(
+                            "stock_live_comparison.upsert_to_mongo - ticker=%s missing required detail fields: %s",
+                            ticker,
+                            ",".join(missing),
+                        )
                 except Exception as e:
                     logging.error(f"Error upserting record for {record.get('Ticker')}: {e}")
             logging.info(f"Upserted {len(records)} records to MongoDB.")
         except Exception as e:
             logging.error(f"Error connecting to MongoDB: {e}")
+
+    @staticmethod
+    def required_detail_fields():
+        # Core fields used by ticker detail/header/modal tabs.
+        return [
+            "Ticker",
+            "Company Name",
+            "Current Price",
+            "1D % Change",
+            "Last Update",
+            "Call/Put Skew",
+            "Price Action",
+            "profile",
+        ]
+
+    @staticmethod
+    def merge_detail_record(incoming, existing):
+        merged = dict(existing or {})
+        merged.update(incoming or {})
+
+        incoming_profile = (incoming or {}).get("profile")
+        if (incoming_profile is None or incoming_profile == {}) and (existing or {}).get("profile"):
+            merged["profile"] = (existing or {}).get("profile")
+
+        incoming_price_action = (incoming or {}).get("Price Action")
+        if (incoming_price_action is None or incoming_price_action == {}) and (existing or {}).get("Price Action"):
+            merged["Price Action"] = (existing or {}).get("Price Action")
+
+        return merged
+
+    @staticmethod
+    def missing_required_detail_fields(record, required_fields=None):
+        required = required_fields or StockLiveComparison.required_detail_fields()
+        missing = []
+        for field in required:
+            value = record.get(field)
+            if value is None or value == "":
+                missing.append(field)
+            elif field == "profile" and isinstance(value, dict):
+                # Require deterministic news key for profile-driven modal rendering.
+                if "news" not in value:
+                    missing.append("profile.news")
+        return missing
 
     # ------------------------------------------------------------------
     @staticmethod

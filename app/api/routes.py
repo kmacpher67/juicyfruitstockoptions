@@ -716,16 +716,30 @@ def run_portfolio_fixer_endpoint(
     return run_portfolio_fixer()
 
 from fastapi import BackgroundTasks
-from app.jobs import create_job, get_job, update_job_status, JobStatus, Job
+from app.jobs import (
+    create_job,
+    get_job,
+    get_latest_job,
+    list_jobs,
+    touch_job,
+    update_job_status,
+    JobStatus,
+    Job,
+)
 
-def background_job_wrapper(job_id: str, func):
+
+def background_job_wrapper(job_id: str, func, timeout_seconds: int | None = None):
     """Wrapper to run a function and update job status."""
     try:
-        update_job_status(job_id, JobStatus.RUNNING)
+        update_job_status(job_id, JobStatus.RUNNING, message="running")
+        touch_job(job_id, message="running")
+        # Execute directly in FastAPI BackgroundTasks context. Avoid nested executor
+        # timeout wrappers here because they can deadlock shutdown/wait paths and stall
+        # the API process, which surfaces in UI as global "Loading..." hang.
         result = func()
-        update_job_status(job_id, JobStatus.COMPLETED, result=result)
+        update_job_status(job_id, JobStatus.COMPLETED, result=result, message="completed")
     except Exception as e:
-        update_job_status(job_id, JobStatus.FAILED, error=str(e))
+        update_job_status(job_id, JobStatus.FAILED, error=str(e), message="failed")
 
 @router.get("/jobs/{job_id}", response_model=Job)
 @log_endpoint
@@ -744,8 +758,23 @@ def run_stock_live_comparison_endpoint(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
+    stale_minutes = 90
+    stale_cutoff = datetime.now() - timedelta(minutes=stale_minutes)
+    for job in list_jobs(job_type="stock_live_comparison"):
+        if job.status != JobStatus.RUNNING:
+            continue
+        heartbeat = job.heartbeat_at or job.started_at or job.created_at
+        if heartbeat and heartbeat.replace(tzinfo=None) < stale_cutoff:
+            update_job_status(
+                job.id,
+                JobStatus.FAILED,
+                error=f"Marked stale by watchdog after {stale_minutes}m without heartbeat.",
+                message="stale_watchdog_failed",
+            )
+            logging.warning("Marked stale stock-live-comparison job as failed: %s", job.id)
+
     # Create Job
-    job = create_job()
+    job = create_job(job_type="stock_live_comparison", name="stock-live-comparison")
     
     # Add to Background Tasks
     background_tasks.add_task(
@@ -755,6 +784,17 @@ def run_stock_live_comparison_endpoint(
     )
     
     return {"job_id": job.id, "status": "queued"}
+
+
+@router.get("/jobs/latest/stock-live-comparison", response_model=Job)
+@log_endpoint
+def get_latest_stock_live_job(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    job = get_latest_job(job_type="stock_live_comparison")
+    if not job:
+        raise HTTPException(status_code=404, detail="No stock-live-comparison jobs found")
+    return job
 
 # --- Scheduler Config Endpoints ---
 
