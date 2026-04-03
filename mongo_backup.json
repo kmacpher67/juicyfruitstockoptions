@@ -2,7 +2,7 @@
   {
     "Ticker": "AAA",
     "_id": {
-      "$oid": "69ceddff5d2d7806f1d1e242"
+      "$oid": "69cfd17e8563a400fe109794"
     },
     "Annual Yield Put Prem": 5,
     "Annual Yield Call Prem": 10,

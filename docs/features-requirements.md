@@ -33,12 +33,14 @@
 - **No Floating Modals for Core Data**: Use an expandable "Detail Drawer" on the right side of the screen to maintain context of the portfolio list.
 
 ## 0. Bugs, Fixes, & Maintenance
-- [ ] **stock-analysis-broken-202603**: Stock Analysis "Run Live Analysis" feature broken after 2026-03-27 changes. AI_Stock_Live_Comparison XLSX and onscreen grid no longer populate. Investigate `stock_live_comparison.py` and `app/services/stock_live_comparison.py` for root cause.
-- [ ] **stock-analysis-report-churn-20260402**: Stock Analysis keeps generating multiple `AI_Stock_Live_Comparison_*.xlsx` files in the same day (many empty/partial). Enforce trigger-based report file policy and remove duplicate run enqueue.
-    - [ ] `run/stock-live-comparison` must enqueue exactly one background job per click.
-    - [ ] Manual **Run Live Comparison** creates a new timestamped XLSX.
-    - [ ] Scheduled daily run creates at most one new XLSX per calendar day (reuse same-day file if re-run).
-    - [ ] Background sync paths (ticker auto-discovery/add ticker) must refresh data without creating a new XLSX file.
+- [/] **stock-analysis-broken-202603**: Stock Analysis "Run Live Analysis" feature broken after 2026-03-27 changes. AI_Stock_Live_Comparison XLSX and onscreen grid no longer populate. Investigate `stock_live_comparison.py` and `app/services/stock_live_comparison.py` for root cause. *(In progress 2026-04-03: viable-source-file guard + suspicious low-record save protection added; further runtime validation still needed.)*
+- [/] **stock-analysis-report-churn-20260402**: Stock Analysis keeps generating multiple `AI_Stock_Live_Comparison_*.xlsx` files in the same day (many empty/partial). Enforce trigger-based report file policy and remove duplicate run enqueue. *(In progress 2026-04-03: trigger semantics hardened and regression coverage expanded.)*
+    - [x] `run/stock-live-comparison` must enqueue exactly one background job per click.
+    - [x] Manual **Run Live Comparison** creates a new timestamped XLSX.
+    - [x] Scheduled daily run creates at most one new XLSX per calendar day (reuse same-day file if re-run).
+    - [x] Background sync paths (ticker auto-discovery/add ticker) must refresh data without creating a new XLSX file.
+- [/] **stock-analysis-valid-source-file-guard-20260403**: When selecting an existing stock analysis XLSX as merge source, ignore suspiciously small/truncated files and prefer the latest viable prior report to prevent truncation snowball.
+- [/] **stock-analysis-trigger-policy-tests-20260403**: Add explicit regression tests for manual/scheduled/sync trigger behavior and source-file viability guard so report churn policy does not regress.
 - [x] **portfolio-live-grid-undefined-values**: Portfolio grid renders JavaScript literal `undefined` for Price, Value, Basis, and Unrealized PnL when merged live+Flex rows have missing fields. Guard all currency/number renders. Tracked under `portfolio-live-grid-001..006`. *(Completed 2026-04-02: formatter guards plus merged-row type/description normalization and regression tests now cover `001..006`.)*
 - [x] **events-stk-filter-bug**: Corporate events/xdiv scanner fetches yfinance for OPT contract symbols (e.g., `AMD 260220C00235000`), causing HTTP 404 errors. Filter to underlying STK symbols only before any yfinance fetch. *(Completed 2026-04-02: `generate_corporate_events_calendar` in `dividend_scanner.py` now applies `_normalize_to_stk_symbol` as a final OCC guard after the manual secType filter, deduplicates results. Regression tests in `tests/test_corporate_events.py`: OPT symbol never reaches yfinance, underlying root IS queried, no duplicate calls.)*
 
@@ -243,9 +245,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Observability & Logging
 - [/] **Logging**: Implement logging for all backend services.  
     - [x] Implement detailed DEBUG - **Style:** preface all logs with "{datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}"    the message text should tell the user what is happening (if possible, include the result of the action)
-- [ ] **Logging**: Implement logging for all frontend services. 
+- [/] **Logging**: Implement logging for all frontend services. 
     - [ ] Research centralized logging (e.g., sending frontend logs to backend API).
-    - [ ] Implement React Error Boundary logging. 
+    - [x] Implement React Error Boundary logging.
 - [x] **Structured Logging:** Use the standard `logging` library.
 - [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
 - [x] **Levels:** `TRACE` for verbose logging (default in Dev), `DEBUG` (default in Prod), `INFO` for milestones, `WARNING` for non-critical issues, `ERROR` for critical issues, `CRITICAL` for system failure. 
@@ -260,8 +262,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 ### Stock Analysis UI
 - [x] **Stock Analysis**: Ticker list research grades averages and creates a .xlsx report for download of Call/Put Skew. 
 - [x] **Stock Analysis**: Run Live Analsis runs the live analysis of a ticker list updates the list.
-    - [ ] **Stock Analysis**: Bug fix the entire feature quit working after AI_Stock_Live_Comparison_20260327_203220.xlsx  and AI_Stock_Live_Comparison_20260327_165708.xlsx basically yesterday's changees broke this feature as it was previously working. 
-    - [ ] **Stock Analysis**: Report file lifecycle policy — new XLSX only from manual Run Live Comparison or first scheduled run of a day; no extra file creation from ticker sync/update paths.
+    - [/] **Stock Analysis**: Bug fix the entire feature quit working after AI_Stock_Live_Comparison_20260327_203220.xlsx  and AI_Stock_Live_Comparison_20260327_165708.xlsx basically yesterday's changees broke this feature as it was previously working. *(In progress 2026-04-03.)*
+    - [/] **Stock Analysis**: Report file lifecycle policy — new XLSX only from manual Run Live Comparison or first scheduled run of a day; no extra file creation from ticker sync/update paths. *(In progress 2026-04-03.)*
     - [ ] **Stock Analysis**: columns in spread sheet Ticker	Current Price	1D % Change	Market Cap (T$)	P/E	YoY Price %	EMA_20	HMA_20	TSMOM_60	RSI_14	ATR_14	MA_30	MA_60	MA_120	MA_200	EMA_20_highlight	HMA_20_highlight	TSMOM_60_highlight	Ex-Div Date	Div Yield	Analyst 1-yr Target	1-yr 6% OTM PUT Price	Annual Yield Put Prem	3-mo Call Yield	6-mo Call Yield	1-yr Call Yield	Annual Yield Call Prem	Call/Put Skew	6-mo Call Strike	Error	Last Update	_PutExpDate_365	_CallExpDate_365	_CallExpDate_90	_CallExpDate_180	MA_30_highlight	MA_60_highlight	MA_120_highlight	MA_200_highlight
     - [X] **Stock Analysis**: Create a spreadsheet for downloading AI_Stock_Live_Comparison_YYYYMMDD_HHMMSS.xlsx with all the columns store a copy in the local file system. 
     - [X] **Stock Analysis**: Put most of the columns in the spreadsheet into a onscreen table for interactive viewing, sorting, and filtering. Ticker, Last/Current Price, Call/Put Skew (6% OTM 1 YR Options), YoY % (Year over Year percentage), TSMOM 60 (Time Series Momentum - 60 day), 200 MA (200-day Moving Average), EMA 20 (20-day Exponential Moving Average), HMA 20 (20-day Hull Moving Average), Div Yield 
@@ -271,7 +273,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Run Live Analysis**: Create/Add, Delete, Update Ticker List. 
     - [x] **Portfolio items**: Disable the Delete button for portfolio items so they stay persistant, maintain security of the portfolio for other non users, don't reveal any additional sensitive information.
     - [x] **Stock Analysis — Ticker Quick Links**: Add the standard ticker quick links directly on the `?view=ANALYSIS` page ticker column so each analysis row exposes Google Finance, Yahoo Finance, and Stock Analysis detail/modal actions without requiring manual navigation elsewhere. *(Completed 2026-04-02: `LinkRenderer` in `StockGrid.jsx` now shows `G` / `Y` icon links matching the PortfolioGrid/TradeHistory pattern; ticker text opens TickerModal.)*
-    - [ ] **Tickers — Composite Rating**: Aggregate all ticker metrics (momentum TSMOM_60, Call/Put Skew, news sentiment, technicals EMA/HMA/MA, RSI, ATR) into a single "Ticker Health" score column in the StockGrid. Should be color-coded (green/yellow/red) and sortable. Currently no composite score exists in the grid.
+    - [/] **Tickers — Composite Rating**: Aggregate all ticker metrics (momentum TSMOM_60, Call/Put Skew, news sentiment, technicals EMA/HMA/MA, RSI, ATR) into a single "Ticker Health" score column in the StockGrid. Should be color-coded (green/yellow/red) and sortable. Currently no composite score exists in the grid. *(In progress 2026-04-03: first-pass weighted score + sortable color-coded StockGrid column added.)*
     - [/] **Stock Analysis — Ticker Click Popup**: Pop-up modal (`TickerModal.jsx`) when clicking a ticker in StockGrid or PortfolioGrid. See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md). **Implemented:** 6-tab modal with parallel API fetches. **Source:** `TickerModal.jsx`, `Dashboard.jsx`.
         - [x] **Backend API — Ticker Data**: `GET /api/ticker/{symbol}` — returns stock data from MongoDB `stock_data` collection (`routes.py` L1090).
         - [x] **Backend API — Opportunity**: `GET /api/opportunity/{symbol}` — returns Juicy Score, drivers, risks, metrics (`routes.py` L1112).
@@ -281,7 +283,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Frontend — TickerModal UI**: 6 tabs (Analytics, Signals, Opportunity, Optimizer, Price Action, Smart Rolls) with loading spinner and dark theme. `TickerModal.jsx`.
         - [x] **Frontend — StockGrid Integration**: Ticker column click handler passes ticker to Dashboard state → opens modal. `StockGrid.jsx` + `Dashboard.jsx`.
         - [x] **Frontend — PortfolioGrid Integration**: Ticker click in portfolio view also opens the same TickerModal. `PortfolioGrid.jsx`.
-        - [ ] **All ~40 Columns in Analytics Tab**: The Analytics tab currently shows a subset of data. Expand to surface all ~40 analysis columns from the stock analysis spreadsheet.
+        - [/] **All ~40 Columns in Analytics Tab**: The Analytics tab currently shows a subset of data. Expand to surface all ~40 analysis columns from the stock analysis spreadsheet. *(In progress 2026-04-03: analytics tab now renders the full field groups from shared presentation config.)*
     - [x] **Stock Analysis — Feature Docs**: See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md) and [Stock Analysis Recap](features/stock_analysis_feature_recap.md).
     - [ ] **Stock Analysis-Analytics**: Deeper technical analysis drill-down in the Analytics tab — IV surface visualization, Greeks heatmap, historical metrics comparison, and all moving average highlight deltas. Related: [SMA/EMA/HMA/TSMOM Guide](features/SMA-EMA-HMA-TSMON.md), [Greeks Data Ingestion](learning/greeks-data-ingestion.md).
     - [ ] **Stock Analysis-Signals**: Expand Signals tab beyond Kalman/Markov to include news sentiment signals ([LLM Macro Targeting](learning/llm-macro-news-targeting.md)), macro impact scoring, and TSMOM trend alerts. Related: [Kalman Filters](learning/kalman-filters.md), [Markov Chains](learning/markov-chains-signals.md).
@@ -386,7 +388,6 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **portfolio-live-grid-004**: Restore option contract description details in the portfolio grid so option rows show meaningful contract metadata instead of partial or blank identifiers. *(Completed 2026-04-02: backend now guarantees `display_symbol`/`description` fallback in `_normalize_portfolio_row`.)*
     - [x] **portfolio-live-grid-005**: Normalize the portfolio row view-model so TWS/live records and Flex/EOD records expose the same field names for price, market value, cost basis, unrealized PnL, `% NAV`, `secType`, and description before rendering. *(Completed 2026-04-02: additional camelCase+legacy alias normalization added in `routes.py`.)*
     - [x] **portfolio-live-grid-006**: Add regression coverage for merged-source portfolio rows so previous fixes like the older Type-column fallback do not silently break when realtime data is present. *(Completed 2026-04-02: coverage in `tests/test_portfolio_holdings_normalization.py`, `tests/test_portfolio_enrichment.py`, and `frontend/src/components/portfolioPresentation.test.js`.)*
-
 
 ### Analysis & Signals
 - [ ] **"Juicy" Opportunity Finder**:

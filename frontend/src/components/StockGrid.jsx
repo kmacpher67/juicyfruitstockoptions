@@ -8,6 +8,7 @@ import "ag-grid-community/styles/ag-theme-quartz.css"; // Optional Theme applied
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 import { Trash2, ExternalLink, CheckCircle } from 'lucide-react';
+import { computeTickerHealthScore, getTickerHealthLabel, getTickerHealthTone } from './stockAnalysisPresentation';
 
 // Register all Community features
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -45,6 +46,18 @@ const OptionsLinkRenderer = (params) => {
         <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center hover:text-blue-400 underline decoration-dotted">
             {parseFloat(params.value).toFixed(2)}
         </a>
+    );
+};
+
+const TickerHealthRenderer = (params) => {
+    const score = params.value;
+    const tone = getTickerHealthTone(score);
+    const label = getTickerHealthLabel(score);
+    return (
+        <div className={`flex items-center gap-2 font-mono ${tone}`}>
+            <span>{score ?? '-'}</span>
+            <span className="text-xs uppercase opacity-80">{label}</span>
+        </div>
     );
 };
 
@@ -121,6 +134,15 @@ const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolio
                     'text-green-400': p => p.value > 0,
                     'text-red-400': p => p.value < 0
                 }
+            },
+            {
+                field: "Ticker Health",
+                headerName: "Ticker Health",
+                filter: "agNumberColumnFilter",
+                sortable: true,
+                valueGetter: (params) => computeTickerHealthScore(params.data),
+                cellRenderer: TickerHealthRenderer,
+                width: 160,
             },
             { field: "MA_200", headerName: "200 MA", filter: "agNumberColumnFilter" },
             { field: "EMA_20", headerName: "EMA 20" },

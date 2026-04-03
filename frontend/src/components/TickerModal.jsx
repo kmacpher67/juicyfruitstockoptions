@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
 import { buildTickerHeaderModel } from './tickerModalHeader';
+import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
@@ -189,23 +190,21 @@ const AnalyticsView = ({ data }) => {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-                <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Price Action</h3>
-                <Row label="Current Price" value={s['Current Price']} />
-                <Row label="1D % Change" value={`${s['1D % Change']}%`} />
-                <Row label="50 Day MA" value={s['MA_50']} />
-                <Row label="200 Day MA" value={s['MA_200']} />
-                <Row label="52 Week High" value={s['52 Week High']} />
-                <Row label="52 Week Low" value={s['52 Week Low']} />
-            </div>
-            <div>
-                <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Fundamentals & Volatility</h3>
-                <Row label="IV Rank" value={s['IV Rank']} />
-                <Row label="Implied Vol" value={s['Implied Volatility']} />
-                <Row label="Call/Put Skew" value={s['Call/Put Skew']} />
-                <Row label="Dividend Yield" value={`${s['Div Yield']}%`} />
-                <Row label="Market Cap" value={s['Market Cap'] || '-'} />
-                <Row label="PE Ratio" value={s['PE Ratio'] || '-'} />
+            {ANALYTICS_FIELD_GROUPS.map((group) => (
+                <div key={group.title}>
+                    <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">{group.title}</h3>
+                    {group.fields.map(([label, field]) => {
+                        const raw = s?.[field];
+                        const value = raw === undefined || raw === null || raw === '' ? '-' : raw;
+                        return <Row key={field} label={label} value={value} />;
+                    })}
+                </div>
+            ))}
+            <div className="md:col-span-2">
+                <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Price Action Snapshot</h3>
+                <pre className="bg-gray-800 rounded p-3 text-xs text-gray-200 overflow-auto max-h-40">
+                    {JSON.stringify(s?.['Price Action'] || {}, null, 2)}
+                </pre>
             </div>
         </div>
     );

@@ -25,7 +25,9 @@ class StockLiveComparison:
         self.now = datetime.now()
         self.filename = None
         self.latest_file = None
+        self.latest_viable_file = None
         self.logger = logging.getLogger(__name__)
+        self.min_viable_report_bytes = 10 * 1024
 
     @staticmethod
     def setup_logging(log_file="stock_live_comparison.log"):
@@ -181,6 +183,26 @@ class StockLiveComparison:
         latest_file = files[0]
         file_time = datetime.fromtimestamp(latest_file.stat().st_mtime)
         return latest_file, file_time
+
+    @staticmethod
+    def is_viable_spreadsheet_file(path: Path, min_bytes=10 * 1024):
+        """Return True when a report file is large enough to be used as a merge source."""
+        try:
+            return bool(path and path.exists() and path.stat().st_size >= int(min_bytes))
+        except OSError:
+            return False
+
+    @classmethod
+    def get_latest_viable_spreadsheet(cls, directory: Path, base_name="AI_Stock_Live_Comparison_", min_bytes=10 * 1024):
+        """Return the latest report file that passes the minimum-size viability guard."""
+        files = list(directory.glob(f"{base_name}*.xlsx"))
+        if not files:
+            return None, None
+        files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+        for candidate in files:
+            if cls.is_viable_spreadsheet_file(candidate, min_bytes=min_bytes):
+                return candidate, datetime.fromtimestamp(candidate.stat().st_mtime)
+        return None, None
 
     @staticmethod
     def parse_report_date(report_path: Path, base_name="AI_Stock_Live_Comparison_"):
@@ -976,6 +998,14 @@ class StockLiveComparison:
 
         return self.output_dir / f"AI_Stock_Live_Comparison_{self.now.strftime('%Y%m%d_%H%M%S')}.xlsx"
 
+    def is_suspicious_record_count(self, record_count):
+        """Detect suspiciously small report outputs to prevent accidental overwrite churn."""
+        expected = len(self.tickers)
+        if expected < 20:
+            return False
+        minimum_allowed = max(5, int(expected * 0.2))
+        return int(record_count) < minimum_allowed
+
     def run(self, force_new_file=False, allow_create_if_missing=True):
         self.now = datetime.now()
         self.filename = self.select_output_report_file(
@@ -983,14 +1013,29 @@ class StockLiveComparison:
             allow_create_if_missing=allow_create_if_missing,
         )
         self.latest_file, _ = self.get_latest_spreadsheet(self.output_dir)
+        self.latest_viable_file, _ = self.get_latest_viable_spreadsheet(
+            self.output_dir,
+            min_bytes=self.min_viable_report_bytes,
+        )
         logging.info(f"Latest spreadsheet: {self.latest_file}")
+        if self.latest_file and self.latest_file != self.latest_viable_file:
+            try:
+                file_size = self.latest_file.stat().st_size
+            except OSError:
+                file_size = 0
+            logging.warning(
+                "Latest spreadsheet %s (%s bytes) failed viability guard; using %s as merge source.",
+                self.latest_file,
+                file_size,
+                self.latest_viable_file,
+            )
         
         final_records = []
         put_col = None
         call_col = None
         
-        if self.latest_file:
-            df_existing = pd.read_excel(self.latest_file)
+        if self.latest_viable_file:
+            df_existing = pd.read_excel(self.latest_viable_file)
             if "Last Update" not in df_existing.columns:
                 df_existing["Last Update"] = None
             
@@ -1051,6 +1096,12 @@ class StockLiveComparison:
         # If we didn't get them from existing DF, calculate them now
         # Note: add_ratio_column handles adding columns if missing
         df, put_col, call_col = self.add_ratio_column(df)
+
+        if self.is_suspicious_record_count(len(df)):
+            raise RuntimeError(
+                f"Suspicious stock-analysis output ({len(df)} records for {len(self.tickers)} tickers). "
+                "Skipping save to avoid overwriting a healthy report with truncated data."
+            )
             
         self.save_to_excel(df, put_col, call_col)
         self.upsert_to_mongo(df)

@@ -37,6 +37,7 @@ const AVAILABLE_COLUMNS = [
     { field: "1D % Change", headerName: "Change" },
     { field: "YoY Price %", headerName: "YoY %" },
     { field: "TSMOM_60", headerName: "TSMOM 60" },
+    { field: "Ticker Health", headerName: "Ticker Health" },
     { field: "MA_200", headerName: "200 MA" },
     { field: "EMA_20", headerName: "EMA 20" },
     { field: "HMA_20", headerName: "HMA 20" },

@@ -298,6 +298,8 @@ def test_run_merge_logic(monkeypatch, tmp_path, caplog):
     ])
     existing_file = tmp_path / "AI_Stock_Live_Comparison_20250101_100000.xlsx"
     existing_df.to_excel(existing_file, index=False)
+    if existing_file.stat().st_size < 12000:
+        existing_file.write_bytes(existing_file.read_bytes() + (b"x" * (12000 - existing_file.stat().st_size)))
     
     # Mock get_latest_spreadsheet to return this file
     def fake_get_latest(directory, base_name="AI_Stock_Live_Comparison_"):
@@ -366,3 +368,72 @@ def test_select_output_report_file_scheduled_reuses_today_file(tmp_path):
 
     selected = comp.select_output_report_file(force_new_file=False, allow_create_if_missing=True)
     assert selected == today
+
+
+def test_get_latest_viable_spreadsheet_skips_small_files(tmp_path):
+    comp = StockLiveComparison(["AAA"])
+    comp.output_dir = tmp_path
+
+    small = tmp_path / "AI_Stock_Live_Comparison_20260403_100000.xlsx"
+    small.write_bytes(b"x" * 1024)
+
+    viable = tmp_path / "AI_Stock_Live_Comparison_20260403_090000.xlsx"
+    viable.write_bytes(b"x" * 12000)
+
+    selected, _ = comp.get_latest_viable_spreadsheet(tmp_path, min_bytes=10 * 1024)
+    assert selected == viable
+
+
+def test_run_uses_latest_viable_file_as_merge_source(monkeypatch, tmp_path):
+    comp = StockLiveComparison(["AAA", "BBB"])
+    comp.output_dir = tmp_path
+
+    viable_source = tmp_path / "AI_Stock_Live_Comparison_20260403_100000.xlsx"
+    pd.DataFrame(
+        [
+            {
+                "Ticker": "AAA",
+                "Last Update": "2026-04-03 10:00:00",
+                "Annual Yield Put Prem": 1,
+                "Annual Yield Call Prem": 2,
+                "MA_30": 1,
+                "MA_60": 1,
+                "MA_120": 1,
+                "MA_200": 1,
+                "EMA_20": 1,
+                "HMA_20": 1,
+                "TSMOM_60": 0.1,
+                "RSI_14": 50,
+                "ATR_14": 1.2,
+                "Price Action": "{}",
+                "_PutExpDate_365": "2027-01-01",
+            }
+        ]
+    ).to_excel(viable_source, index=False)
+    if viable_source.stat().st_size < 12000:
+        viable_source.write_bytes(viable_source.read_bytes() + (b"x" * (12000 - viable_source.stat().st_size)))
+    tiny_latest = tmp_path / "AI_Stock_Live_Comparison_20260403_110000.xlsx"
+    tiny_latest.write_bytes(b"x" * 1024)
+
+    monkeypatch.setattr(comp, "fetch_data", lambda tickers: [{"Ticker": "BBB", "Annual Yield Put Prem": 2, "Annual Yield Call Prem": 4, "Last Update": "2026-04-03 11:00:00"}])
+    monkeypatch.setattr(comp, "save_to_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(comp, "upsert_to_mongo", lambda *args, **kwargs: None)
+    monkeypatch.setattr("stock_live_comparison.export_data", lambda: None)
+
+    comp.run()
+    assert comp.latest_file in {tiny_latest, viable_source}
+    assert comp.latest_viable_file == viable_source
+
+
+def test_run_rejects_suspiciously_small_result_set(monkeypatch, tmp_path):
+    many_tickers = [f"T{i:03d}" for i in range(100)]
+    comp = StockLiveComparison(many_tickers)
+    comp.output_dir = tmp_path
+
+    monkeypatch.setattr(comp, "fetch_data", lambda tickers: [{"Ticker": "ONLY1", "Annual Yield Put Prem": 1, "Annual Yield Call Prem": 2, "Last Update": "2026-04-03 11:00:00"}])
+    monkeypatch.setattr(comp, "save_to_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(comp, "upsert_to_mongo", lambda *args, **kwargs: None)
+    monkeypatch.setattr("stock_live_comparison.export_data", lambda: None)
+
+    with pytest.raises(RuntimeError, match="Suspicious stock-analysis output"):
+        comp.run()

@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import AppErrorBoundary from './components/AppErrorBoundary';
 import { useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -24,7 +25,9 @@ function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <AppErrorBoundary name="dashboard">
+              <Dashboard />
+            </AppErrorBoundary>
           </ProtectedRoute>
         }
       />
