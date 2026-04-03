@@ -3,6 +3,7 @@ import re
 import yfinance as yf
 import pandas as pd
 import time
+import random
 import logging
 from datetime import datetime
 import openpyxl
@@ -14,20 +15,39 @@ from app.services.price_action_service import PriceActionService
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
 
-    def __init__(self, tickers, max_age_hours=4, highlight_threshold=0.05):
+    def __init__(
+        self,
+        tickers,
+        max_age_hours=4,
+        highlight_threshold=0.05,
+        fetch_profile_news=False,
+        min_request_interval_sec=1.5,
+        download_batch_size=6,
+        batch_pause_sec=8.0,
+        history_cache_ttl_hours=6.0,
+    ):
         self.tickers = list(dict.fromkeys(tickers))
         self.max_age_hours = max_age_hours
         self.highlight_threshold = highlight_threshold  # e.g. 0.05 for 5%
+        self.fetch_profile_news = bool(fetch_profile_news)
+        self.min_request_interval_sec = float(min_request_interval_sec)
+        self.download_batch_size = max(1, int(download_batch_size))
+        self.batch_pause_sec = max(0.0, float(batch_pause_sec))
+        self.history_cache_ttl_hours = max(0.0, float(history_cache_ttl_hours))
         self.records = []
         self.output_dir = Path("report-results")
         if not self.output_dir.exists():
             self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.history_cache_dir = Path("data/yf_history")
+        self.history_cache_dir.mkdir(parents=True, exist_ok=True)
         self.now = datetime.now()
         self.filename = None
         self.latest_file = None
         self.latest_viable_file = None
         self.logger = logging.getLogger(__name__)
         self.min_viable_report_bytes = 10 * 1024
+        self._next_request_not_before_ts = 0.0
+        self._consecutive_429 = 0
 
     @staticmethod
     def setup_logging(log_file="stock_live_comparison.log"):
@@ -377,21 +397,23 @@ class StockLiveComparison:
         record.update(highlight_dict)
 
         # Company profile + recent news (stored as sub-document)
-        try:
-            raw_news = chain.news or []
-            news_items = [
-                {
-                    "title": n.get("title", ""),
-                    "publisher": n.get("publisher", ""),
-                    "link": n.get("link", ""),
-                    "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
-                    if n.get("providerPublishTime") else "",
-                }
-                for n in raw_news[:5]
-            ]
-        except Exception as e:
-            self.logger.warning(f"stock_live_comparison.fetch_ticker_record - Could not fetch news for {ticker}: {e}")
-            news_items = []
+        news_items = []
+        if self.fetch_profile_news:
+            try:
+                raw_news = chain.news or []
+                news_items = [
+                    {
+                        "title": n.get("title", ""),
+                        "publisher": n.get("publisher", ""),
+                        "link": n.get("link", ""),
+                        "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
+                        if n.get("providerPublishTime") else "",
+                    }
+                    for n in raw_news[:5]
+                ]
+            except Exception as e:
+                self.logger.warning(f"stock_live_comparison.fetch_ticker_record - Could not fetch news for {ticker}: {e}")
+                news_items = []
 
         record["profile"] = {
             "sector": info.get("sector", ""),
@@ -518,17 +540,7 @@ class StockLiveComparison:
             return []
         total = len(tickers_to_fetch)
         logging.info(f"Downloading historical data for {total} tickers...")
-        try:
-            hist = yf.download(
-                tickers_to_fetch,
-                period="1y",
-                group_by="ticker",
-                threads=True,
-                auto_adjust=False,  # explicit to avoid FutureWarning (set True if you want adjusted prices)
-                progress=True
-            )
-        except Exception:
-            hist = {}
+        hist = self.download_history_batched(tickers_to_fetch)
         time.sleep(1)
         try:
             tickers_obj = yf.Tickers(" ".join(tickers_to_fetch))
@@ -556,27 +568,32 @@ class StockLiveComparison:
                     # Actually logging.info might be too noisy if list is long, but user asked for visuals.
                     # Best to stick to requested debug log for now, relying on YF progress bar for download.
                     
+                    self.throttle_yf_requests()
                     time.sleep(1 + max(0, attempt - 1))
                     ticker_obj = tickers_obj.tickers.get(t)
                     if ticker_obj is None:
                         raise KeyError(f"Ticker '{t}' missing from yfinance.Tickers result")
                     info = ticker_obj.info
-                    ticker_hist = hist[t] if t in hist else None
+                    ticker_hist = hist.get(t)
                     chain = ticker_obj
                     record = self.fetch_ticker_record(t, info, ticker_hist, chain)
                     records.append(record)
+                    self._consecutive_429 = 0
                     break
                 except Exception as e:
                     retryable = self.is_retryable_yf_error(e)
+                    if self.is_http_429_error(e):
+                        self._consecutive_429 += 1
+                        self.apply_rate_limit_cooldown(self._consecutive_429)
                     should_retry = retryable and attempt < max_attempts
                     if should_retry:
-                        backoff = min(30, 3 * (2 ** (attempt - 1)))
+                        backoff = min(90, 3 * (2 ** (attempt - 1))) + random.uniform(0.1, 0.9)
                         logging.warning(
                             "Stock analysis ticker retry: %s attempt=%s/%s backoff_sec=%s error=%s",
                             t,
                             attempt,
                             max_attempts,
-                            backoff,
+                            round(backoff, 2),
                             e,
                         )
                         time.sleep(backoff)
@@ -600,6 +617,112 @@ class StockLiveComparison:
         logging.info("Stock analysis fetch complete: %s records produced for %s requested tickers.", len(records), total)
         return records
 
+    def download_history_batched(self, tickers_to_fetch):
+        """Download history in small batches, with local cache and paced pauses."""
+        hist_by_ticker = {}
+        to_download = []
+        for ticker in tickers_to_fetch:
+            cached = self.load_cached_history(ticker)
+            if cached is not None:
+                hist_by_ticker[ticker] = cached
+            else:
+                to_download.append(ticker)
+
+        if not to_download:
+            return hist_by_ticker
+
+        batches = [
+            to_download[i : i + self.download_batch_size]
+            for i in range(0, len(to_download), self.download_batch_size)
+        ]
+        total_batches = len(batches)
+
+        for idx, batch in enumerate(batches, start=1):
+            self.throttle_yf_requests()
+            logging.info(
+                "Stock analysis history batch %s/%s size=%s",
+                idx,
+                total_batches,
+                len(batch),
+            )
+            try:
+                batch_hist = yf.download(
+                    batch,
+                    period="1y",
+                    group_by="ticker",
+                    threads=True,
+                    auto_adjust=False,  # explicit to avoid FutureWarning
+                    progress=False,
+                )
+            except Exception as e:
+                logging.warning(
+                    "Stock analysis history batch failed batch=%s/%s error=%s",
+                    idx,
+                    total_batches,
+                    e,
+                )
+                batch_hist = None
+
+            for ticker in batch:
+                ticker_hist = self.extract_ticker_history(batch_hist, ticker, batch_len=len(batch))
+                hist_by_ticker[ticker] = ticker_hist
+                if ticker_hist is not None and not ticker_hist.empty:
+                    self.write_cached_history(ticker, ticker_hist)
+
+            if idx < total_batches and self.batch_pause_sec > 0:
+                time.sleep(self.batch_pause_sec)
+
+        return hist_by_ticker
+
+    def history_cache_path(self, ticker):
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(ticker))
+        return self.history_cache_dir / f"{safe}.csv"
+
+    def is_cache_fresh(self, cache_path):
+        if not cache_path.exists():
+            return False
+        age_hours = (time.time() - cache_path.stat().st_mtime) / 3600.0
+        return age_hours <= self.history_cache_ttl_hours
+
+    def load_cached_history(self, ticker):
+        cache_path = self.history_cache_path(ticker)
+        if not self.is_cache_fresh(cache_path):
+            return None
+        try:
+            df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            # We expect OHLCV columns; treat malformed cache as miss.
+            required = {"Open", "High", "Low", "Close"}
+            if not required.issubset(set(df.columns)):
+                return None
+            return df
+        except Exception:
+            return None
+
+    def write_cached_history(self, ticker, df):
+        cache_path = self.history_cache_path(ticker)
+        try:
+            df.to_csv(cache_path)
+        except Exception as e:
+            logging.warning("Stock analysis cache write failed ticker=%s error=%s", ticker, e)
+
+    @staticmethod
+    def extract_ticker_history(batch_hist, ticker, batch_len):
+        if batch_hist is None:
+            return None
+        try:
+            # Single-ticker batch returns a regular OHLC DataFrame.
+            if batch_len == 1 and isinstance(batch_hist, pd.DataFrame):
+                return batch_hist
+            # Multi-ticker batch usually returns MultiIndex columns keyed by ticker.
+            if isinstance(batch_hist, pd.DataFrame) and isinstance(batch_hist.columns, pd.MultiIndex):
+                return batch_hist[ticker] if ticker in batch_hist.columns.get_level_values(0) else None
+            # Fallback for dict-like stubs in tests.
+            if isinstance(batch_hist, dict):
+                return batch_hist.get(ticker)
+        except Exception:
+            return None
+        return None
+
     @staticmethod
     def is_retryable_yf_error(exc):
         """Best-effort classifier for transient yfinance/network errors."""
@@ -615,6 +738,30 @@ class StockLiveComparison:
             "service unavailable",
         )
         return any(marker in msg for marker in transient_markers)
+
+    @staticmethod
+    def is_http_429_error(exc):
+        msg = str(exc).lower()
+        return "429" in msg or "too many requests" in msg or "rate limit" in msg
+
+    def throttle_yf_requests(self):
+        """Throttle outbound yfinance calls to avoid burst behavior."""
+        now_ts = time.time()
+        if now_ts < self._next_request_not_before_ts:
+            time.sleep(self._next_request_not_before_ts - now_ts)
+            now_ts = time.time()
+        self._next_request_not_before_ts = now_ts + max(0.0, self.min_request_interval_sec)
+
+    def apply_rate_limit_cooldown(self, consecutive_hits):
+        """Apply a global cooldown window after 429 responses."""
+        cooldown = min(300, 20 * (2 ** max(0, consecutive_hits - 1)))
+        cooldown += random.uniform(0.5, 2.0)
+        self._next_request_not_before_ts = max(self._next_request_not_before_ts, time.time() + cooldown)
+        logging.warning(
+            "Stock analysis 429 cooldown engaged: consecutive=%s cooldown_sec=%s",
+            consecutive_hits,
+            round(cooldown, 2),
+        )
 
     # ------------------------------------------------------------------
     def merge_with_existing(self, df_existing, tickers_to_fetch):

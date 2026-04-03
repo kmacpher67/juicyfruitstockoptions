@@ -91,6 +91,68 @@ def test_fetch_data_retries_on_429_and_recovers(monkeypatch):
     assert flaky.calls == 3
 
 
+def test_download_history_batched_uses_small_batches_and_no_threads(monkeypatch):
+    import stock_live_comparison as slc
+
+    calls = []
+
+    def fake_download(batch, **kwargs):
+        calls.append((list(batch), kwargs))
+        # empty-ish but valid frame
+        return pd.DataFrame()
+
+    monkeypatch.setattr(slc.yf, "download", fake_download)
+    monkeypatch.setattr(slc.time, "sleep", lambda x: None)
+
+    comp = StockLiveComparison(
+        ["AAA", "BBB", "CCC"],
+        download_batch_size=2,
+        batch_pause_sec=0,
+    )
+    out = comp.download_history_batched(["AAA", "BBB", "CCC"])
+
+    assert list(out.keys()) == ["AAA", "BBB", "CCC"]
+    assert len(calls) == 2
+    assert calls[0][0] == ["AAA", "BBB"]
+    assert calls[1][0] == ["CCC"]
+    assert calls[0][1]["threads"] is True
+    assert calls[1][1]["threads"] is True
+    assert calls[0][1]["progress"] is False
+
+
+def test_download_history_batched_prefers_fresh_cache(monkeypatch, tmp_path):
+    import stock_live_comparison as slc
+
+    calls = []
+
+    def fake_download(batch, **kwargs):
+        calls.append((list(batch), kwargs))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(slc.yf, "download", fake_download)
+    monkeypatch.setattr(slc.time, "sleep", lambda x: None)
+
+    comp = StockLiveComparison(["AAA", "BBB"], history_cache_ttl_hours=24)
+    comp.history_cache_dir = tmp_path
+
+    fresh_df = pd.DataFrame(
+        {
+            "Open": [1.0],
+            "High": [1.1],
+            "Low": [0.9],
+            "Close": [1.05],
+            "Volume": [1000],
+        },
+        index=pd.to_datetime(["2026-04-03"]),
+    )
+    fresh_df.to_csv(comp.history_cache_path("AAA"))
+
+    out = comp.download_history_batched(["AAA", "BBB"])
+    assert "AAA" in out and out["AAA"] is not None
+    assert len(calls) == 1
+    assert calls[0][0] == ["BBB"]
+
+
 def test_fetch_ticker_record(monkeypatch):
     comp = StockLiveComparison(["AAA"])
 
@@ -134,6 +196,58 @@ def test_fetch_ticker_record(monkeypatch):
     assert record["1-yr 6% OTM PUT Price"] == 5
     assert record["Annual Yield Put Prem"] == 5
     assert record["Annual Yield Call Prem"] == 3
+
+
+def test_fetch_ticker_record_skips_news_when_disabled(monkeypatch):
+    comp = StockLiveComparison(["AAA"], fetch_profile_news=False)
+
+    def fake_call(chain, price, days, otm_pct=6):
+        return (None, None, None)
+
+    def fake_put(chain, price, days, otm_pct=6):
+        return (None, None)
+
+    comp.get_otm_call_yield = fake_call
+    comp.get_otm_put_price = fake_put
+
+    class NewsExplodesChain:
+        @property
+        def news(self):
+            raise RuntimeError("news endpoint should not be called")
+
+        def option_chain(self, exp):
+            class OC:
+                def __init__(self):
+                    self.calls = pd.DataFrame()
+                    self.puts = pd.DataFrame()
+            return OC()
+
+    info = {"regularMarketPrice": 100, "shortName": "AAA"}
+    hist = pd.DataFrame(
+        {
+            "Close": [99, 100],
+            "High": [100, 101],
+            "Low": [98, 99],
+            "Open": [99, 100],
+            "Volume": [100, 100],
+        }
+    )
+    record = comp.fetch_ticker_record("AAA", info, hist, NewsExplodesChain())
+    assert record["profile"]["news"] == []
+
+
+def test_apply_rate_limit_cooldown_sets_next_request_window(monkeypatch):
+    comp = StockLiveComparison(["AAA"])
+    monkeypatch.setattr("stock_live_comparison.time.time", lambda: 1000.0)
+    monkeypatch.setattr("stock_live_comparison.random.uniform", lambda a, b: 1.0)
+    comp.apply_rate_limit_cooldown(2)
+    assert comp._next_request_not_before_ts > 1000.0
+
+
+def test_is_http_429_error_detection():
+    comp = StockLiveComparison(["AAA"])
+    assert comp.is_http_429_error(RuntimeError("HTTP Error 429: Too Many Requests")) is True
+    assert comp.is_http_429_error(RuntimeError("boom")) is False
 
 
 def test_fetch_ticker_record_company_name_fallback(monkeypatch):
