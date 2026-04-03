@@ -135,6 +135,16 @@ The `AVAILABLE_COLUMNS` array in `Dashboard.jsx` (L16-27) mirrors the same limit
 3. **Add validation in `run()`** — after building `final_records`, if the record count is suspiciously low (e.g., <5 when ticker list has 80+), log a warning and skip saving to avoid overwriting good data with bad
 4. **Root cause**: Investigate why `yfinance` calls fail in the FastAPI context but succeed in Docker cron. Possible issues: rate limiting, network config, missing environment variables
 
+### 2026-04-03 follow-up fix (429 throttling)
+
+- Fixed `fetch_data()` retry behavior in `stock_live_comparison.py`.
+- Previous logic had a retry loop that never incremented attempts and marked first failure as final, so `HTTP 429` could not recover.
+- New behavior:
+  - bounded retry attempts for ticker-level fetches,
+  - exponential backoff for retryable yfinance/network errors,
+  - final error record only after retries are exhausted.
+- Added regression coverage in `tests/test_stock_live_methods.py::test_fetch_data_retries_on_429_and_recovers`.
+
 ### Bug Fix 2: Add all columns to StockGrid.jsx (Frontend)
 
 1. **Update `baseDefs`** in `StockGrid.jsx` to include all ~40 columns with proper formatting
@@ -155,3 +165,4 @@ The `AVAILABLE_COLUMNS` array in `Dashboard.jsx` (L16-27) mirrors the same limit
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-03-28 | **CREATED** | Initial feature recap documenting Stock Analysis breakage root cause |
+| 2026-04-03 | **UPDATED** | Documented yfinance 429 retry-loop fix and added regression test coverage |

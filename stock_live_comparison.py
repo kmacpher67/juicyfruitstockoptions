@@ -542,37 +542,79 @@ class StockLiveComparison:
                 for t in tickers_to_fetch
             ]
         records = []
+        max_attempts = 4
         for idx, t in enumerate(tickers_to_fetch, start=1):
-            tries = 0
-            success = False
-            while tries < 3 and not success:
+            attempt = 0
+            while attempt < max_attempts:
+                attempt += 1
                 try:
-                    if tries == 0 and (idx == 1 or idx % 10 == 0 or idx == total):
+                    if attempt == 1 and (idx == 1 or idx % 10 == 0 or idx == total):
                         logging.info("Stock analysis progress: %s/%s (ticker=%s)", idx, total, t)
-                    logging.debug(f"Processing ticker {t} (Attempt {tries + 1}/3)...")
+                    logging.debug(f"Processing ticker {t} (Attempt {attempt}/{max_attempts})...")
                     # Visual interaction for console (optional, keeps user happy)
                     # print(f"Processing {t}...", end="\r", flush=True) 
                     # Actually logging.info might be too noisy if list is long, but user asked for visuals.
                     # Best to stick to requested debug log for now, relying on YF progress bar for download.
                     
-                    time.sleep(1 + tries * 2)
-                    info = tickers_obj.tickers[t].info
+                    time.sleep(1 + max(0, attempt - 1))
+                    ticker_obj = tickers_obj.tickers.get(t)
+                    if ticker_obj is None:
+                        raise KeyError(f"Ticker '{t}' missing from yfinance.Tickers result")
+                    info = ticker_obj.info
                     ticker_hist = hist[t] if t in hist else None
-                    chain = tickers_obj.tickers[t]
+                    chain = ticker_obj
                     record = self.fetch_ticker_record(t, info, ticker_hist, chain)
                     records.append(record)
-                    success = True
+                    break
                 except Exception as e:
-                    logging.warning("Stock analysis ticker failed: %s error=%s", t, e)
+                    retryable = self.is_retryable_yf_error(e)
+                    should_retry = retryable and attempt < max_attempts
+                    if should_retry:
+                        backoff = min(30, 3 * (2 ** (attempt - 1)))
+                        logging.warning(
+                            "Stock analysis ticker retry: %s attempt=%s/%s backoff_sec=%s error=%s",
+                            t,
+                            attempt,
+                            max_attempts,
+                            backoff,
+                            e,
+                        )
+                        time.sleep(backoff)
+                        continue
+
+                    logging.warning(
+                        "Stock analysis ticker failed: %s attempt=%s/%s retryable=%s error=%s",
+                        t,
+                        attempt,
+                        max_attempts,
+                        retryable,
+                        e,
+                    )
                     record = {
                         "Ticker": t,
                         "Error": str(e),
                         "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
                     }
                     records.append(record)
-                    success = True
+                    break
         logging.info("Stock analysis fetch complete: %s records produced for %s requested tickers.", len(records), total)
         return records
+
+    @staticmethod
+    def is_retryable_yf_error(exc):
+        """Best-effort classifier for transient yfinance/network errors."""
+        msg = str(exc).lower()
+        if "429" in msg or "too many requests" in msg or "rate limit" in msg:
+            return True
+        transient_markers = (
+            "temporarily unavailable",
+            "timed out",
+            "timeout",
+            "connection reset",
+            "connection aborted",
+            "service unavailable",
+        )
+        return any(marker in msg for marker in transient_markers)
 
     # ------------------------------------------------------------------
     def merge_with_existing(self, df_existing, tickers_to_fetch):

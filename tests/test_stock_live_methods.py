@@ -45,6 +45,52 @@ def test_fetch_data_api_failure(monkeypatch):
     assert records[0]["Error"] == "boom"
 
 
+def test_fetch_data_retries_on_429_and_recovers(monkeypatch):
+    import stock_live_comparison as slc
+
+    def fake_download(*args, **kwargs):
+        return {}
+
+    class FlakyTicker:
+        def __init__(self):
+            self.calls = 0
+
+        @property
+        def info(self):
+            self.calls += 1
+            if self.calls < 3:
+                raise RuntimeError("HTTP Error 429: Too Many Requests")
+            return {"regularMarketPrice": 101}
+
+    flaky = FlakyTicker()
+
+    class DummyTickers:
+        def __init__(self):
+            self.tickers = {"AAA": flaky}
+
+    monkeypatch.setattr(slc.yf, "download", fake_download)
+    monkeypatch.setattr(slc.yf, "Tickers", lambda symbols: DummyTickers())
+    monkeypatch.setattr(slc.time, "sleep", lambda x: None)
+    monkeypatch.setattr(
+        StockLiveComparison,
+        "fetch_ticker_record",
+        lambda self, ticker, info, ticker_hist, chain: {
+            "Ticker": ticker,
+            "Current Price": info.get("regularMarketPrice"),
+            "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    )
+
+    comp = StockLiveComparison(["AAA"])
+    records = comp.fetch_data(["AAA"])
+
+    assert len(records) == 1
+    assert records[0]["Ticker"] == "AAA"
+    assert records[0]["Current Price"] == 101
+    assert "Error" not in records[0] or records[0]["Error"] is None
+    assert flaky.calls == 3
+
+
 def test_fetch_ticker_record(monkeypatch):
     comp = StockLiveComparison(["AAA"])
 
