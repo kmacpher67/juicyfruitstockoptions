@@ -2,6 +2,7 @@ export const ANALYTICS_FIELD_GROUPS = [
     {
         title: 'Core Pricing',
         fields: [
+            ['Ticker', 'Ticker'],
             ['Current Price', 'Current Price'],
             ['1D % Change', '1D % Change'],
             ['YoY Price %', 'YoY Price %'],
@@ -79,8 +80,21 @@ export const computeTickerHealthScore = (row) => {
     const momentum = parseNumeric(row['TSMOM_60']);
     const skew = parseNumeric(row['Call/Put Skew']);
     const rsi = parseNumeric(row['RSI_14']);
+    const atr = parseNumeric(row['ATR_14']);
     const oneDay = parseNumeric(row['1D % Change']);
     const yoy = parseNumeric(row['YoY Price %']);
+    const emaHighlight = parseNumeric(row['EMA_20_highlight']);
+    const hmaHighlight = parseNumeric(row['HMA_20_highlight']);
+    const ma30Highlight = parseNumeric(row['MA_30_highlight']);
+    const ma60Highlight = parseNumeric(row['MA_60_highlight']);
+    const ma120Highlight = parseNumeric(row['MA_120_highlight']);
+    const ma200Highlight = parseNumeric(row['MA_200_highlight']);
+    const sentiment = parseNumeric(
+        row['News Sentiment'] ?? row['Sentiment Score'] ?? row['news_sentiment'] ?? row['sentiment_score']
+    );
+    const macroImpact = parseNumeric(
+        row['Macro Impact Score'] ?? row['macro_impact_score']
+    );
 
     const components = [];
 
@@ -89,6 +103,23 @@ export const computeTickerHealthScore = (row) => {
     if (rsi !== null) components.push((50 - Math.abs(50 - rsi)) * 0.5);
     if (oneDay !== null) components.push(Math.max(-5, Math.min(5, oneDay)) * 2);
     if (yoy !== null) components.push(Math.max(-25, Math.min(25, yoy)) * 0.8);
+    if (atr !== null) components.push(Math.max(-6, Math.min(6, 6 - atr)) * 1.2);
+
+    const highlights = [
+        emaHighlight,
+        hmaHighlight,
+        ma30Highlight,
+        ma60Highlight,
+        ma120Highlight,
+        ma200Highlight,
+    ].filter((v) => v !== null);
+    if (highlights.length) {
+        const avgHighlight = highlights.reduce((acc, current) => acc + current, 0) / highlights.length;
+        components.push(Math.max(-0.2, Math.min(0.2, avgHighlight)) * 80);
+    }
+
+    if (sentiment !== null) components.push(Math.max(-1, Math.min(1, sentiment)) * 10);
+    if (macroImpact !== null) components.push(Math.max(-1, Math.min(1, macroImpact)) * 10);
 
     if (!components.length) return null;
 

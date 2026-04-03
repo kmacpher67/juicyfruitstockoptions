@@ -26,8 +26,21 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                  logging.error(f"Auto-discovery failed: {e}")
 
              tickers = StockLiveComparison.get_default_tickers()
-        
+
         comp = StockLiveComparison(tickers)
+
+        if trigger == "sync":
+            latest_viable, _ = comp.get_latest_viable_spreadsheet(
+                comp.output_dir,
+                min_bytes=comp.min_viable_report_bytes,
+            )
+            if not latest_viable:
+                return {
+                    "status": "skipped",
+                    "reason": "no_viable_existing_report_for_sync",
+                    "file": None,
+                }
+
         comp.run(
             force_new_file=(trigger == "manual"),
             allow_create_if_missing=(trigger != "sync"),

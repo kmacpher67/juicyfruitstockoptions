@@ -11,6 +11,7 @@ import {
 test('analytics field groups include the full stock-analysis column set', () => {
     const fieldKeys = ANALYTICS_FIELD_GROUPS.flatMap((group) => group.fields.map((entry) => entry[1]));
     const required = [
+        'Ticker',
         'Current Price',
         '1D % Change',
         'Market Cap (T$)',
@@ -77,6 +78,26 @@ test('composite health score yields strong/weak classifications', () => {
     assert.ok(weak <= 44);
     assert.equal(getTickerHealthLabel(weak), 'Weak');
     assert.equal(getTickerHealthTone(weak), 'text-red-400');
+});
+
+test('composite score incorporates sentiment and macro inputs when present', () => {
+    const noSentiment = computeTickerHealthScore({
+        'TSMOM_60': 0.2,
+        'Call/Put Skew': 1.1,
+        'RSI_14': 51,
+        '1D % Change': 0.8,
+        'YoY Price %': 8,
+    });
+    const withPositiveSignals = computeTickerHealthScore({
+        'TSMOM_60': 0.2,
+        'Call/Put Skew': 1.1,
+        'RSI_14': 51,
+        '1D % Change': 0.8,
+        'YoY Price %': 8,
+        'News Sentiment': 0.9,
+        'Macro Impact Score': 0.9,
+    });
+    assert.ok(withPositiveSignals > noSentiment);
 });
 
 test('composite health score returns null when no numeric inputs exist', () => {
