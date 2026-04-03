@@ -375,6 +375,27 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                     ))}
                 </select>
 
+                <span className="ml-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Price:</span>
+                <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={filters.lastPriceMin}
+                    placeholder="Min"
+                    onChange={e => setFilters((current) => ({ ...current, lastPriceMin: e.target.value }))}
+                    className="w-16 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
+                />
+                <span className="text-xs text-slate-500">to</span>
+                <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={filters.lastPriceMax}
+                    placeholder="Max"
+                    onChange={e => setFilters((current) => ({ ...current, lastPriceMax: e.target.value }))}
+                    className="w-16 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
+                />
+
                 {filters.expiringOnly && (
                     <span className="flex items-center gap-1 ml-2">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">DTE:</span>

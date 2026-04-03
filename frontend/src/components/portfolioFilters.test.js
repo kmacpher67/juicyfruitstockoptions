@@ -10,6 +10,7 @@ const sampleRows = [
         account_id: 'U110638',
         asset_class: 'STK',
         coverage_status: 'Covered',
+        market_price: 175.25,
     },
     {
         symbol: 'AMD 2026-04-02 202.5 Call',
@@ -19,6 +20,7 @@ const sampleRows = [
         coverage_status: 'Covered',
         dte: 0,
         dist_to_strike_pct: 0.04,
+        market_price: 12.5,
     },
     {
         symbol: 'AMZN',
@@ -26,6 +28,7 @@ const sampleRows = [
         account_id: 'U110638',
         asset_class: 'STK',
         coverage_status: 'Covered',
+        market_price: 192.4,
     },
     {
         symbol: 'AMZN 2026-04-10 210 Call',
@@ -35,6 +38,7 @@ const sampleRows = [
         coverage_status: 'Covered',
         dte: 12,
         dist_to_strike_pct: 0.09,
+        market_price: 8.3,
     },
     {
         symbol: 'TSLA',
@@ -43,6 +47,7 @@ const sampleRows = [
         asset_class: 'STK',
         coverage_status: 'Uncovered',
         pending_order_effect: 'covering_uncovered',
+        market_price: 240.12,
     },
     {
         symbol: 'TSLA 2026-04-04 250 Call',
@@ -53,6 +58,7 @@ const sampleRows = [
         pending_order_effect: 'covering_uncovered',
         dte: 3,
         dist_to_strike_pct: 0.03,
+        market_price: 6.45,
     },
 ];
 
@@ -260,5 +266,33 @@ test('applyPortfolioFilters keeps export-visible rows aligned for same filter co
     assert.deepEqual(
         filtered.map((row) => row.symbol),
         ['AMD 2026-04-02 202.5 Call'],
+    );
+});
+
+test('applyPortfolioFilters supports last price min/max range filtering', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        lastPriceMin: 170,
+        lastPriceMax: 200,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['AMD', 'AMZN'],
+    );
+});
+
+test('applyPortfolioFilters combines last price range with existing filters using AND semantics', () => {
+    const filtered = applyPortfolioFilters(sampleRows, {
+        ...DEFAULT_PORTFOLIO_FILTERS,
+        coverage: 'Uncovered',
+        account: 'U280132',
+        lastPriceMin: 200,
+        lastPriceMax: 260,
+    });
+
+    assert.deepEqual(
+        filtered.map((row) => row.symbol),
+        ['TSLA'],
     );
 });

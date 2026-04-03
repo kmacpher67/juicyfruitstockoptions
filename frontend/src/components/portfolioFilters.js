@@ -6,6 +6,8 @@ export const DEFAULT_PORTFOLIO_FILTERS = Object.freeze({
     nearMoneyOnly: false,
     dteLimit: 6,
     nearMoneyPercent: 8,
+    lastPriceMin: '',
+    lastPriceMax: '',
     showStocks: true,
 });
 
@@ -77,6 +79,18 @@ export const rowMatchesPortfolioFilters = (row, filterState, filterTicker = '') 
     }
 
     if (!matchesPendingEffectFilter(row, filterState.pendingEffect)) {
+        return false;
+    }
+
+    const lastPrice = normalizeNumber(
+        row.market_price ?? row.last_price ?? row.current_price ?? row.price,
+    );
+    const minPrice = normalizeNumber(filterState.lastPriceMin);
+    const maxPrice = normalizeNumber(filterState.lastPriceMax);
+    if (minPrice !== null && (lastPrice === null || lastPrice < minPrice)) {
+        return false;
+    }
+    if (maxPrice !== null && (lastPrice === null || lastPrice > maxPrice)) {
         return false;
     }
 

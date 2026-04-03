@@ -1,6 +1,14 @@
 import React from 'react';
-import { X, Calendar, DollarSign, ChevronRight, Download } from 'lucide-react';
+import { X, Calendar, ChevronRight, Download } from 'lucide-react';
 import api from '../api/axios'; // Or standard fetch, aligning with project
+import {
+    formatAccountsHeldLines,
+    formatDividendCurrency,
+    formatDividendPercent,
+    resolveAnalystTarget,
+    resolvePredictedPrice,
+    resolveQuarterlyReturnPct,
+} from './dividendPresentation';
 
 const DividendListModal = ({ isOpen, onClose, opportunities, onSelectOpportunity }) => {
     const [sortField, setSortField] = React.useState('ex_date');
@@ -148,9 +156,9 @@ const DividendListModal = ({ isOpen, onClose, opportunities, onSelectOpportunity
                                             </a>
                                         </td>
                                         <td className="px-4 py-3">
-                                            {opp.accounts_held && opp.accounts_held !== '-' ? (
+                                            {formatAccountsHeldLines(opp.accounts_held).length > 0 ? (
                                                 <div className="flex flex-col gap-0.5">
-                                                    {opp.accounts_held.split(',').map((h, i) => (
+                                                    {formatAccountsHeldLines(opp.accounts_held).map((h, i) => (
                                                         <div key={i} className="text-[10px] font-mono text-cyan-300 leading-tight whitespace-nowrap">
                                                             {h.trim()}
                                                         </div>
@@ -161,22 +169,22 @@ const DividendListModal = ({ isOpen, onClose, opportunities, onSelectOpportunity
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-gray-300">
-                                            ${opp.current_price?.toFixed(2)}
+                                            {formatDividendCurrency(opp.current_price)}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-blue-300" title="Markov Projected @ Ex-Date">
-                                            ${opp.predicted_price?.toFixed(2)}
+                                            {formatDividendCurrency(resolvePredictedPrice(opp))}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-purple-300">
-                                            ${opp.analyst_target > 0 ? opp.analyst_target?.toFixed(2) : '-'}
+                                            {formatDividendCurrency(resolveAnalystTarget(opp))}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-green-300">
-                                            ${opp.dividend_amount?.toFixed(2)}
+                                            {formatDividendCurrency(opp.dividend_amount)}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-cyan-300">
-                                            {opp.return_pct}%
+                                            {formatDividendPercent(resolveQuarterlyReturnPct(opp))}
                                         </td>
                                         <td className="px-4 py-3 text-right text-gray-300">
-                                            {opp.yield_annual}%
+                                            {formatDividendPercent(opp.yield_annual)}
                                         </td>
                                         <td className="px-4 py-3 text-center text-gray-500 text-xs">
                                             {opp.days_to_ex}d

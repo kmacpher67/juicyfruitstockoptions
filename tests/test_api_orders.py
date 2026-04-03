@@ -174,3 +174,89 @@ def test_get_open_orders_hides_inactive_status_rows_by_default():
         )
 
     assert payload == []
+
+
+def test_normalize_order_row_infers_option_contract_fields_from_occ_symbol():
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U1",
+            "symbol": "AMD   260417C00120000",
+            "action": "SLD",
+            "status": "Submitted",
+            "total_quantity": 2,
+            "filled_quantity": 0,
+            "source": "tws_open_order",
+        }
+    )
+
+    assert normalized["security_type"] == "OPT"
+    assert normalized["underlying_symbol"] == "AMD"
+    assert normalized["display_symbol"].startswith("AMD ")
+    assert normalized["display_symbol"].endswith("120 Call")
+    assert normalized["action"] == "SELL"
+    assert normalized["remaining_quantity"] == 2.0
+    assert normalized["is_active"] is True
+
+
+def test_normalize_order_row_handles_stock_orders_and_remaining_qty_fallback():
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U2",
+            "symbol": "AAPL",
+            "secType": "STK",
+            "action": "BOT",
+            "status": "PreSubmitted",
+            "total_quantity": 10,
+            "filled_quantity": 4,
+            "source": "tws_open_order",
+        }
+    )
+
+    assert normalized["security_type"] == "STK"
+    assert normalized["display_symbol"] == "AAPL"
+    assert normalized["action"] == "BUY"
+    assert normalized["remaining_quantity"] == 6.0
+    assert normalized["is_active"] is True
+
+
+def test_get_open_orders_retains_roll_like_paired_rows_for_same_underlying():
+    with patch("app.api.routes.MongoClient") as mock_mongo:
+        mock_db = MagicMock()
+        mock_mongo.return_value.get_default_database.return_value = mock_db
+        mock_db.ibkr_orders.find.return_value = [
+            {
+                "order_key": "perm:7001",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD   260417C00120000",
+                "action": "BUY",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "total_quantity": 1,
+            },
+            {
+                "order_key": "perm:7002",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD   260516C00130000",
+                "action": "SELL",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "total_quantity": 1,
+            },
+        ]
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": 188.23,
+        }
+
+        payload = asyncio.run(
+            routes.get_open_orders(current_user=User(username="u", role="admin", disabled=False))
+        )
+
+    assert len(payload) == 2
+    display_symbols = {row["display_symbol"] for row in payload}
+    assert any(symbol.endswith("120 Call") for symbol in display_symbols)
+    assert any(symbol.endswith("130 Call") for symbol in display_symbols)
+    assert {row["action"] for row in payload} == {"BUY", "SELL"}
+    assert all(row["underlying_ticker"] == "AMD" for row in payload)
