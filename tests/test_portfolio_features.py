@@ -25,7 +25,9 @@ def test_get_ticker_analysis_found(client):
         mock_db.stock_data.find_one.return_value = {
             "Ticker": "AAPL",
             "Current Price": 150.0,
-            "1D % Change": 1.5
+            "1D % Change": 1.5,
+            "Company Name": "Apple Inc.",
+            "profile": {"sector": "Technology"},
         }
         
         response = client.get("/api/ticker/AAPL")
@@ -34,6 +36,48 @@ def test_get_ticker_analysis_found(client):
         assert data["symbol"] == "AAPL"
         assert data["found"] == True
         assert data["data"]["Current Price"] == 150.0
+
+def test_get_ticker_analysis_falls_back_to_relaxed_ticker_match(client):
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.side_effect = [
+            None,
+            {
+                "Ticker": "aapl ",
+                "Current Price": 150.0,
+                "Company Name": "Apple Inc.",
+                "profile": {"sector": "Technology"},
+            },
+        ]
+
+        response = client.get("/api/ticker/aapl")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["symbol"] == "AAPL"
+        assert data["found"] is True
+        assert data["data"]["Current Price"] == 150.0
+
+        first_call = mock_db.stock_data.find_one.call_args_list[0][0][0]
+        second_call = mock_db.stock_data.find_one.call_args_list[1][0][0]
+        assert first_call == {"Ticker": "AAPL"}
+        assert second_call["Ticker"]["$options"] == "i"
+
+def test_get_ticker_analysis_normalizes_option_like_symbol(client):
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": 175.25,
+            "Company Name": "Advanced Micro Devices, Inc.",
+            "profile": {"sector": "Technology"},
+        }
+
+        response = client.get("/api/ticker/AMD 2026-04-02 202.5 Call")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["symbol"] == "AMD"
+        assert data["found"] is True
+        assert data["data"]["Ticker"] == "AMD"
 
 def test_get_ticker_analysis_not_found(client):
     with patch("app.api.routes.MongoClient") as mock_client:

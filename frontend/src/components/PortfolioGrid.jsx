@@ -6,7 +6,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ExternalLink } from 'lucide-react';
 import { applyPortfolioFilters, DEFAULT_PORTFOLIO_FILTERS } from './portfolioFilters';
 import { getNumericValue, formatCurrency, formatPercent } from './portfolioGridFormatters';
-import { getDisplaySymbol, getVisibleRowCounterLabel, resolveSecurityTypeLabel } from './portfolioPresentation';
+import { getDetailTicker, getDisplaySymbol, getVisibleRowCounterLabel, resolveSecurityTypeLabel } from './portfolioPresentation';
 
 const getPendingEffectUi = (effect) => {
     switch (effect) {
@@ -55,17 +55,16 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 const row = params.data || {};
                 const sym = params.value;
                 if (!sym) return null;
-                const cleanSym = row.underlying_symbol || row.symbol?.split(" ")[0] || sym.split(" ")[0];
+                const cleanSym = getDetailTicker(row, sym);
                 const googleUrl = `https://www.google.com/finance/quote/${cleanSym}:NASDAQ`;
                 const yahooUrl = `https://finance.yahoo.com/quote/${cleanSym}/options`;
-                const detailTicker = row.symbol || sym;
                 const detailLabel = `Open stock analysis detail for ${cleanSym}`;
 
                 return (
                     <div className="flex items-center gap-2">
                         <span
                             className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
-                            onClick={() => params.context.onTickerClick && params.context.onTickerClick(detailTicker)}
+                            onClick={() => params.context.onTickerClick && params.context.onTickerClick(cleanSym)}
                             title={detailLabel}
                             aria-label={detailLabel}
                         >

@@ -53,3 +53,25 @@ def test_get_dividend_calendar_cache_hit(mock_mongo, monkeypatch, tmp_path):
         mock_mongo.assert_not_called()
         MockScanner.assert_not_called()
         assert response.path == str(expected_file)
+
+
+@patch("pymongo.MongoClient")
+def test_get_juicy_calendar_alias_uses_same_cached_feed(mock_mongo, monkeypatch, tmp_path):
+    """Alias endpoint should return the same cached ICS feed as the base endpoint."""
+
+    monkeypatch.chdir(tmp_path)
+    expected_file = Path("xdivs/corporate_events_2099-01-03.ics")
+    expected_file.parent.mkdir(exist_ok=True)
+    expected_file.write_text("DUMMY CONTENT")
+
+    with patch("app.services.dividend_scanner.DividendScanner") as MockScanner:
+        with patch("app.api.routes.datetime") as mock_dt_module:
+            mock_dt_module.utcnow.return_value = datetime(2099, 1, 3)
+
+            from app.api.routes import get_juicy_calendar
+
+            response = get_juicy_calendar()
+
+        mock_mongo.assert_not_called()
+        MockScanner.assert_not_called()
+        assert response.path == str(expected_file)

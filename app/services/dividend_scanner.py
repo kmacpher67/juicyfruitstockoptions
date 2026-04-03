@@ -287,7 +287,9 @@ class DividendScanner:
                              "ex_date": ex_date.strftime("%Y-%m-%d"),
                              "dividend_amount": div_rate / 4, # Est Quarterly
                              "yield_annual": round(yield_pct, 2),
-                             "return_pct": round(((div_rate / 4) / current_price) * 100, 2),
+                             # Return semantics: projected price move into ex-date + cash dividend.
+                             # This is more decision-useful than showing only dividend yield.
+                             "return_pct": round((((markov_price - current_price) + (div_rate / 4)) / current_price) * 100, 2),
                              "current_price": current_price,
                              "predicted_price": markov_price,
                              "analyst_target": analyst_target,

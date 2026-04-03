@@ -40,6 +40,38 @@ def _safe_float(value):
     return numeric
 
 
+def _normalize_ticker_symbol(raw_symbol: str | None) -> str:
+    value = str(raw_symbol or "").strip().upper()
+    if not value:
+        return ""
+
+    # Option-like display symbols can include spaces (e.g. "AMD 2026-04-02 202.5 Call").
+    value = value.split()[0]
+    occ_match = re.match(r"^([A-Z]{1,6})\d{6}[CP]\d+", value)
+    if occ_match:
+        return occ_match.group(1)
+    return value
+
+
+def _find_stock_data_by_symbol(db, raw_symbol: str) -> tuple[dict | None, dict, str]:
+    symbol = _normalize_ticker_symbol(raw_symbol)
+    if not symbol:
+        return None, {}, symbol
+
+    exact_query = {"Ticker": symbol}
+    stock = db.stock_data.find_one(exact_query, {"_id": 0})
+    if stock:
+        return stock, exact_query, symbol
+
+    escaped = re.escape(symbol)
+    relaxed_query = {"Ticker": {"$regex": rf"^\s*{escaped}\s*$", "$options": "i"}}
+    stock = db.stock_data.find_one(relaxed_query, {"_id": 0})
+    if stock:
+        return stock, relaxed_query, _normalize_ticker_symbol(stock.get("Ticker") or symbol)
+
+    return None, exact_query, symbol
+
+
 def _canonical_security_type(row: dict) -> str:
     candidates = [
         row.get("security_type"),
@@ -1713,6 +1745,16 @@ def get_dividend_calendar():
         # Fallback empty response or error
         return Response(content=f"Error generating calendar: {str(e)}", status_code=500)
 
+
+@router.get("/calendar/juicy.ics")
+@log_endpoint
+def get_juicy_calendar():
+    """
+    Stable ICS subscription endpoint alias for calendar clients.
+    Returns the same combined corporate-events feed as /calendar/dividends.ics.
+    """
+    return get_dividend_calendar()
+
 @router.get("/api/macro")
 @log_endpoint
 def get_macro_summary(
@@ -1788,12 +1830,12 @@ def get_ticker_analysis(
     Get detailed analytics for a single ticker.
     Includes: Current Price, Stats, and basic metadata.
     """
-    symbol = symbol.upper().strip()
+    symbol = _normalize_ticker_symbol(symbol)
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     
     # Fetch from stock_data
-    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    stock, stock_query, symbol = _find_stock_data_by_symbol(db, symbol)
     if not stock:
         # transform default structure if not found
         return {"symbol": symbol, "found": False, "price": 0.0}
@@ -1806,7 +1848,7 @@ def get_ticker_analysis(
             company_name = info.get("longName") or info.get("shortName") or symbol
             # Backfill to DB for future requests
             db.stock_data.update_one(
-                {"Ticker": symbol},
+                stock_query,
                 {"$set": {"Company Name": company_name}}
             )
             logging.info(f"routes.get_ticker_analysis - Backfilled Company Name for {symbol}: {company_name}")
@@ -1851,7 +1893,7 @@ def get_ticker_analysis(
                     for n in raw_news[:5]
                 ],
             }
-            db.stock_data.update_one({"Ticker": symbol}, {"$set": {"profile": profile}})
+            db.stock_data.update_one(stock_query, {"$set": {"profile": profile}})
             logging.info(f"routes.get_ticker_analysis - Lazy-hydrated profile for {symbol}")
         except Exception as e:
             logging.warning(f"routes.get_ticker_analysis - Could not fetch profile for {symbol}: {e}")
@@ -1868,7 +1910,7 @@ def get_opportunity_analysis(
     """
     Get 'Juicy' opportunity analysis for a ticker.
     """
-    symbol = symbol.upper().strip()
+    symbol = _normalize_ticker_symbol(symbol)
     # reuse scanner service logic or just return raw data meant for opportunity view
     from app.services.scanner_service import scan_juicy_candidates
     
@@ -1878,7 +1920,7 @@ def get_opportunity_analysis(
     
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
-    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
     
     if not stock: # fallback
          return {"symbol": symbol, "juicy_score": 0, "message": "Ticker not found in database"}
@@ -1924,14 +1966,14 @@ def get_portfolio_optimizer(
     """
     Get optimization suggestions for a ticker (e.g. Covered Call candidates).
     """
-    symbol = symbol.upper().strip()
+    symbol = _normalize_ticker_symbol(symbol)
     
     # Reuse option_optimizer.py logic if possible
     # For V1, we return a stub or simple suggestions based on price
     
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
-    stock = db.stock_data.find_one({"Ticker": symbol}, {"_id": 0})
+    stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
     
     if not stock:
         return []

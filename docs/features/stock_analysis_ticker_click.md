@@ -41,6 +41,16 @@ The ticker click works from **two grids**:
 |:---|:---|:---|
 | Stock Analysis | [StockGrid.jsx](file:///home/kenmac/personal/juicyfruitstockoptions/frontend/src/components/StockGrid.jsx) | Research view — all tracked tickers |
 | My Portfolio | [PortfolioGrid.jsx](file:///home/kenmac/personal/juicyfruitstockoptions/frontend/src/components/PortfolioGrid.jsx) | Portfolio view — held positions |
+| Trade History | [TradeHistory.jsx](file:///home/kenmac/personal/juicyfruitstockoptions/frontend/src/components/TradeHistory.jsx) | Historical fills/dividends view |
+
+### Symbol Resolution Hardening (2026-04-03)
+
+- Portfolio and trade rows may contain option-like symbols or mixed formatting.
+- Detail routing now canonicalizes to underlying equity symbols before opening `TickerModal`.
+- Backend `GET /api/ticker/{symbol}` now performs:
+  1. exact ticker match
+  2. case/whitespace-insensitive fallback match
+- Result: reduced false "No data found for this ticker." responses when data exists in local `stock_data`.
 
 ---
 
@@ -147,3 +157,4 @@ These items from `features-requirements.md` remain incomplete:
 |:---|:---|:---|
 | 2026-03-28 | **CREATED** | Initial feature overview documenting existing ticker click behavior, data flow, tabs, API endpoints, and all related docs |
 | 2026-04-02 | **UPDATED** | Header enrichment completed in `TickerModal`: ticker/descriptive link targets, `%` formatting fix, and last-update normalization with utility tests |
+| 2026-04-03 | **UPDATED** | Detail-loading reliability hardening: canonical ticker routing from Portfolio/Trades and backend relaxed ticker lookup fallback for local DB resolution |

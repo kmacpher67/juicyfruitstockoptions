@@ -260,3 +260,29 @@ def test_get_open_orders_retains_roll_like_paired_rows_for_same_underlying():
     assert any(symbol.endswith("130 Call") for symbol in display_symbols)
     assert {row["action"] for row in payload} == {"BUY", "SELL"}
     assert all(row["underlying_ticker"] == "AMD" for row in payload)
+
+
+def test_normalize_order_row_handles_bag_combo_parent_shape():
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U3",
+            "symbol": "AAPL",
+            "secType": "BAG",
+            "local_symbol": "AAPL COMBO",
+            "action": "SELL",
+            "status": "Submitted",
+            "total_quantity": 1,
+            "filled_quantity": 0,
+            "source": "tws_open_order",
+            "comboLegs": [
+                {"action": "BUY", "ratio": 1, "conId": 111},
+                {"action": "SELL", "ratio": 1, "conId": 222},
+            ],
+        }
+    )
+
+    assert normalized["security_type"] == "BAG"
+    assert normalized["display_symbol"] == "AAPL"
+    assert normalized["action"] == "SELL"
+    assert normalized["remaining_quantity"] == 1.0
+    assert normalized["is_active"] is True

@@ -18,4 +18,14 @@ export const resolveSecurityTypeLabel = (row = {}) => {
 export const getDisplaySymbol = (row = {}) =>
     row.display_symbol || row.description || row.local_symbol || row.localSymbol || row.symbol || '';
 
+export const getDetailTicker = (row = {}, fallbackSymbol = '') => {
+    const raw = row.underlying_symbol || row.underlying || row.symbol || row.ticker || fallbackSymbol;
+    const normalized = String(raw || '').trim().toUpperCase();
+    if (!normalized) return '';
+
+    const firstToken = normalized.split(/\s+/)[0];
+    const occMatch = firstToken.match(/^([A-Z]{1,6})\d{6}[CP]\d+/);
+    return occMatch ? occMatch[1] : firstToken;
+};
+
 export const getVisibleRowCounterLabel = (rowCount) => `Rows: ${rowCount}`;

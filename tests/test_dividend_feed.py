@@ -63,7 +63,8 @@ def test_dividend_feed_data_structure(mock_ticker_cls, mock_mongo, mock_signal_c
     assert opp["predicted_price"] == 155.00
     assert opp["analyst_target"] == 170.0
     assert "U12345: 100" in opp["accounts_held"]
-    assert opp["return_pct"] == round(((4.0/4)/150.0)*100, 2)
+    expected_return_pct = round((((155.00 - 150.0) + (4.0 / 4)) / 150.0) * 100, 2)
+    assert opp["return_pct"] == expected_return_pct
     
     # Verify Calls
     scanner.signal_service.predict_future_price.assert_called_with("AAPL", days_ahead=opp["days_to_ex"], current_price=150.0)
