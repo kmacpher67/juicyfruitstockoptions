@@ -149,6 +149,26 @@ def _queue_stock_refresh_if_stale(background_tasks: BackgroundTasks | None, symb
     freshness["refresh_queued"] = True
 
 
+def _persist_signal_payload(db, ticker: str, kalman: dict, markov: dict, advice: dict) -> None:
+    persisted_at = _format_utc_iso(datetime.now(timezone.utc))
+    payload = {
+        "kalman": kalman,
+        "markov": markov,
+        "advice": advice,
+        "_persisted_at": persisted_at,
+    }
+    db.stock_data.update_one(
+        {"Ticker": ticker},
+        {
+            "$set": {
+                "signals": payload,
+                "_signals_persisted_at": persisted_at,
+            }
+        },
+        upsert=True,
+    )
+
+
 def _find_stock_data_by_symbol(db, raw_symbol: str) -> tuple[dict | None, dict, str]:
     symbol = _normalize_ticker_symbol(raw_symbol)
     if not symbol:
@@ -1945,6 +1965,7 @@ def get_ticker_signals(
         kalman = service.get_kalman_signal(data)
         markov = service.get_markov_probabilities(data)
         advice = service.get_roll_vs_hold_advice(ticker, {}, mock_price_data=data)
+        _persist_signal_payload(db, ticker, kalman, markov, advice)
         
         freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
         if stock:

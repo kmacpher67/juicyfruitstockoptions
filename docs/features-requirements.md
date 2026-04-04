@@ -724,3 +724,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **UPDATED** | Implemented first DB-first freshness coding sessions in API routes (`ticker`, `opportunity`, `signals`) including freshness metadata contract and stale-refresh queue behavior with regression tests. |
 | 2026-04-04 | **UPDATED** | Extended DB-first freshness behavior to optimizer endpoint with backward-compatible `include_meta` support and added regression coverage for stale refresh queueing. |
 | 2026-04-04 | **ADDED** | Added phased implementation plan for DB-first freshness rollout: `docs/plans/implementation_plan-20260404-data-freshness-db-first.md`. |
+| 2026-04-04 | **UPDATED** | Signals endpoint now persists computed signal payloads back to `stock_data.signals` so subsequent requests can use DB-first cached signal data. |

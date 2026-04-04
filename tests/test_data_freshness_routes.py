@@ -87,6 +87,7 @@ def test_get_ticker_signals_falls_back_to_yfinance_when_db_signals_absent():
     assert payload["data_source"] == "yfinance_live"
     assert payload["is_stale"] is True
     assert payload["stale_reason"] == "db_record_missing"
+    mock_db.stock_data.update_one.assert_called_once()
 
 
 def test_queue_stock_refresh_if_stale_respects_cooldown():
