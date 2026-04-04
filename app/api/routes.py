@@ -1,9 +1,9 @@
 from collections import defaultdict
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 import re
 from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi import APIRouter, Depends, HTTPException, status
+from zoneinfo import ZoneInfo
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pymongo import MongoClient
 import yfinance as yf
@@ -51,6 +51,90 @@ def _normalize_ticker_symbol(raw_symbol: str | None) -> str:
     if occ_match:
         return occ_match.group(1)
     return value
+
+
+def _format_utc_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def _parse_datetime_utc(value) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    parsed = pd.to_datetime(value, utc=True, errors="coerce")
+    if parsed is None or pd.isna(parsed):
+        return None
+    return parsed.to_pydatetime().astimezone(timezone.utc)
+
+
+def _is_us_equity_market_session(now_utc: datetime | None = None) -> bool:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    et_now = now_utc.astimezone(ZoneInfo("America/New_York"))
+    if et_now.weekday() >= 5:
+        return False
+    open_et = et_now.replace(hour=9, minute=30, second=0, microsecond=0)
+    close_et = et_now.replace(hour=16, minute=0, second=0, microsecond=0)
+    return open_et <= et_now <= close_et
+
+
+def _evaluate_stock_data_freshness(stock: dict | None, tier: str = "mixed") -> dict:
+    if not stock:
+        return {
+            "data_source": "stock_data_db",
+            "last_updated": None,
+            "is_stale": True,
+            "stale_reason": "data_missing",
+            "refresh_queued": False,
+        }
+
+    last_updated_raw = stock.get("_last_persisted_at") or stock.get("Last Update")
+    last_updated_dt = _parse_datetime_utc(last_updated_raw)
+    if last_updated_dt is None:
+        return {
+            "data_source": str(stock.get("source") or "stock_data_db"),
+            "last_updated": None,
+            "is_stale": True,
+            "stale_reason": "missing_last_updated",
+            "refresh_queued": False,
+        }
+
+    now_utc = datetime.now(timezone.utc)
+    is_market_session = _is_us_equity_market_session(now_utc)
+    thresholds = {
+        "price": timedelta(minutes=15 if is_market_session else 12 * 60),
+        "mixed": timedelta(minutes=30 if is_market_session else 24 * 60),
+        "profile": timedelta(hours=24 if is_market_session else 24 * 7),
+    }
+    threshold = thresholds.get(tier, thresholds["mixed"])
+    age = now_utc - last_updated_dt
+    is_stale = age > threshold
+    stale_reason = None
+    if is_stale:
+        stale_reason = f"older_than_{int(threshold.total_seconds() // 60)}m"
+
+    return {
+        "data_source": str(stock.get("source") or "stock_data_db"),
+        "last_updated": _format_utc_iso(last_updated_dt),
+        "is_stale": is_stale,
+        "stale_reason": stale_reason,
+        "refresh_queued": False,
+    }
+
+
+def _queue_stock_refresh_if_stale(background_tasks: BackgroundTasks | None, symbol: str, freshness: dict) -> None:
+    if not background_tasks or not freshness.get("is_stale"):
+        return
+    background_tasks.add_task(run_stock_live_comparison, [symbol], "sync")
+    freshness["refresh_queued"] = True
 
 
 def _find_stock_data_by_symbol(db, raw_symbol: str) -> tuple[dict | None, dict, str]:
@@ -1864,6 +1948,7 @@ def get_ticker_signals(
 @log_endpoint
 def get_ticker_analysis(
     symbol: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
@@ -1878,7 +1963,8 @@ def get_ticker_analysis(
     stock, stock_query, symbol = _find_stock_data_by_symbol(db, symbol)
     if not stock:
         # transform default structure if not found
-        return {"symbol": symbol, "found": False, "price": 0.0}
+        freshness = _evaluate_stock_data_freshness(None, tier="mixed")
+        return {"symbol": symbol, "found": False, "price": 0.0, **freshness}
 
     # DB-first path: do not block modal rendering on live yfinance calls.
     company_name = stock.get("Company Name") or symbol
@@ -1889,12 +1975,23 @@ def get_ticker_analysis(
     if "news" not in profile:
         profile["news"] = []
 
-    return {"symbol": symbol, "found": True, "data": stock, "company_name": company_name, "profile": profile}
+    freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+    _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
+
+    return {
+        "symbol": symbol,
+        "found": True,
+        "data": stock,
+        "company_name": company_name,
+        "profile": profile,
+        **freshness,
+    }
 
 @router.get("/opportunity/{symbol}")
 @log_endpoint
 def get_opportunity_analysis(
     symbol: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
@@ -1913,7 +2010,8 @@ def get_opportunity_analysis(
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
     
     if not stock: # fallback
-         return {"symbol": symbol, "juicy_score": 0, "message": "Ticker not found in database"}
+         freshness = _evaluate_stock_data_freshness(None, tier="price")
+         return {"symbol": symbol, "juicy_score": 0, "message": "Ticker not found in database", **freshness}
 
     # Calculate simple score on the fly (reusing logic from scanner conceptually)
     # TODO: Import a dedicated scorer
@@ -1932,6 +2030,9 @@ def get_opportunity_analysis(
     # --- Risk Analysis Integration ---
     from app.services.risk_service import RiskService
     risks = RiskService.analyze_risk(stock)
+
+    freshness = _evaluate_stock_data_freshness(stock, tier="price")
+    _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
     
     return {
         "symbol": symbol,
@@ -1944,7 +2045,8 @@ def get_opportunity_analysis(
              "call_put_skew": stock.get("Call/Put Skew"),
              "rsi_14": stock.get("RSI_14"),
              "atr_14": stock.get("ATR_14"),
-        }
+        },
+        **freshness,
     }
 
 @router.get("/portfolio/optimizer/{symbol}")

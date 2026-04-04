@@ -3,6 +3,7 @@ from app.main import app
 from app.api import routes, trades
 from unittest.mock import MagicMock, patch
 import pytest
+from datetime import datetime, timedelta, timezone
 
 from app.models import User
 
@@ -28,6 +29,7 @@ def test_get_ticker_analysis_found(client):
             "1D % Change": 1.5,
             "Company Name": "Apple Inc.",
             "profile": {"sector": "Technology"},
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
         }
         
         response = client.get("/api/ticker/AAPL")
@@ -36,6 +38,10 @@ def test_get_ticker_analysis_found(client):
         assert data["symbol"] == "AAPL"
         assert data["found"] == True
         assert data["data"]["Current Price"] == 150.0
+        assert data["is_stale"] is False
+        assert data["refresh_queued"] is False
+        assert data["data_source"] == "stock_data_db"
+        assert data["last_updated"] is not None
 
 def test_get_ticker_analysis_falls_back_to_relaxed_ticker_match(client):
     with patch("app.api.routes.MongoClient") as mock_client:
@@ -89,6 +95,8 @@ def test_get_ticker_analysis_not_found(client):
         data = response.json()
         assert data["found"] == False
         assert data["price"] == 0.0
+        assert data["is_stale"] is True
+        assert data["refresh_queued"] is False
 
 def test_get_opportunity_analysis(client):
     with patch("app.api.routes.MongoClient") as mock_client:
@@ -96,7 +104,8 @@ def test_get_opportunity_analysis(client):
         mock_db.stock_data.find_one.return_value = {
             "Ticker": "NVDA",
             "IV Rank": 60,
-            "Liquidity Rating": 4
+            "Liquidity Rating": 4,
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
         }
         
         response = client.get("/api/opportunity/NVDA")
@@ -105,6 +114,30 @@ def test_get_opportunity_analysis(client):
         assert data["juicy_score"] == 30 # 20 (IV) + 10 (Liq)
         assert "High IV Rank" in data["reasons"]
         assert "High Liquidity" in data["reasons"]
+        assert data["is_stale"] is False
+        assert data["refresh_queued"] is False
+
+
+def test_get_ticker_analysis_queues_background_refresh_when_stale(client):
+    stale_iso = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    with patch("app.api.routes.MongoClient") as mock_client, patch(
+        "app.api.routes.run_stock_live_comparison"
+    ) as mock_refresh:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AAPL",
+            "Current Price": 150.0,
+            "Company Name": "Apple Inc.",
+            "profile": {"sector": "Technology"},
+            "_last_persisted_at": stale_iso,
+        }
+
+        response = client.get("/api/ticker/AAPL")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_stale"] is True
+        assert data["refresh_queued"] is True
+        mock_refresh.assert_called_once_with(["AAPL"], "sync")
 
 def test_get_portfolio_optimizer(client):
     with patch("app.api.routes.MongoClient") as mock_client:
