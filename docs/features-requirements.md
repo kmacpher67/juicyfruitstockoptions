@@ -733,3 +733,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **UPDATED** | Freshness thresholds now support `system_config` override document (`_id: data_freshness_config`) while preserving safe defaults and test coverage. |
 | 2026-04-04 | **UPDATED** | Added secured API settings endpoints for reading/updating data freshness thresholds (`/api/settings/data-freshness`) to operationalize DB-first freshness policy tuning. |
 | 2026-04-04 | **FIXED** | Hardened ticker detail endpoint against JSON-serialization failures from non-finite numeric values (for example `NaN`) by sanitizing payload output and adding regression coverage. |
+| 2026-04-04 | **FIXED** | Ticker modal loading now unblocks as soon as ticker detail data returns; slow secondary endpoints (for example optimizer) no longer hold the global spinner for the full timeout window. |

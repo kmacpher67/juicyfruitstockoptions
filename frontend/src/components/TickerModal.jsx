@@ -49,51 +49,65 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                 return;
             }
 
-            // Use independent timeouts + settled results so one slow tab endpoint
-            // does not block the entire modal behind a perpetual spinner.
-            const settled = await Promise.allSettled([
-                api.get(`/ticker/${ticker}`, { timeout: timeoutMs }),
-                api.get(`/opportunity/${ticker}`, { timeout: timeoutMs }),
-                api.get(`/portfolio/optimizer/${ticker}`, { timeout: timeoutMs }),
-                api.get(`/analysis/rolls/${ticker}`, { timeout: timeoutMs }),
-                api.get(`/analysis/signals/${ticker}`, { timeout: timeoutMs }),
-            ]);
+            // Do not block the entire modal on slow secondary endpoints.
+            // We render as soon as ticker data lands, then hydrate other tabs.
+            api.get(`/ticker/${ticker}`, { timeout: timeoutMs })
+                .then((res) => {
+                    if (requestSeq.current !== seq) return;
+                    setTickerData(res.data);
+                })
+                .catch(() => {
+                    if (requestSeq.current !== seq) return;
+                    setTickerData({ found: false, symbol: ticker, data: null });
+                })
+                .finally(() => {
+                    if (requestSeq.current !== seq) return;
+                    setLoading(false);
+                });
 
-            if (requestSeq.current !== seq) return;
-            const [tickerRes, oppRes, optRes, rollRes, sigRes] = settled;
+            api.get(`/opportunity/${ticker}`, { timeout: timeoutMs })
+                .then((res) => {
+                    if (requestSeq.current !== seq) return;
+                    setOpportunityData(res.data);
+                })
+                .catch(() => {
+                    if (requestSeq.current !== seq) return;
+                    setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
+                });
 
-            setTickerData(
-                tickerRes.status === 'fulfilled'
-                    ? tickerRes.value.data
-                    : { found: false, symbol: ticker, data: null }
-            );
-            setOpportunityData(
-                oppRes.status === 'fulfilled'
-                    ? oppRes.value.data
-                    : { symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} }
-            );
-            setOptimizerData(
-                optRes.status === 'fulfilled'
-                    ? optRes.value.data
-                    : []
-            );
-            setSmartRollsData(
-                rollRes.status === 'fulfilled'
-                    ? rollRes.value.data
-                    : []
-            );
-            setSignalData(
-                sigRes.status === 'fulfilled'
-                    ? sigRes.value.data
-                    : null
-            );
+            api.get(`/portfolio/optimizer/${ticker}`, { timeout: timeoutMs })
+                .then((res) => {
+                    if (requestSeq.current !== seq) return;
+                    setOptimizerData(res.data);
+                })
+                .catch(() => {
+                    if (requestSeq.current !== seq) return;
+                    setOptimizerData([]);
+                });
+
+            api.get(`/analysis/rolls/${ticker}`, { timeout: timeoutMs })
+                .then((res) => {
+                    if (requestSeq.current !== seq) return;
+                    setSmartRollsData(res.data);
+                })
+                .catch(() => {
+                    if (requestSeq.current !== seq) return;
+                    setSmartRollsData([]);
+                });
+
+            api.get(`/analysis/signals/${ticker}`, { timeout: timeoutMs })
+                .then((res) => {
+                    if (requestSeq.current !== seq) return;
+                    setSignalData(res.data);
+                })
+                .catch(() => {
+                    if (requestSeq.current !== seq) return;
+                    setSignalData(null);
+                });
         } catch (error) {
             console.error("Failed to fetch ticker data", error);
         } finally {
             clearTimeout(hardStop);
-            if (requestSeq.current === seq) {
-                setLoading(false);
-            }
         }
     };
 
