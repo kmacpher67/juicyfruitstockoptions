@@ -1,8 +1,19 @@
 import logging
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
+from pymongo import MongoClient
 
 from stock_live_comparison import StockLiveComparison
+from app.config import settings
+
+
+def _persist_stock_ingest_telemetry(payload: dict) -> None:
+    try:
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        db.stock_ingest_runs.insert_one(payload)
+    except Exception as exc:
+        logging.warning("stock ingest telemetry persist failed: %s", exc)
 
 def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "scheduled") -> dict:
     """Run stock comparison and control report-file creation by trigger.
@@ -43,6 +54,16 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                     "reason": "no_viable_existing_report_for_sync",
                     "file": None,
                 }
+                _persist_stock_ingest_telemetry(
+                    {
+                        "job": "stock_live_comparison",
+                        "trigger": trigger,
+                        "status": "skipped",
+                        "reason": "no_viable_existing_report_for_sync",
+                        "ticker_count": len(tickers or []),
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                )
                 logging.info("run_stock_live_comparison.skipped trigger=sync reason=no_viable_existing_report_for_sync")
                 return result
 
@@ -52,6 +73,17 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
             allow_create_if_missing=(trigger != "sync"),
         )
         result = {"status": "success", "file": comp.filename, "ticker_count": len(tickers or [])}
+        _persist_stock_ingest_telemetry(
+            {
+                "job": "stock_live_comparison",
+                "trigger": trigger,
+                "status": "success",
+                "file": comp.filename,
+                "ticker_count": len(tickers or []),
+                "elapsed_sec": round((datetime.now() - started).total_seconds(), 2),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
         logging.info(
             "run_stock_live_comparison.success trigger=%s file=%s elapsed_sec=%s",
             trigger,
@@ -61,4 +93,14 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
         return result
     except Exception as exc:
         logging.exception("Stock live comparison failed")
+        _persist_stock_ingest_telemetry(
+            {
+                "job": "stock_live_comparison",
+                "trigger": trigger,
+                "status": "error",
+                "error": str(exc),
+                "ticker_count": len(tickers or []),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
         return {"status": "error", "error": str(exc)}
