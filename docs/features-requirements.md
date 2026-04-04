@@ -132,7 +132,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **data-freshness-source-rule-002**: Keep Flex authoritative for historical/EOD and audit-style records; intraday sources must not rewrite historical truth retroactively.
     - [ ] **data-model-instrument-001**: Keep a lightweight latest snapshot collection per instrument for fast reads and add an append-only price history collection for charting and audits.
     - [ ] **data-model-instrument-002**: Define canonical keying/normalization for instrument identity (`ticker`, case/whitespace normalization, secType-aware keys for options/contracts).
-    - [ ] **data-model-instrument-003**: Add retention and indexing policy for high-churn history collections (time-based indexes, query indexes, optional rollups) to control storage growth.
+    - [/] **data-model-instrument-003**: Add retention and indexing policy for high-churn history collections (time-based indexes, query indexes, optional rollups) to control storage growth.
     - [ ] **data-ingest-scheduler-001**: Add scheduler-sharded ingestion mode so ticker refresh load is spread across time windows and avoids burst traffic/rate limits.
     - [ ] **data-ingest-scheduler-002**: Persist ingest telemetry per run (source used, rows updated, stale hit ratio, failures) for operator diagnostics.
     - [ ] **data-ingest-scheduler-003**: Add operator settings for freshness intervals and ingest batch controls in validated config (`system_config`) instead of hardcoded constants.
@@ -736,3 +736,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **FIXED** | Ticker modal loading now unblocks as soon as ticker detail data returns; slow secondary endpoints (for example optimizer) no longer hold the global spinner for the full timeout window. |
 | 2026-04-04 | **UPDATED** | Ticker modal now lazy-loads secondary tabs on demand (signals/opportunity/optimizer/smart-rolls) and surfaces stale/fresh DB snapshot state in-panel instead of blocking first paint on parallel XHR fan-out. |
 | 2026-04-04 | **UPDATED** | Added optional freshness metadata contract to `GET /api/analysis/rolls/{ticker}` via `include_meta=true` (backward-compatible list default) with regression tests for stale queue behavior. |
+| 2026-04-04 | **UPDATED** | Added scheduler retention cleanup for `instrument_price_history` (default 730-day horizon with `system_config` override key `price_history_retention_days`) plus scheduler regression coverage. |

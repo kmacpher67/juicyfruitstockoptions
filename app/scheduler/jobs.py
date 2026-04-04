@@ -1,5 +1,5 @@
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pymongo import MongoClient
 
@@ -24,6 +24,30 @@ def _utc_now() -> datetime:
 def _get_db():
     client = MongoClient(settings.MONGO_URI)
     return client.get_default_database("stock_analysis")
+
+
+def _get_price_history_retention_days(default_days: int = 730) -> int:
+    try:
+        config = _get_db().system_config.find_one({"_id": "data_freshness_config"}) or {}
+        configured = int(config.get("price_history_retention_days", default_days))
+        return max(30, configured)
+    except Exception as exc:
+        logging.warning("Scheduler: Failed reading price-history retention config: %s", exc)
+        return default_days
+
+
+def run_price_history_retention_cleanup():
+    """Delete old append-only instrument price history rows beyond retention horizon."""
+    db = _get_db()
+    retention_days = _get_price_history_retention_days()
+    cutoff = (_utc_now() - timedelta(days=retention_days)).strftime("%Y-%m-%d %H:%M:%S")
+    result = db.instrument_price_history.delete_many({"timestamp": {"$lt": cutoff}})
+    logging.info(
+        "Scheduler: Price history retention cleanup deleted %s rows older than %s (retention_days=%s).",
+        result.deleted_count,
+        cutoff,
+        retention_days,
+    )
 
 
 def _get_tws_accounts(tws_service) -> list[str]:
@@ -556,6 +580,16 @@ def start_scheduler():
         replace_existing=True
     )
     logging.info("Scheduled Portfolio Fixer for 03:00 daily.")
+
+    scheduler.add_job(
+        run_price_history_retention_cleanup,
+        trigger="cron",
+        hour=3,
+        minute=45,
+        id="instrument_price_history_retention_daily",
+        replace_existing=True
+    )
+    logging.info("Scheduled Instrument Price History retention cleanup for 03:45 daily.")
 
     # --- Dividend Scanner Jobs ---
     # 1. Market Hours (Monday-Friday, 9:30 - 16:00, every 30 mins)
