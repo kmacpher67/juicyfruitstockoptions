@@ -105,3 +105,40 @@ def test_queue_stock_refresh_if_stale_respects_cooldown():
     assert len(bt.tasks) == 0
     assert freshness["refresh_queued"] is False
     assert freshness["stale_reason"] == "older_than_30m"
+
+
+def test_get_portfolio_optimizer_include_meta_returns_freshness_payload():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "TSLA",
+            "Current Price": 100.0,
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_db.ibkr_holdings.find.return_value = []
+        payload = routes.get_portfolio_optimizer("TSLA", bt, include_meta=True, current_user=admin)
+
+    assert payload["symbol"] == "TSLA"
+    assert payload["is_stale"] is False
+    assert isinstance(payload["suggestions"], list)
+    assert payload["suggestions"][0]["strategy"] == "Covered Call"
+
+
+def test_get_portfolio_optimizer_stale_record_queues_refresh():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "TSLA",
+            "Current Price": 100.0,
+            "_last_persisted_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
+        }
+        mock_db.ibkr_holdings.find.return_value = []
+        payload = routes.get_portfolio_optimizer("TSLA", bt, include_meta=True, current_user=admin)
+
+    assert payload["is_stale"] is True
+    assert payload["refresh_queued"] is True
+    assert len(bt.tasks) == 1

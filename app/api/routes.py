@@ -2093,7 +2093,9 @@ def get_opportunity_analysis(
 @log_endpoint
 def get_portfolio_optimizer(
     symbol: str,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    include_meta: bool = False,
 ):
     """
     Get optimization suggestions for a ticker (e.g. Covered Call candidates).
@@ -2106,9 +2108,14 @@ def get_portfolio_optimizer(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
+    freshness = _evaluate_stock_data_freshness(stock, tier="price")
     
     if not stock:
+        if include_meta:
+            return {"symbol": symbol, "suggestions": [], **freshness}
         return []
+
+    _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
         
     price = stock.get("Current Price", 0)
     
@@ -2178,6 +2185,8 @@ def get_portfolio_optimizer(
                     # Log error but don't break generic suggestions
                     print(f"Error calculating rolls for {symbol}: {e}")
     
+    if include_meta:
+        return {"symbol": symbol, "suggestions": suggestions, **freshness}
     return suggestions
 
 
