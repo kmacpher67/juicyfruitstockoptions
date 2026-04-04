@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import math
 from unittest.mock import patch
 
 from fastapi import BackgroundTasks
@@ -227,3 +228,20 @@ def test_update_data_freshness_config_persists_values():
         )
     assert payload.price_open_min == 40
     mock_db.system_config.update_one.assert_called_once()
+
+
+def test_get_ticker_analysis_sanitizes_nan_values_to_avoid_500():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": math.nan,
+            "Company Name": "AMD",
+            "profile": {"news": []},
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
+        }
+        payload = routes.get_ticker_analysis("AMD", bt, admin)
+    assert payload["found"] is True
+    assert payload["data"]["Current Price"] is None

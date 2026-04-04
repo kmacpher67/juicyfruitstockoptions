@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta, datetime, timezone
+import math
 import re
 from typing import Annotated, List
 from zoneinfo import ZoneInfo
@@ -75,6 +76,25 @@ def _parse_datetime_utc(value) -> datetime | None:
     if parsed is None or pd.isna(parsed):
         return None
     return parsed.to_pydatetime().astimezone(timezone.utc)
+
+
+def _sanitize_for_json(value):
+    if isinstance(value, dict):
+        return {k: _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_for_json(v) for v in value]
+    if isinstance(value, datetime):
+        return _format_utc_iso(value)
+    if isinstance(value, float):
+        if math.isfinite(value):
+            return value
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    return value
 
 
 def _is_us_equity_market_session(now_utc: datetime | None = None) -> bool:
@@ -2087,31 +2107,36 @@ def get_ticker_analysis(
     
     # Fetch from stock_data
     stock, stock_query, symbol = _find_stock_data_by_symbol(db, symbol)
-    if not stock:
-        # transform default structure if not found
-        freshness = _evaluate_stock_data_freshness(None, tier="mixed", db=db)
+    try:
+        if not stock:
+            # transform default structure if not found
+            freshness = _evaluate_stock_data_freshness(None, tier="mixed", db=db)
+            return {"symbol": symbol, "found": False, "price": 0.0, **freshness}
+
+        # DB-first path: do not block modal rendering on live yfinance calls.
+        company_name = stock.get("Company Name") or symbol
+
+        profile = stock.get("profile")
+        if not isinstance(profile, dict):
+            profile = {}
+        if "news" not in profile:
+            profile["news"] = []
+
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
+        _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
+
+        return {
+            "symbol": symbol,
+            "found": True,
+            "data": _sanitize_for_json(stock),
+            "company_name": company_name,
+            "profile": _sanitize_for_json(profile),
+            **freshness,
+        }
+    except Exception:
+        logging.exception("get_ticker_analysis failed symbol=%s", symbol)
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
         return {"symbol": symbol, "found": False, "price": 0.0, **freshness}
-
-    # DB-first path: do not block modal rendering on live yfinance calls.
-    company_name = stock.get("Company Name") or symbol
-
-    profile = stock.get("profile")
-    if not isinstance(profile, dict):
-        profile = {}
-    if "news" not in profile:
-        profile["news"] = []
-
-    freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
-    _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
-
-    return {
-        "symbol": symbol,
-        "found": True,
-        "data": stock,
-        "company_name": company_name,
-        "profile": profile,
-        **freshness,
-    }
 
 
 @router.get("/ticker/{symbol}/price-history")
