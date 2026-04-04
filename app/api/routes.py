@@ -1781,19 +1781,26 @@ def analyze_smart_rolls(
 @log_endpoint
 def analyze_ticker_smart_rolls(
     ticker: str,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    include_meta: bool = False,
 ):
     """
     Get Smart Roll opportunities for a specific ticker's held options.
     Flattened list for TickerModal consumption.
     """
-    ticker = ticker.upper().strip()
+    ticker = _normalize_ticker_symbol(ticker)
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
+    stock, _, ticker = _find_stock_data_by_symbol(db, ticker)
+    freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
+    _queue_stock_refresh_if_stale(background_tasks, ticker, freshness)
     
     # Get latest holdings
     latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
     if not latest:
+        if include_meta:
+            return {"symbol": ticker, "suggestions": [], **freshness}
         return []
         
     query = {"snapshot_id": latest.get("snapshot_id")} if latest.get("snapshot_id") else {"report_date": latest.get("report_date")}
@@ -1803,6 +1810,8 @@ def analyze_ticker_smart_rolls(
     holdings = list(db.ibkr_holdings.find(query, {"_id": 0}))
     
     if not holdings:
+        if include_meta:
+            return {"symbol": ticker, "suggestions": [], **freshness}
         return []
         
     from app.services.roll_service import RollService
@@ -1829,6 +1838,8 @@ def analyze_ticker_smart_rolls(
     # Sort by score across all positions?
     flattened_rolls.sort(key=lambda x: x.get('score', 0), reverse=True)
     
+    if include_meta:
+        return {"symbol": ticker, "suggestions": flattened_rolls, **freshness}
     return flattened_rolls
 
 

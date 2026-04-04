@@ -194,6 +194,49 @@ def test_get_ticker_price_history_clamps_limit():
     mock_cursor.sort.return_value.limit.assert_called_once_with(5000)
 
 
+def test_analyze_ticker_smart_rolls_include_meta_returns_freshness_payload():
+    admin = User(username="u", role="admin", disabled=False)
+    bt = BackgroundTasks()
+    with patch("app.api.routes.MongoClient") as mock_client, patch("app.services.roll_service.RollService") as mock_roll_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap1"}
+        mock_db.ibkr_holdings.find.return_value = [{"symbol": "AMD", "secType": "OPT"}]
+        mock_roll_cls.return_value.analyze_portfolio_rolls.return_value = [
+            {"rolls": [{"score": 80, "strike": 200}, {"score": 70, "strike": 190}]}
+        ]
+
+        payload = routes.analyze_ticker_smart_rolls("AMD", bt, include_meta=True, current_user=admin)
+
+    assert payload["symbol"] == "AMD"
+    assert payload["is_stale"] is False
+    assert len(payload["suggestions"]) == 2
+    assert payload["suggestions"][0]["strike"] == 200
+
+
+def test_analyze_ticker_smart_rolls_include_meta_stale_queues_refresh():
+    admin = User(username="u", role="admin", disabled=False)
+    bt = BackgroundTasks()
+    with patch("app.api.routes.MongoClient") as mock_client, patch("app.services.roll_service.RollService") as mock_roll_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "_last_persisted_at": (datetime.now(timezone.utc) - timedelta(days=4)).isoformat(),
+        }
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap1"}
+        mock_db.ibkr_holdings.find.return_value = [{"symbol": "AMD", "secType": "OPT"}]
+        mock_roll_cls.return_value.analyze_portfolio_rolls.return_value = []
+
+        payload = routes.analyze_ticker_smart_rolls("AMD", bt, include_meta=True, current_user=admin)
+
+    assert payload["is_stale"] is True
+    assert payload["refresh_queued"] is True
+    assert len(bt.tasks) == 1
+
+
 def test_get_data_freshness_config_reads_system_config_overrides():
     admin = User(username="u", role="admin", disabled=False)
     with patch("app.api.routes.MongoClient") as mock_client:

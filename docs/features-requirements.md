@@ -122,7 +122,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches.
     - [ ] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately.
     - [ ] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources.
-    - [ ] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`.
+    - [/] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`.
     - [ ] **data-freshness-policy-001**: Define field-level freshness tiers and TTL/SLA windows.
     - [ ] **data-freshness-policy-002**: Tier A (price-derived fields such as `Current Price`, `% Change`, price-based `P/E`) refreshes on short intraday cadence during market session.
     - [ ] **data-freshness-policy-003**: Tier B (fundamental periodic fields such as quarterly earnings, analyst targets) refreshes daily or per-report cadence.
@@ -734,3 +734,5 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **UPDATED** | Added secured API settings endpoints for reading/updating data freshness thresholds (`/api/settings/data-freshness`) to operationalize DB-first freshness policy tuning. |
 | 2026-04-04 | **FIXED** | Hardened ticker detail endpoint against JSON-serialization failures from non-finite numeric values (for example `NaN`) by sanitizing payload output and adding regression coverage. |
 | 2026-04-04 | **FIXED** | Ticker modal loading now unblocks as soon as ticker detail data returns; slow secondary endpoints (for example optimizer) no longer hold the global spinner for the full timeout window. |
+| 2026-04-04 | **UPDATED** | Ticker modal now lazy-loads secondary tabs on demand (signals/opportunity/optimizer/smart-rolls) and surfaces stale/fresh DB snapshot state in-panel instead of blocking first paint on parallel XHR fan-out. |
+| 2026-04-04 | **UPDATED** | Added optional freshness metadata contract to `GET /api/analysis/rolls/{ticker}` via `include_meta=true` (backward-compatible list default) with regression tests for stale queue behavior. |

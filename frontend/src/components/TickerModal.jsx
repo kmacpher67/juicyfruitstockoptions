@@ -4,14 +4,24 @@ import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2
 import { buildTickerHeaderModel } from './tickerModalHeader';
 import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
 
+const TAB_DEFAULT_STATE = {
+    signals: 'idle',
+    opportunity: 'idle',
+    optimizer: 'idle',
+    smart_rolls: 'idle',
+};
+
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
     const [loading, setLoading] = useState(false);
     const [tickerData, setTickerData] = useState(null);
     const [opportunityData, setOpportunityData] = useState(null);
     const [optimizerData, setOptimizerData] = useState(null);
+    const [optimizerMeta, setOptimizerMeta] = useState(null);
     const [smartRollsData, setSmartRollsData] = useState(null);
+    const [smartRollsMeta, setSmartRollsMeta] = useState(null);
     const [signalData, setSignalData] = useState(null);
+    const [tabLoadState, setTabLoadState] = useState(TAB_DEFAULT_STATE);
     const requestSeq = useRef(0);
 
     // Reset state when ticker changes
@@ -21,8 +31,11 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setTickerData(null);
             setOpportunityData(null);
             setOptimizerData(null);
+            setOptimizerMeta(null);
             setSmartRollsData(null);
+            setSmartRollsMeta(null);
             setSignalData(null);
+            setTabLoadState(TAB_DEFAULT_STATE);
             setActiveTab('analytics');
             fetchData();
         }
@@ -42,15 +55,10 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         try {
             if (typeof navigator !== 'undefined' && navigator.onLine === false) {
                 setTickerData({ found: false, symbol: ticker, data: null });
-                setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
-                setOptimizerData([]);
-                setSmartRollsData([]);
-                setSignalData(null);
                 return;
             }
 
-            // Do not block the entire modal on slow secondary endpoints.
-            // We render as soon as ticker data lands, then hydrate other tabs.
+            // Only load the primary DB-backed ticker payload immediately.
             api.get(`/ticker/${ticker}`, { timeout: timeoutMs })
                 .then((res) => {
                     if (requestSeq.current !== seq) return;
@@ -109,6 +117,89 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         } finally {
             clearTimeout(hardStop);
         }
+    };
+
+    const fetchTabData = async (tab) => {
+        if (!isOpen || !ticker) return;
+        if (!(tab in TAB_DEFAULT_STATE)) return;
+        if (tabLoadState[tab] === 'loading' || tabLoadState[tab] === 'loaded') return;
+        const timeoutMs = 12000;
+        const seq = requestSeq.current;
+        setTabLoadState((current) => ({ ...current, [tab]: 'loading' }));
+        try {
+            if (tab === 'signals') {
+                const res = await api.get(`/analysis/signals/${ticker}`, { timeout: timeoutMs });
+                if (requestSeq.current !== seq) return;
+                setSignalData(res.data);
+                setTabLoadState((current) => ({ ...current, signals: 'loaded' }));
+                return;
+            }
+            if (tab === 'opportunity') {
+                const res = await api.get(`/opportunity/${ticker}`, { timeout: timeoutMs });
+                if (requestSeq.current !== seq) return;
+                setOpportunityData(res.data);
+                setTabLoadState((current) => ({ ...current, opportunity: 'loaded' }));
+                return;
+            }
+            if (tab === 'optimizer') {
+                const res = await api.get(`/portfolio/optimizer/${ticker}?include_meta=true`, { timeout: timeoutMs });
+                if (requestSeq.current !== seq) return;
+                const payload = res.data;
+                setOptimizerData(Array.isArray(payload) ? payload : (payload?.suggestions || []));
+                setOptimizerMeta(Array.isArray(payload) ? null : payload);
+                setTabLoadState((current) => ({ ...current, optimizer: 'loaded' }));
+                return;
+            }
+            if (tab === 'smart_rolls') {
+                const res = await api.get(`/analysis/rolls/${ticker}?include_meta=true`, { timeout: timeoutMs });
+                if (requestSeq.current !== seq) return;
+                const payload = res.data;
+                setSmartRollsData(Array.isArray(payload) ? payload : (payload?.suggestions || []));
+                setSmartRollsMeta(Array.isArray(payload) ? null : payload);
+                setTabLoadState((current) => ({ ...current, smart_rolls: 'loaded' }));
+            }
+        } catch (_error) {
+            if (requestSeq.current !== seq) return;
+            if (tab === 'signals') setSignalData(null);
+            if (tab === 'opportunity') setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
+            if (tab === 'optimizer') {
+                setOptimizerData([]);
+                setOptimizerMeta(null);
+            }
+            if (tab === 'smart_rolls') {
+                setSmartRollsData([]);
+                setSmartRollsMeta(null);
+            }
+            setTabLoadState((current) => ({ ...current, [tab]: 'error' }));
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab in TAB_DEFAULT_STATE) {
+            fetchTabData(activeTab);
+        }
+    }, [activeTab, isOpen, ticker]);
+
+    const activeFreshness = (() => {
+        if (activeTab === 'analytics' || activeTab === 'price_action' || activeTab === 'profile') return tickerData;
+        if (activeTab === 'signals') return signalData;
+        if (activeTab === 'opportunity') return opportunityData;
+        if (activeTab === 'optimizer') return optimizerMeta;
+        if (activeTab === 'smart_rolls') return smartRollsMeta;
+        return null;
+    })();
+
+    const renderTabPanel = (tab, view) => {
+        const state = tabLoadState[tab];
+        if (state === 'loading' || state === 'idle') {
+            return (
+                <div className="flex flex-col items-center justify-center h-56 gap-3">
+                    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-gray-400">Loading {tab.replace('_', ' ')}...</p>
+                </div>
+            );
+        }
+        return view;
     };
 
     if (!isOpen) return null;
@@ -194,14 +285,12 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     >
                         <Activity className="w-4 h-4" /> Price Action
                     </button>
-                    {(smartRollsData && !smartRollsData.error && smartRollsData.length > 0) && (
-                        <button
-                            onClick={() => setActiveTab('smart_rolls')}
-                            className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'smart_rolls' ? 'bg-gray-700 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
-                        >
-                            <RotateCcw className="w-4 h-4" /> Smart Rolls
-                        </button>
-                    )}
+                    <button
+                        onClick={() => setActiveTab('smart_rolls')}
+                        className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'smart_rolls' ? 'bg-gray-700 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
+                    >
+                        <RotateCcw className="w-4 h-4" /> Smart Rolls
+                    </button>
                     <button
                         onClick={() => setActiveTab('profile')}
                         className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'profile' ? 'bg-gray-700 text-teal-400 border-b-2 border-teal-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
@@ -212,6 +301,13 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
 
                 {/* Content */}
                 <div className="p-6 overflow-y-auto flex-1 bg-gray-900 custom-scrollbar">
+                    {activeFreshness && (
+                        <div className={`mb-4 rounded border px-3 py-2 text-xs ${activeFreshness.is_stale ? 'border-yellow-700 bg-yellow-950/40 text-yellow-200' : 'border-emerald-700 bg-emerald-950/40 text-emerald-200'}`}>
+                            {activeFreshness.is_stale
+                                ? `Stale DB snapshot (${activeFreshness.stale_reason || 'stale'}).${activeFreshness.refresh_queued ? ' Refresh queued.' : ' Refresh pending.'}`
+                                : `Fresh DB snapshot${activeFreshness.last_updated ? ` as of ${activeFreshness.last_updated}` : ''}.`}
+                        </div>
+                    )}
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-64 gap-4">
                             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -220,11 +316,11 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     ) : (
                         <>
                             {activeTab === 'analytics' && <AnalyticsView data={tickerData} />}
-                            {activeTab === 'signals' && <SignalView data={signalData} />}
-                            {activeTab === 'opportunity' && <OpportunityView data={opportunityData} />}
-                            {activeTab === 'optimizer' && <OptimizerView data={optimizerData} />}
+                            {activeTab === 'signals' && renderTabPanel('signals', <SignalView data={signalData} />)}
+                            {activeTab === 'opportunity' && renderTabPanel('opportunity', <OpportunityView data={opportunityData} />)}
+                            {activeTab === 'optimizer' && renderTabPanel('optimizer', <OptimizerView data={optimizerData} />)}
                             {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
-                            {activeTab === 'smart_rolls' && <SmartRollView data={smartRollsData} />}
+                            {activeTab === 'smart_rolls' && renderTabPanel('smart_rolls', <SmartRollView data={smartRollsData} />)}
                             {activeTab === 'profile' && <ProfileView data={tickerData} ticker={ticker} />}
                         </>
                     )}
