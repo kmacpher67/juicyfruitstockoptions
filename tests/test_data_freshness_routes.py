@@ -247,6 +247,41 @@ def test_get_data_freshness_config_reads_system_config_overrides():
     assert payload.mixed_open_min == 30
 
 
+def test_get_ticker_news_prefers_cached_profile_news_db_first():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client, patch("app.services.news_service.NewsService") as mock_news_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
+            "profile": {"news": [{"title": "cached-1"}, {"title": "cached-2"}]},
+        }
+        payload = routes.get_ticker_news("AMD", bt, admin, limit=1, include_meta=True)
+
+    assert payload["symbol"] == "AMD"
+    assert len(payload["news"]) == 1
+    assert payload["news"][0]["title"] == "cached-1"
+    assert payload["is_stale"] is False
+    mock_news_cls.assert_not_called()
+
+
+def test_get_ticker_news_falls_back_to_live_when_cache_missing():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client, patch("app.services.news_service.NewsService") as mock_news_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = None
+        mock_news_cls.return_value.fetch_news_for_ticker.return_value = [{"title": "live-news"}]
+
+        payload = routes.get_ticker_news("AMD", bt, admin, limit=5, include_meta=True)
+
+    assert payload["symbol"] == "AMD"
+    assert payload["news"][0]["title"] == "live-news"
+    assert payload["data_source"] == "yfinance_live"
+    assert payload["stale_reason"] == "db_record_missing"
+
+
 def test_update_data_freshness_config_requires_admin():
     basic = User(username="u", role="basic", disabled=False)
     config = routes.DataFreshnessConfig()

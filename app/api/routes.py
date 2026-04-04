@@ -1847,15 +1847,44 @@ def analyze_ticker_smart_rolls(
 @log_endpoint
 def get_ticker_news(
     symbol: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    limit: int = 5
+    limit: int = 5,
+    include_meta: bool = False,
 ):
     """
     Get aggregated news with sentiment and logic analysis for a ticker.
     """
-    from app.services.news_sentiment import NewsSentimentService
-    service = NewsSentimentService()
-    return service.get_ticker_news(symbol, limit)
+    symbol = _normalize_ticker_symbol(symbol)
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
+    freshness = _evaluate_stock_data_freshness(stock, tier="profile", db=db)
+    _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
+
+    profile = stock.get("profile") if isinstance(stock, dict) else None
+    cached_news = profile.get("news") if isinstance(profile, dict) else None
+    if isinstance(cached_news, list) and cached_news:
+        news_payload = cached_news[: max(1, int(limit))]
+        if include_meta:
+            return {"symbol": symbol, "news": news_payload, **freshness}
+        return news_payload
+
+    from app.services.news_service import NewsService
+    service = NewsService()
+    live_news = service.fetch_news_for_ticker(symbol)
+    live_news = live_news[: max(1, int(limit))]
+    if include_meta:
+        if not stock:
+            freshness = {
+                "data_source": "yfinance_live",
+                "last_updated": None,
+                "is_stale": True,
+                "stale_reason": "db_record_missing",
+                "refresh_queued": False,
+            }
+        return {"symbol": symbol, "news": live_news, **freshness}
+    return live_news
 
 # --- X-DIV & Calendar Endpoints ---
 

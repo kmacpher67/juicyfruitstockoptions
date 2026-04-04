@@ -120,8 +120,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] Investigate Google Drive as alternative storage.
     - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
 - [ ] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches.
-    - [ ] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately.
-    - [ ] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources.
+    - [/] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately.
+    - [/] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources.
     - [/] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`.
     - [ ] **data-freshness-policy-001**: Define field-level freshness tiers and TTL/SLA windows.
     - [ ] **data-freshness-policy-002**: Tier A (price-derived fields such as `Current Price`, `% Change`, price-based `P/E`) refreshes on short intraday cadence during market session.
@@ -136,8 +136,8 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **data-ingest-scheduler-001**: Add scheduler-sharded ingestion mode so ticker refresh load is spread across time windows and avoids burst traffic/rate limits.
     - [ ] **data-ingest-scheduler-002**: Persist ingest telemetry per run (source used, rows updated, stale hit ratio, failures) for operator diagnostics.
     - [ ] **data-ingest-scheduler-003**: Add operator settings for freshness intervals and ingest batch controls in validated config (`system_config`) instead of hardcoded constants.
-    - [ ] **data-freshness-tests-001**: Add regression tests proving DB-first behavior: endpoints return persisted data without external dependency when data exists.
-    - [ ] **data-freshness-tests-002**: Add regression tests for stale-path behavior: stale response includes metadata and queues async refresh without blocking.
+    - [/] **data-freshness-tests-001**: Add regression tests proving DB-first behavior: endpoints return persisted data without external dependency when data exists.
+    - [/] **data-freshness-tests-002**: Add regression tests for stale-path behavior: stale response includes metadata and queues async refresh without blocking.
     - [ ] **data-freshness-tests-003**: Add integration tests for source precedence and fallback order (TWS connected vs disconnected, Flex/yfinance fallback paths).
 - [ ] **IBKR Real-Time Data — IB Gateway Docker Container**: Add IB Gateway as a Docker Compose service for a persistent headless IBKR socket connection. Prerequisite for all TWS real-time tasks below. `[!] Needs decomposition: evaluate whether standalone TWS on host already satisfies all use cases before containerizing. Only proceed if containerized gateway adds measurable reliability.`
     - [ ] **ibkr-tws-gateway-001**: Research and select IB Gateway Docker image (`waytrade/ib-gateway` vs `mvberg`). Validate paper port (4002) and live port (4001). Document in `docs/learning/ibkr-realtime-data-integration.md`.
@@ -737,3 +737,5 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **UPDATED** | Ticker modal now lazy-loads secondary tabs on demand (signals/opportunity/optimizer/smart-rolls) and surfaces stale/fresh DB snapshot state in-panel instead of blocking first paint on parallel XHR fan-out. |
 | 2026-04-04 | **UPDATED** | Added optional freshness metadata contract to `GET /api/analysis/rolls/{ticker}` via `include_meta=true` (backward-compatible list default) with regression tests for stale queue behavior. |
 | 2026-04-04 | **UPDATED** | Added scheduler retention cleanup for `instrument_price_history` (default 730-day horizon with `system_config` override key `price_history_retention_days`) plus scheduler regression coverage. |
+| 2026-04-04 | **UPDATED** | `GET /api/news/{symbol}` now follows DB-first behavior using cached `stock_data.profile.news` when available, supports optional freshness metadata (`include_meta=true`), and queues stale refresh asynchronously. |
+| 2026-04-04 | **FIXED** | News route fallback now uses the implemented `NewsService` (`fetch_news_for_ticker`) instead of a missing `NewsSentimentService` import path. |
