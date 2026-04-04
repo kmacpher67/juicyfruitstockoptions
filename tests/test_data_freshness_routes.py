@@ -21,6 +21,17 @@ def test_evaluate_stock_data_freshness_marks_recent_record_fresh():
     assert freshness["last_updated"] is not None
 
 
+def test_evaluate_stock_data_freshness_respects_system_config_threshold_override():
+    stock = {"_last_persisted_at": (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()}
+    fake_db = type("DB", (), {})()
+    fake_db.system_config = type("Collection", (), {})()
+    fake_db.system_config.find_one = lambda query: {"price_open_min": 60}
+
+    with patch("app.api.routes._is_us_equity_market_session", return_value=True):
+        freshness = routes._evaluate_stock_data_freshness(stock, tier="price", db=fake_db)  # pylint: disable=protected-access
+    assert freshness["is_stale"] is False
+
+
 def test_get_ticker_analysis_marks_stale_and_queues_refresh_task():
     stale_iso = (datetime.now(timezone.utc) - timedelta(days=4)).isoformat()
     bt = BackgroundTasks()

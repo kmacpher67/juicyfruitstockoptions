@@ -87,7 +87,30 @@ def _is_us_equity_market_session(now_utc: datetime | None = None) -> bool:
     return open_et <= et_now <= close_et
 
 
-def _evaluate_stock_data_freshness(stock: dict | None, tier: str = "mixed") -> dict:
+def _get_freshness_threshold_minutes(db=None) -> dict:
+    defaults = {
+        "price_open_min": 15,
+        "price_closed_min": 12 * 60,
+        "mixed_open_min": 30,
+        "mixed_closed_min": 24 * 60,
+        "profile_open_min": 24 * 60,
+        "profile_closed_min": 24 * 60 * 7,
+    }
+    if db is None:
+        return defaults
+    try:
+        doc = db.system_config.find_one({"_id": "data_freshness_config"}) or {}
+    except Exception:
+        return defaults
+    merged = dict(defaults)
+    for key, default in defaults.items():
+        value = doc.get(key)
+        if isinstance(value, int) and value > 0:
+            merged[key] = value
+    return merged
+
+
+def _evaluate_stock_data_freshness(stock: dict | None, tier: str = "mixed", db=None) -> dict:
     if not stock:
         return {
             "data_source": "stock_data_db",
@@ -110,10 +133,17 @@ def _evaluate_stock_data_freshness(stock: dict | None, tier: str = "mixed") -> d
 
     now_utc = datetime.now(timezone.utc)
     is_market_session = _is_us_equity_market_session(now_utc)
+    threshold_mins = _get_freshness_threshold_minutes(db=db)
     thresholds = {
-        "price": timedelta(minutes=15 if is_market_session else 12 * 60),
-        "mixed": timedelta(minutes=30 if is_market_session else 24 * 60),
-        "profile": timedelta(hours=24 if is_market_session else 24 * 7),
+        "price": timedelta(
+            minutes=threshold_mins["price_open_min"] if is_market_session else threshold_mins["price_closed_min"]
+        ),
+        "mixed": timedelta(
+            minutes=threshold_mins["mixed_open_min"] if is_market_session else threshold_mins["mixed_closed_min"]
+        ),
+        "profile": timedelta(
+            minutes=threshold_mins["profile_open_min"] if is_market_session else threshold_mins["profile_closed_min"]
+        ),
     }
     threshold = thresholds.get(tier, thresholds["mixed"])
     age = now_utc - last_updated_dt
@@ -1939,7 +1969,7 @@ def get_ticker_signals(
     # DB-first preferred path: return persisted signal payload if present.
     if stock and isinstance(stock.get("signals"), dict):
         signals_payload = stock.get("signals") or {}
-        freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
         _queue_stock_refresh_if_stale(background_tasks, ticker, freshness)
         return {
             "ticker": ticker,
@@ -1962,7 +1992,7 @@ def get_ticker_signals(
         advice = service.get_roll_vs_hold_advice(ticker, {}, mock_price_data=data)
         _persist_signal_payload(db, ticker, kalman, markov, advice)
         
-        freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
         if stock:
             _queue_stock_refresh_if_stale(background_tasks, ticker, freshness)
         else:
@@ -2019,7 +2049,7 @@ def get_ticker_analysis(
     stock, stock_query, symbol = _find_stock_data_by_symbol(db, symbol)
     if not stock:
         # transform default structure if not found
-        freshness = _evaluate_stock_data_freshness(None, tier="mixed")
+        freshness = _evaluate_stock_data_freshness(None, tier="mixed", db=db)
         return {"symbol": symbol, "found": False, "price": 0.0, **freshness}
 
     # DB-first path: do not block modal rendering on live yfinance calls.
@@ -2031,7 +2061,7 @@ def get_ticker_analysis(
     if "news" not in profile:
         profile["news"] = []
 
-    freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+    freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)
     _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
 
     return {
@@ -2057,7 +2087,7 @@ def get_ticker_price_history(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
-    freshness = _evaluate_stock_data_freshness(stock, tier="price")
+    freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
 
     rows = list(
         db.instrument_price_history.find(
@@ -2100,7 +2130,7 @@ def get_opportunity_analysis(
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
     
     if not stock: # fallback
-         freshness = _evaluate_stock_data_freshness(None, tier="price")
+         freshness = _evaluate_stock_data_freshness(None, tier="price", db=db)
          return {"symbol": symbol, "juicy_score": 0, "message": "Ticker not found in database", **freshness}
 
     # Calculate simple score on the fly (reusing logic from scanner conceptually)
@@ -2121,7 +2151,7 @@ def get_opportunity_analysis(
     from app.services.risk_service import RiskService
     risks = RiskService.analyze_risk(stock)
 
-    freshness = _evaluate_stock_data_freshness(stock, tier="price")
+    freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
     _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
     
     return {
@@ -2158,7 +2188,7 @@ def get_portfolio_optimizer(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
-    freshness = _evaluate_stock_data_freshness(stock, tier="price")
+    freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
     
     if not stock:
         if include_meta:
