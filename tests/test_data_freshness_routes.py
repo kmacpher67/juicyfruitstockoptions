@@ -191,3 +191,39 @@ def test_get_ticker_price_history_clamps_limit():
         routes.get_ticker_price_history("AAPL", admin, limit=999999)
 
     mock_cursor.sort.return_value.limit.assert_called_once_with(5000)
+
+
+def test_get_data_freshness_config_reads_system_config_overrides():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {"_id": "data_freshness_config", "price_open_min": 25}
+        payload = routes.get_data_freshness_config(admin)
+    assert payload.price_open_min == 25
+    assert payload.mixed_open_min == 30
+
+
+def test_update_data_freshness_config_requires_admin():
+    basic = User(username="u", role="basic", disabled=False)
+    config = routes.DataFreshnessConfig()
+    try:
+        routes.update_data_freshness_config(config, basic)
+        assert False, "expected HTTPException"
+    except Exception as exc:
+        from fastapi import HTTPException
+
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 403
+
+
+def test_update_data_freshness_config_persists_values():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {"_id": "data_freshness_config", "price_open_min": 40}
+        payload = routes.update_data_freshness_config(
+            routes.DataFreshnessConfig(price_open_min=40),
+            admin,
+        )
+    assert payload.price_open_min == 40
+    mock_db.system_config.update_one.assert_called_once()

@@ -944,6 +944,15 @@ class ScheduleConfig(BaseModel):
     hour: int
     minute: int
 
+
+class DataFreshnessConfig(BaseModel):
+    price_open_min: int = 15
+    price_closed_min: int = 12 * 60
+    mixed_open_min: int = 30
+    mixed_closed_min: int = 24 * 60
+    profile_open_min: int = 24 * 60
+    profile_closed_min: int = 24 * 60 * 7
+
 @router.get("/schedule", response_model=ScheduleConfig)
 @log_endpoint
 def get_schedule(
@@ -964,6 +973,37 @@ def update_schedule(
         return {"status": "success", "message": f"Rescheduled to {config.hour:02d}:{config.minute:02d}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/settings/data-freshness", response_model=DataFreshnessConfig)
+@log_endpoint
+def get_data_freshness_config(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    merged = _get_freshness_threshold_minutes(db=db)
+    return DataFreshnessConfig(**merged)
+
+
+@router.post("/settings/data-freshness", response_model=DataFreshnessConfig)
+@log_endpoint
+def update_data_freshness_config(
+    config: DataFreshnessConfig,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    payload = config.model_dump()
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    db.system_config.update_one(
+        {"_id": "data_freshness_config"},
+        {"$set": payload},
+        upsert=True,
+    )
+    merged = _get_freshness_threshold_minutes(db=db)
+    return DataFreshnessConfig(**merged)
 
 # --- User Settings Persistence ---
 
