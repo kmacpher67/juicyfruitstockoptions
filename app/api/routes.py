@@ -2043,6 +2043,40 @@ def get_ticker_analysis(
         **freshness,
     }
 
+
+@router.get("/ticker/{symbol}/price-history")
+@log_endpoint
+def get_ticker_price_history(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    limit: int = 390,
+):
+    symbol = _normalize_ticker_symbol(symbol)
+    safe_limit = max(1, min(int(limit), 5000))
+
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
+    freshness = _evaluate_stock_data_freshness(stock, tier="price")
+
+    rows = list(
+        db.instrument_price_history.find(
+            {"instrument_key": symbol},
+            {"_id": 0},
+        )
+        .sort([("timestamp", -1)])
+        .limit(safe_limit)
+    )
+    rows = list(reversed(rows))
+
+    return {
+        "symbol": symbol,
+        "count": len(rows),
+        "history": rows,
+        **freshness,
+    }
+
+
 @router.get("/opportunity/{symbol}")
 @log_endpoint
 def get_opportunity_analysis(

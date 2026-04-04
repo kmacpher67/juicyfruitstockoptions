@@ -727,3 +727,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-04 | **UPDATED** | Signals endpoint now persists computed signal payloads back to `stock_data.signals` so subsequent requests can use DB-first cached signal data. |
 | 2026-04-04 | **UPDATED** | Extracted stale-refresh dedupe/cooldown into reusable service `app/services/data_refresh_queue.py` and added dedicated regression tests for queue behavior. |
 | 2026-04-04 | **UPDATED** | Stock analysis persistence now also writes append-style instrument price snapshots into `instrument_price_history` for charting/audit while preserving canonical latest snapshot in `stock_data`. |
+| 2026-04-04 | **UPDATED** | Added DB-first ticker price-history API endpoint backed by `instrument_price_history` with freshness metadata and regression tests. |

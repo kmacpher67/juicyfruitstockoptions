@@ -145,3 +145,38 @@ def test_get_portfolio_optimizer_stale_record_queues_refresh():
     assert payload["is_stale"] is True
     assert payload["refresh_queued"] is True
     assert len(bt.tasks) == 1
+
+
+def test_get_ticker_price_history_returns_db_rows_with_freshness():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AAPL",
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_cursor = mock_db.instrument_price_history.find.return_value
+        mock_cursor.sort.return_value.limit.return_value = [
+            {"instrument_key": "AAPL", "timestamp": "2026-04-04 10:01:00", "price": 201.0},
+            {"instrument_key": "AAPL", "timestamp": "2026-04-04 10:00:00", "price": 200.0},
+        ]
+
+        payload = routes.get_ticker_price_history("AAPL", admin, limit=100)
+
+    assert payload["symbol"] == "AAPL"
+    assert payload["count"] == 2
+    assert payload["history"][0]["timestamp"] == "2026-04-04 10:00:00"
+    assert payload["is_stale"] is False
+
+
+def test_get_ticker_price_history_clamps_limit():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {"Ticker": "AAPL"}
+        mock_cursor = mock_db.instrument_price_history.find.return_value
+        mock_cursor.sort.return_value.limit.return_value = []
+
+        routes.get_ticker_price_history("AAPL", admin, limit=999999)
+
+    mock_cursor.sort.return_value.limit.assert_called_once_with(5000)
