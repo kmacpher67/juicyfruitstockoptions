@@ -621,6 +621,7 @@ def test_merge_detail_record_preserves_existing_profile_and_price_action_when_in
 
 def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     comp = StockLiveComparison(["AAPL"])
+    StockLiveComparison._price_history_indexes_ensured = False
     df = pd.DataFrame(
         [
             {
@@ -641,6 +642,8 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     fake_db = MagicMock()
     fake_db.collection = fake_collection
     fake_price_db = MagicMock()
+    fake_price_collection = MagicMock()
+    fake_price_db.collection = fake_price_collection
 
     db_ctor = MagicMock(side_effect=[fake_db, fake_price_db])
     monkeypatch.setattr("stock_live_comparison.AiStockDatabase", db_ctor)
@@ -663,6 +666,7 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     assert persisted_hist["instrument_key"] == "AAPL"
     assert persisted_hist["source"] == "stock_live_comparison"
     assert hist_kwargs["key_fields"] == ("instrument_key", "timestamp", "source")
+    assert fake_price_collection.create_index.call_count == 2
 
 
 def test_missing_required_detail_fields_requires_profile_news_key():

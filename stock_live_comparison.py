@@ -14,6 +14,7 @@ from app.services.price_action_service import PriceActionService
 
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
+    _price_history_indexes_ensured = False
 
     def __init__(
         self,
@@ -1110,6 +1111,7 @@ class StockLiveComparison:
         try:
             db = AiStockDatabase(collection_name="stock_data")
             price_history_db = AiStockDatabase(collection_name="instrument_price_history")
+            self.ensure_price_history_indexes(price_history_db.collection)
             records = df.to_dict(orient="records")
             required = self.required_detail_fields()
             now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1145,6 +1147,17 @@ class StockLiveComparison:
             logging.info(f"Upserted {len(records)} records to MongoDB.")
         except Exception as e:
             logging.error(f"Error connecting to MongoDB: {e}")
+
+    @classmethod
+    def ensure_price_history_indexes(cls, collection):
+        if cls._price_history_indexes_ensured:
+            return
+        try:
+            collection.create_index([("instrument_key", 1), ("timestamp", -1)])
+            collection.create_index([("source", 1), ("timestamp", -1)])
+            cls._price_history_indexes_ensured = True
+        except Exception as exc:
+            logging.warning("Unable to ensure instrument_price_history indexes: %s", exc)
 
     @staticmethod
     def build_price_history_record(record, default_ts=None):
