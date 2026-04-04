@@ -8,6 +8,10 @@ from app.api import routes
 from app.models import User
 
 
+def setup_function():
+    routes._stale_refresh_queue_state.clear()  # pylint: disable=protected-access
+
+
 def test_evaluate_stock_data_freshness_marks_recent_record_fresh():
     stock = {"_last_persisted_at": datetime.now(timezone.utc).isoformat()}
     freshness = routes._evaluate_stock_data_freshness(stock, tier="mixed")  # pylint: disable=protected-access
@@ -83,3 +87,21 @@ def test_get_ticker_signals_falls_back_to_yfinance_when_db_signals_absent():
     assert payload["data_source"] == "yfinance_live"
     assert payload["is_stale"] is True
     assert payload["stale_reason"] == "db_record_missing"
+
+
+def test_queue_stock_refresh_if_stale_respects_cooldown():
+    bt = BackgroundTasks()
+    freshness = {
+        "is_stale": True,
+        "refresh_queued": False,
+        "stale_reason": "older_than_30m",
+    }
+    symbol = "AAPL"
+    now_utc = datetime.now(timezone.utc)
+
+    routes._stale_refresh_queue_state[symbol] = now_utc  # pylint: disable=protected-access
+    routes._queue_stock_refresh_if_stale(bt, symbol, freshness)  # pylint: disable=protected-access
+
+    assert len(bt.tasks) == 0
+    assert freshness["refresh_queued"] is False
+    assert freshness["stale_reason"] == "older_than_30m"
