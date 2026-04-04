@@ -119,6 +119,26 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] Automate backup to GitHub (current manual process).
     - [X] Investigate Google Drive as alternative storage.
     - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
+- [ ] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches.
+    - [ ] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately.
+    - [ ] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources.
+    - [ ] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`.
+    - [ ] **data-freshness-policy-001**: Define field-level freshness tiers and TTL/SLA windows.
+    - [ ] **data-freshness-policy-002**: Tier A (price-derived fields such as `Current Price`, `% Change`, price-based `P/E`) refreshes on short intraday cadence during market session.
+    - [ ] **data-freshness-policy-003**: Tier B (fundamental periodic fields such as quarterly earnings, analyst targets) refreshes daily or per-report cadence.
+    - [ ] **data-freshness-policy-004**: Tier C (profile/static fields such as long name, sector, industry) refreshes weekly or on-demand.
+    - [ ] **data-freshness-policy-005**: Replace fixed clock assumptions with exchange-session aware logic (market open/closed, early close, holiday calendar) when evaluating staleness.
+    - [ ] **data-freshness-source-rule-001**: Formalize source precedence for stock/instrument freshness: prefer TWS for intraday live price/state when connected; use Flex and yfinance as fallback/backfill based on field type.
+    - [ ] **data-freshness-source-rule-002**: Keep Flex authoritative for historical/EOD and audit-style records; intraday sources must not rewrite historical truth retroactively.
+    - [ ] **data-model-instrument-001**: Keep a lightweight latest snapshot collection per instrument for fast reads and add an append-only price history collection for charting and audits.
+    - [ ] **data-model-instrument-002**: Define canonical keying/normalization for instrument identity (`ticker`, case/whitespace normalization, secType-aware keys for options/contracts).
+    - [ ] **data-model-instrument-003**: Add retention and indexing policy for high-churn history collections (time-based indexes, query indexes, optional rollups) to control storage growth.
+    - [ ] **data-ingest-scheduler-001**: Add scheduler-sharded ingestion mode so ticker refresh load is spread across time windows and avoids burst traffic/rate limits.
+    - [ ] **data-ingest-scheduler-002**: Persist ingest telemetry per run (source used, rows updated, stale hit ratio, failures) for operator diagnostics.
+    - [ ] **data-ingest-scheduler-003**: Add operator settings for freshness intervals and ingest batch controls in validated config (`system_config`) instead of hardcoded constants.
+    - [ ] **data-freshness-tests-001**: Add regression tests proving DB-first behavior: endpoints return persisted data without external dependency when data exists.
+    - [ ] **data-freshness-tests-002**: Add regression tests for stale-path behavior: stale response includes metadata and queues async refresh without blocking.
+    - [ ] **data-freshness-tests-003**: Add integration tests for source precedence and fallback order (TWS connected vs disconnected, Flex/yfinance fallback paths).
 - [ ] **IBKR Real-Time Data — IB Gateway Docker Container**: Add IB Gateway as a Docker Compose service for a persistent headless IBKR socket connection. Prerequisite for all TWS real-time tasks below. `[!] Needs decomposition: evaluate whether standalone TWS on host already satisfies all use cases before containerizing. Only proceed if containerized gateway adds measurable reliability.`
     - [ ] **ibkr-tws-gateway-001**: Research and select IB Gateway Docker image (`waytrade/ib-gateway` vs `mvberg`). Validate paper port (4002) and live port (4001). Document in `docs/learning/ibkr-realtime-data-integration.md`.
     - [ ] **ibkr-tws-gateway-002**: Add `ib-gateway` service to `docker-compose.yml` with env vars `TWS_USERID`, `TWS_PASSWORD`, `TRADING_MODE`. Map port 4002. Add VNC port 5900 for dev debugging only.
