@@ -1896,6 +1896,7 @@ def get_macro_summary(
 @log_endpoint
 def get_ticker_signals(
     ticker: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
@@ -1903,8 +1904,25 @@ def get_ticker_signals(
     (Requires daily data history).
     """
     
-    # 1. Fetch Data (optimize: use database if available and fresh)
-    # For now, quick fetch
+    ticker = _normalize_ticker_symbol(ticker)
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    stock, _, ticker = _find_stock_data_by_symbol(db, ticker)
+
+    # DB-first preferred path: return persisted signal payload if present.
+    if stock and isinstance(stock.get("signals"), dict):
+        signals_payload = stock.get("signals") or {}
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+        _queue_stock_refresh_if_stale(background_tasks, ticker, freshness)
+        return {
+            "ticker": ticker,
+            "kalman": signals_payload.get("kalman", {}),
+            "markov": signals_payload.get("markov", {}),
+            "advice": signals_payload.get("advice", {}),
+            **freshness,
+        }
+
+    # Fallback path: compute from external history.
     try:
         data = yf.download(ticker, period="1y", interval="1d", progress=False)
         if isinstance(data.columns, pd.MultiIndex):
@@ -1916,11 +1934,21 @@ def get_ticker_signals(
         markov = service.get_markov_probabilities(data)
         advice = service.get_roll_vs_hold_advice(ticker, {}, mock_price_data=data)
         
+        freshness = _evaluate_stock_data_freshness(stock, tier="mixed")
+        if stock:
+            _queue_stock_refresh_if_stale(background_tasks, ticker, freshness)
+        else:
+            freshness["data_source"] = "yfinance_live"
+            freshness["is_stale"] = True
+            freshness["stale_reason"] = "db_record_missing"
+            freshness["refresh_queued"] = False
+
         return {
             "ticker": ticker,
             "kalman": kalman,
             "markov": markov,
-            "advice": advice
+            "advice": advice,
+            **freshness,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
