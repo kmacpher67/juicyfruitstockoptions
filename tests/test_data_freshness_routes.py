@@ -6,10 +6,11 @@ import pandas as pd
 
 from app.api import routes
 from app.models import User
+from app.services.data_refresh_queue import get_data_refresh_queue
 
 
 def setup_function():
-    routes._stale_refresh_queue_state.clear()  # pylint: disable=protected-access
+    get_data_refresh_queue().clear()
 
 
 def test_evaluate_stock_data_freshness_marks_recent_record_fresh():
@@ -100,7 +101,8 @@ def test_queue_stock_refresh_if_stale_respects_cooldown():
     symbol = "AAPL"
     now_utc = datetime.now(timezone.utc)
 
-    routes._stale_refresh_queue_state[symbol] = now_utc  # pylint: disable=protected-access
+    queue = get_data_refresh_queue()
+    queue.should_enqueue(symbol, now_utc=now_utc)
     routes._queue_stock_refresh_if_stale(bt, symbol, freshness)  # pylint: disable=protected-access
 
     assert len(bt.tasks) == 0

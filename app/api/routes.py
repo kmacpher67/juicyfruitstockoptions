@@ -1,7 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta, datetime, timezone
 import re
-import threading
 from typing import Annotated, List
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -20,12 +19,10 @@ from app.services.ibkr_service import fetch_and_store_nav_report
 from app.database import get_db
 from app.services.signal_service import SignalService
 from app.services.ibkr_tws_service import get_ibkr_tws_service
+from app.services.data_refresh_queue import get_data_refresh_queue
 from app.utils.logging_config import log_endpoint
 
 router = APIRouter()
-_stale_refresh_queue_state: dict[str, datetime] = {}
-_stale_refresh_queue_lock = threading.RLock()
-_STALE_REFRESH_QUEUE_COOLDOWN = timedelta(minutes=5)
 
 
 import logging
@@ -137,16 +134,14 @@ def _evaluate_stock_data_freshness(stock: dict | None, tier: str = "mixed") -> d
 def _queue_stock_refresh_if_stale(background_tasks: BackgroundTasks | None, symbol: str, freshness: dict) -> None:
     if not background_tasks or not freshness.get("is_stale"):
         return
-    now_utc = datetime.now(timezone.utc)
-    with _stale_refresh_queue_lock:
-        last_queued_at = _stale_refresh_queue_state.get(symbol)
-        if last_queued_at and (now_utc - last_queued_at) < _STALE_REFRESH_QUEUE_COOLDOWN:
-            freshness["refresh_queued"] = False
-            freshness["stale_reason"] = freshness.get("stale_reason") or "refresh_cooldown_active"
-            return
-        _stale_refresh_queue_state[symbol] = now_utc
-    background_tasks.add_task(run_stock_live_comparison, [symbol], "sync")
-    freshness["refresh_queued"] = True
+    queued = get_data_refresh_queue().enqueue_stock_sync(
+        background_tasks=background_tasks,
+        symbol=symbol,
+        refresh_fn=run_stock_live_comparison,
+    )
+    freshness["refresh_queued"] = bool(queued)
+    if not queued and not freshness.get("stale_reason"):
+        freshness["stale_reason"] = "refresh_cooldown_active"
 
 
 def _persist_signal_payload(db, ticker: str, kalman: dict, markov: dict, advice: dict) -> None:
