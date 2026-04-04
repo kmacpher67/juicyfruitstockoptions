@@ -1109,6 +1109,7 @@ class StockLiveComparison:
         """
         try:
             db = AiStockDatabase(collection_name="stock_data")
+            price_history_db = AiStockDatabase(collection_name="instrument_price_history")
             records = df.to_dict(orient="records")
             required = self.required_detail_fields()
             now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1125,6 +1126,12 @@ class StockLiveComparison:
                     merged["Ticker"] = ticker
                     merged["_last_persisted_at"] = now_ts
                     db.upsert_stock_record(merged, key_fields=("Ticker",))
+                    history_record = self.build_price_history_record(merged, default_ts=now_ts)
+                    if history_record:
+                        price_history_db.upsert_stock_record(
+                            history_record,
+                            key_fields=("instrument_key", "timestamp", "source"),
+                        )
 
                     missing = self.missing_required_detail_fields(merged, required_fields=required)
                     if missing:
@@ -1138,6 +1145,24 @@ class StockLiveComparison:
             logging.info(f"Upserted {len(records)} records to MongoDB.")
         except Exception as e:
             logging.error(f"Error connecting to MongoDB: {e}")
+
+    @staticmethod
+    def build_price_history_record(record, default_ts=None):
+        ticker = str((record or {}).get("Ticker") or "").strip().upper()
+        if not ticker:
+            return None
+        timestamp = (record or {}).get("Last Update") or (record or {}).get("_last_persisted_at") or default_ts
+        if not timestamp:
+            return None
+        return {
+            "instrument_key": ticker,
+            "instrument_type": "STK",
+            "timestamp": str(timestamp),
+            "price": (record or {}).get("Current Price"),
+            "day_change_pct": (record or {}).get("1D % Change"),
+            "source": "stock_live_comparison",
+            "_ingested_at": default_ts or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
     @staticmethod
     def required_detail_fields():

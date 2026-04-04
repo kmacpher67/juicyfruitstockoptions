@@ -640,13 +640,16 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     fake_collection.find_one.return_value = {}
     fake_db = MagicMock()
     fake_db.collection = fake_collection
+    fake_price_db = MagicMock()
 
-    db_ctor = MagicMock(return_value=fake_db)
+    db_ctor = MagicMock(side_effect=[fake_db, fake_price_db])
     monkeypatch.setattr("stock_live_comparison.AiStockDatabase", db_ctor)
 
     comp.upsert_to_mongo(df)
 
-    db_ctor.assert_called_once_with(collection_name="stock_data")
+    assert db_ctor.call_count == 2
+    assert db_ctor.call_args_list[0].kwargs["collection_name"] == "stock_data"
+    assert db_ctor.call_args_list[1].kwargs["collection_name"] == "instrument_price_history"
     fake_db.upsert_stock_record.assert_called_once()
     args, kwargs = fake_db.upsert_stock_record.call_args
     persisted = args[0]
@@ -654,6 +657,12 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     assert "profile" in persisted
     assert "Price Action" in persisted
     assert kwargs["key_fields"] == ("Ticker",)
+    fake_price_db.upsert_stock_record.assert_called_once()
+    hist_args, hist_kwargs = fake_price_db.upsert_stock_record.call_args
+    persisted_hist = hist_args[0]
+    assert persisted_hist["instrument_key"] == "AAPL"
+    assert persisted_hist["source"] == "stock_live_comparison"
+    assert hist_kwargs["key_fields"] == ("instrument_key", "timestamp", "source")
 
 
 def test_missing_required_detail_fields_requires_profile_news_key():
