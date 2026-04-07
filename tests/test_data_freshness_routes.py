@@ -329,11 +329,17 @@ def test_get_stock_analysis_http_config_reads_system_config_overrides():
             "download_batch_size": 4,
             "batch_pause_sec": 1.75,
             "request_throttle_interval_sec": 0.6,
+            "scheduler_sharding_enabled": True,
+            "scheduler_shard_size": 12,
+            "scheduler_shard_pause_sec": 4.5,
         }
         payload = routes.get_stock_analysis_http_config(admin)
     assert payload.download_batch_size == 4
     assert payload.batch_pause_sec == 1.75
     assert payload.request_throttle_interval_sec == 0.6
+    assert payload.scheduler_sharding_enabled is True
+    assert payload.scheduler_shard_size == 12
+    assert payload.scheduler_shard_pause_sec == 4.5
 
 
 def test_get_stock_analysis_http_config_coerces_invalid_values():
@@ -345,11 +351,17 @@ def test_get_stock_analysis_http_config_coerces_invalid_values():
             "download_batch_size": "oops",
             "batch_pause_sec": -5,
             "request_throttle_interval_sec": None,
+            "scheduler_sharding_enabled": "yes",
+            "scheduler_shard_size": "bad",
+            "scheduler_shard_pause_sec": -7,
         }
         payload = routes.get_stock_analysis_http_config(admin)
     assert payload.download_batch_size == 6
     assert payload.batch_pause_sec == 0.0
     assert payload.request_throttle_interval_sec == 1.5
+    assert payload.scheduler_sharding_enabled is True
+    assert payload.scheduler_shard_size == 25
+    assert payload.scheduler_shard_pause_sec == 0.0
 
 
 def test_update_stock_analysis_http_config_requires_admin():
@@ -374,18 +386,27 @@ def test_update_stock_analysis_http_config_persists_values():
             "download_batch_size": 9,
             "batch_pause_sec": 2.5,
             "request_throttle_interval_sec": 1.0,
+            "scheduler_sharding_enabled": True,
+            "scheduler_shard_size": 10,
+            "scheduler_shard_pause_sec": 3.0,
         }
         payload = routes.update_stock_analysis_http_config(
             routes.StockAnalysisHttpConfig(
                 download_batch_size=9,
                 batch_pause_sec=2.5,
                 request_throttle_interval_sec=1.0,
+                scheduler_sharding_enabled=True,
+                scheduler_shard_size=10,
+                scheduler_shard_pause_sec=3.0,
             ),
             admin,
         )
     assert payload.download_batch_size == 9
     assert payload.batch_pause_sec == 2.5
     assert payload.request_throttle_interval_sec == 1.0
+    assert payload.scheduler_sharding_enabled is True
+    assert payload.scheduler_shard_size == 10
+    assert payload.scheduler_shard_pause_sec == 3.0
     mock_db.system_config.update_one.assert_called_once()
 
 

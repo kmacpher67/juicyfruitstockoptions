@@ -8,6 +8,15 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     // --- Automation (Admin) ---
     const [scheduleTime, setScheduleTime] = useState("10:00");
     const [loadingSchedule, setLoadingSchedule] = useState(false);
+    const [loadingStockHttpConfig, setLoadingStockHttpConfig] = useState(false);
+    const [stockHttpConfig, setStockHttpConfig] = useState({
+        download_batch_size: 6,
+        batch_pause_sec: 8.0,
+        request_throttle_interval_sec: 1.5,
+        scheduler_sharding_enabled: false,
+        scheduler_shard_size: 25,
+        scheduler_shard_pause_sec: 20.0,
+    });
 
     // --- IBKR Integration (Admin) ---
     const [ibkrStatus, setIbkrStatus] = useState({ configured: false, masked: '' });
@@ -40,6 +49,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             if (userRole === 'admin') {
                 fetchIBKR();
                 fetchAccounts();
+                fetchStockAnalysisHttpConfig();
             }
         }
     }, [currentSettings, isOpen, userRole]);
@@ -80,6 +90,38 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             console.error("Failed to fetch schedule", error);
         } finally {
             setLoadingSchedule(false);
+        }
+    };
+
+    const fetchStockAnalysisHttpConfig = async () => {
+        setLoadingStockHttpConfig(true);
+        try {
+            const api = (await import('../api/axios')).default;
+            const res = await api.get('/settings/stock-analysis-http');
+            if (res.data) {
+                setStockHttpConfig({
+                    download_batch_size: Number.isFinite(Number(res.data.download_batch_size))
+                        ? Number(res.data.download_batch_size)
+                        : 6,
+                    batch_pause_sec: Number.isFinite(Number(res.data.batch_pause_sec))
+                        ? Number(res.data.batch_pause_sec)
+                        : 8.0,
+                    request_throttle_interval_sec: Number.isFinite(Number(res.data.request_throttle_interval_sec))
+                        ? Number(res.data.request_throttle_interval_sec)
+                        : 1.5,
+                    scheduler_sharding_enabled: Boolean(res.data.scheduler_sharding_enabled),
+                    scheduler_shard_size: Number.isFinite(Number(res.data.scheduler_shard_size))
+                        ? Number(res.data.scheduler_shard_size)
+                        : 25,
+                    scheduler_shard_pause_sec: Number.isFinite(Number(res.data.scheduler_shard_pause_sec))
+                        ? Number(res.data.scheduler_shard_pause_sec)
+                        : 20.0,
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch stock-analysis-http config", error);
+        } finally {
+            setLoadingStockHttpConfig(false);
         }
     };
 
@@ -165,6 +207,14 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                 const [h, m] = scheduleTime.split(':').map(Number);
                 const api = (await import('../api/axios')).default;
                 await api.post('/schedule', { hour: h, minute: m });
+                await api.post('/settings/stock-analysis-http', {
+                    download_batch_size: Math.max(1, Number(stockHttpConfig.download_batch_size) || 6),
+                    batch_pause_sec: Math.max(0, Number(stockHttpConfig.batch_pause_sec) || 0),
+                    request_throttle_interval_sec: Math.max(0, Number(stockHttpConfig.request_throttle_interval_sec) || 0),
+                    scheduler_sharding_enabled: Boolean(stockHttpConfig.scheduler_sharding_enabled),
+                    scheduler_shard_size: Math.max(1, Number(stockHttpConfig.scheduler_shard_size) || 25),
+                    scheduler_shard_pause_sec: Math.max(0, Number(stockHttpConfig.scheduler_shard_pause_sec) || 0),
+                });
 
                 // Save Account Configs
                 await saveAccounts(); // New function
@@ -248,6 +298,122 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                         disabled={loadingSchedule}
                                     />
                                     <p className="text-xs text-gray-500 mt-1">Automatic analysis triggers daily at this time.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Stock Analysis HTTP</h3>
+                                <div className="bg-gray-900 p-4 rounded border border-gray-700 space-y-3">
+                                    <p className="text-xs text-gray-400">
+                                        Controls request pacing and scheduler shard behavior for yfinance-heavy stock-analysis runs.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Download Batch Size</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingStockHttpConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={stockHttpConfig.download_batch_size}
+                                                onChange={(e) =>
+                                                    setStockHttpConfig((prev) => ({
+                                                        ...prev,
+                                                        download_batch_size: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Inter-Batch Pause (sec)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                disabled={loadingStockHttpConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={stockHttpConfig.batch_pause_sec}
+                                                onChange={(e) =>
+                                                    setStockHttpConfig((prev) => ({
+                                                        ...prev,
+                                                        batch_pause_sec: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Request Throttle Interval (sec)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                disabled={loadingStockHttpConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={stockHttpConfig.request_throttle_interval_sec}
+                                                onChange={(e) =>
+                                                    setStockHttpConfig((prev) => ({
+                                                        ...prev,
+                                                        request_throttle_interval_sec: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        <div className="flex items-end">
+                                            <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={loadingStockHttpConfig}
+                                                    className="rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500"
+                                                    checked={Boolean(stockHttpConfig.scheduler_sharding_enabled)}
+                                                    onChange={(e) =>
+                                                        setStockHttpConfig((prev) => ({
+                                                            ...prev,
+                                                            scheduler_sharding_enabled: e.target.checked,
+                                                        }))
+                                                    }
+                                                />
+                                                Enable Scheduler Sharding
+                                            </label>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Scheduler Shard Size</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingStockHttpConfig || !stockHttpConfig.scheduler_sharding_enabled}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600 disabled:opacity-50"
+                                                value={stockHttpConfig.scheduler_shard_size}
+                                                onChange={(e) =>
+                                                    setStockHttpConfig((prev) => ({
+                                                        ...prev,
+                                                        scheduler_shard_size: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Scheduler Shard Pause (sec)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                disabled={loadingStockHttpConfig || !stockHttpConfig.scheduler_sharding_enabled}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600 disabled:opacity-50"
+                                                value={stockHttpConfig.scheduler_shard_pause_sec}
+                                                onChange={(e) =>
+                                                    setStockHttpConfig((prev) => ({
+                                                        ...prev,
+                                                        scheduler_shard_pause_sec: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-gray-500">
+                                        Sharding only affects daily scheduled stock-analysis runs, not manual one-click runs.
+                                    </p>
                                 </div>
                             </div>
 

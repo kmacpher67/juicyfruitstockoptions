@@ -1,5 +1,6 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta, timezone
+import time
 
 from pymongo import MongoClient
 
@@ -34,6 +35,105 @@ def _get_price_history_retention_days(default_days: int = 730) -> int:
     except Exception as exc:
         logging.warning("Scheduler: Failed reading price-history retention config: %s", exc)
         return default_days
+
+
+def _get_stock_analysis_scheduler_config() -> dict:
+    defaults = {
+        "scheduler_sharding_enabled": False,
+        "scheduler_shard_size": 25,
+        "scheduler_shard_pause_sec": 20.0,
+    }
+    try:
+        config = _get_db().system_config.find_one({"_id": "stock_analysis_http_config"}) or {}
+        merged = dict(defaults)
+        merged.update({k: v for k, v in config.items() if k in defaults})
+
+        raw_enabled = merged.get("scheduler_sharding_enabled", defaults["scheduler_sharding_enabled"])
+        if isinstance(raw_enabled, str):
+            merged["scheduler_sharding_enabled"] = raw_enabled.strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            merged["scheduler_sharding_enabled"] = bool(raw_enabled)
+
+        try:
+            merged["scheduler_shard_size"] = max(1, int(merged["scheduler_shard_size"]))
+        except (TypeError, ValueError):
+            merged["scheduler_shard_size"] = defaults["scheduler_shard_size"]
+
+        try:
+            merged["scheduler_shard_pause_sec"] = max(0.0, float(merged["scheduler_shard_pause_sec"]))
+        except (TypeError, ValueError):
+            merged["scheduler_shard_pause_sec"] = defaults["scheduler_shard_pause_sec"]
+
+        return merged
+    except Exception as exc:
+        logging.warning("Scheduler: Failed reading stock analysis sharding config: %s", exc)
+        return defaults
+
+
+def run_stock_live_comparison_scheduled():
+    """Run stock comparison in scheduler mode, optionally sharded to reduce burst traffic."""
+    config = _get_stock_analysis_scheduler_config()
+    sharding_enabled = bool(config.get("scheduler_sharding_enabled"))
+    shard_size = int(config.get("scheduler_shard_size", 25))
+    shard_pause_sec = float(config.get("scheduler_shard_pause_sec", 20.0))
+
+    if not sharding_enabled:
+        return run_stock_live_comparison(trigger="scheduled")
+
+    try:
+        from app.services.ticker_discovery import discover_and_track_tickers
+
+        discover_and_track_tickers()
+    except Exception as exc:
+        logging.error("Scheduler: auto-discovery failed before sharded stock run: %s", exc)
+
+    try:
+        from stock_live_comparison import StockLiveComparison
+
+        tickers = StockLiveComparison.get_default_tickers()
+    except Exception as exc:
+        logging.error("Scheduler: failed loading default tickers for sharded stock run: %s", exc)
+        return run_stock_live_comparison(trigger="scheduled")
+
+    if not tickers:
+        logging.info("Scheduler: stock comparison sharded run skipped because ticker list is empty.")
+        return {"status": "skipped", "reason": "no_tickers"}
+
+    if len(tickers) <= shard_size:
+        return run_stock_live_comparison(tickers=tickers, trigger="scheduled")
+
+    shards = [tickers[i : i + shard_size] for i in range(0, len(tickers), shard_size)]
+    summary = {
+        "status": "success",
+        "mode": "sharded",
+        "shard_count": len(shards),
+        "ticker_count": len(tickers),
+        "results": [],
+    }
+    for idx, shard in enumerate(shards, start=1):
+        logging.info(
+            "Scheduler: running stock comparison shard %s/%s size=%s",
+            idx,
+            len(shards),
+            len(shard),
+        )
+        shard_result = run_stock_live_comparison(tickers=shard, trigger="scheduled")
+        summary["results"].append(
+            {
+                "shard_index": idx,
+                "shard_size": len(shard),
+                "status": shard_result.get("status"),
+                "file": shard_result.get("file"),
+                "reason": shard_result.get("reason"),
+                "error": shard_result.get("error"),
+            }
+        )
+        if shard_result.get("status") == "error":
+            summary["status"] = "partial_error"
+        if idx < len(shards) and shard_pause_sec > 0:
+            time.sleep(shard_pause_sec)
+
+    return summary
 
 
 def run_price_history_retention_cleanup():
@@ -514,7 +614,7 @@ def start_scheduler():
     
     # Stock Live Comparison Job
     scheduler.add_job(
-        run_stock_live_comparison, 
+        run_stock_live_comparison_scheduled,
         trigger="cron", 
         hour=hour, 
         minute=minute,

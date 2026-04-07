@@ -987,6 +987,9 @@ class StockAnalysisHttpConfig(BaseModel):
     download_batch_size: int = 6
     batch_pause_sec: float = 8.0
     request_throttle_interval_sec: float = 1.5
+    scheduler_sharding_enabled: bool = False
+    scheduler_shard_size: int = 25
+    scheduler_shard_pause_sec: float = 20.0
 
 
 def _get_stock_analysis_http_settings(db=None):
@@ -994,6 +997,9 @@ def _get_stock_analysis_http_settings(db=None):
         "download_batch_size": 6,
         "batch_pause_sec": 8.0,
         "request_throttle_interval_sec": 1.5,
+        "scheduler_sharding_enabled": False,
+        "scheduler_shard_size": 25,
+        "scheduler_shard_pause_sec": 20.0,
     }
     client = None
     if db is None:
@@ -1018,6 +1024,27 @@ def _get_stock_analysis_http_settings(db=None):
         merged["request_throttle_interval_sec"] = max(0.0, float(merged["request_throttle_interval_sec"]))
     except (TypeError, ValueError):
         merged["request_throttle_interval_sec"] = defaults["request_throttle_interval_sec"]
+
+    raw_scheduler_enabled = merged.get("scheduler_sharding_enabled", defaults["scheduler_sharding_enabled"])
+    if isinstance(raw_scheduler_enabled, str):
+        merged["scheduler_sharding_enabled"] = raw_scheduler_enabled.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    else:
+        merged["scheduler_sharding_enabled"] = bool(raw_scheduler_enabled)
+
+    try:
+        merged["scheduler_shard_size"] = max(1, int(merged["scheduler_shard_size"]))
+    except (TypeError, ValueError):
+        merged["scheduler_shard_size"] = defaults["scheduler_shard_size"]
+
+    try:
+        merged["scheduler_shard_pause_sec"] = max(0.0, float(merged["scheduler_shard_pause_sec"]))
+    except (TypeError, ValueError):
+        merged["scheduler_shard_pause_sec"] = defaults["scheduler_shard_pause_sec"]
 
     return merged
 

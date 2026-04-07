@@ -10,6 +10,9 @@ DEFAULT_STOCK_ANALYSIS_HTTP_SETTINGS = {
     "download_batch_size": 6,
     "batch_pause_sec": 8.0,
     "request_throttle_interval_sec": 1.5,
+    "scheduler_sharding_enabled": False,
+    "scheduler_shard_size": 25,
+    "scheduler_shard_pause_sec": 20.0,
 }
 
 
@@ -22,6 +25,18 @@ def _coerce_stock_analysis_http_settings(doc: dict | None) -> dict:
     raw_throttle = source.get(
         "request_throttle_interval_sec",
         source.get("min_request_interval_sec", payload["request_throttle_interval_sec"]),
+    )
+    raw_scheduler_enabled = source.get(
+        "scheduler_sharding_enabled",
+        payload["scheduler_sharding_enabled"],
+    )
+    raw_scheduler_shard_size = source.get(
+        "scheduler_shard_size",
+        payload["scheduler_shard_size"],
+    )
+    raw_scheduler_shard_pause = source.get(
+        "scheduler_shard_pause_sec",
+        payload["scheduler_shard_pause_sec"],
     )
 
     try:
@@ -36,6 +51,26 @@ def _coerce_stock_analysis_http_settings(doc: dict | None) -> dict:
 
     try:
         payload["request_throttle_interval_sec"] = max(0.0, float(raw_throttle))
+    except (TypeError, ValueError):
+        pass
+
+    if isinstance(raw_scheduler_enabled, str):
+        payload["scheduler_sharding_enabled"] = raw_scheduler_enabled.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    else:
+        payload["scheduler_sharding_enabled"] = bool(raw_scheduler_enabled)
+
+    try:
+        payload["scheduler_shard_size"] = max(1, int(raw_scheduler_shard_size))
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        payload["scheduler_shard_pause_sec"] = max(0.0, float(raw_scheduler_shard_pause))
     except (TypeError, ValueError):
         pass
 
