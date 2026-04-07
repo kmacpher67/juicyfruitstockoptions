@@ -353,6 +353,43 @@ def test_get_ticker_news_falls_back_to_live_when_cache_missing():
     assert payload["stale_reason"] == "db_record_missing"
 
 
+def test_endpoint_freshness_tiers_apply_different_thresholds():
+    stale_20m = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    config = {
+        "_id": "data_freshness_config",
+        "price_open_min": 10,
+        "price_closed_min": 10,
+        "mixed_open_min": 30,
+        "mixed_closed_min": 30,
+        "profile_open_min": 120,
+        "profile_closed_min": 120,
+    }
+    stock_doc = {
+        "Ticker": "AMD",
+        "_last_persisted_at": stale_20m,
+        "Current Price": 190.0,
+        "Company Name": "AMD",
+        "profile": {"news": [{"title": "cached-news"}]},
+    }
+
+    with patch("app.api.routes.MongoClient") as mock_client, patch(
+        "app.api.routes._is_us_equity_market_session", return_value=True
+    ):
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = stock_doc
+        mock_db.system_config.find_one.return_value = config
+
+        ticker_payload = routes.get_ticker_analysis("AMD", bt, admin)
+        opportunity_payload = routes.get_opportunity_analysis("AMD", bt, admin)
+        news_payload = routes.get_ticker_news("AMD", bt, admin, include_meta=True)
+
+    assert ticker_payload["is_stale"] is False  # mixed tier (30m)
+    assert opportunity_payload["is_stale"] is True  # price tier (10m)
+    assert news_payload["is_stale"] is False  # profile tier (120m)
+
+
 def test_update_data_freshness_config_requires_admin():
     basic = User(username="u", role="basic", disabled=False)
     config = routes.DataFreshnessConfig()
