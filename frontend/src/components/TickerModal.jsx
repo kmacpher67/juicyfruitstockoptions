@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
 import { buildTickerHeaderModel } from './tickerModalHeader';
 import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
-import { classifyTabError, getBadgeText } from './tickerModalResilience';
+import { classifyTabError, getBadgeText, getFreshnessBannerModel } from './tickerModalResilience';
 
 const TAB_DEFAULT_STATE = {
     signals: 'idle',
@@ -201,6 +201,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         if (activeTab === 'smart_rolls') return smartRollsMeta;
         return null;
     })();
+    const freshnessBanner = getFreshnessBannerModel(activeFreshness);
 
     const renderTabPanel = (tab, view) => {
         const state = tabLoadState[tab];
@@ -318,11 +319,9 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
 
                 {/* Content */}
                 <div className="p-6 overflow-y-auto flex-1 bg-gray-900 custom-scrollbar">
-                    {activeFreshness && (
-                        <div className={`mb-4 rounded border px-3 py-2 text-xs ${activeFreshness.is_stale ? 'border-yellow-700 bg-yellow-950/40 text-yellow-200' : 'border-emerald-700 bg-emerald-950/40 text-emerald-200'}`}>
-                            {activeFreshness.is_stale
-                                ? `Stale DB snapshot (${activeFreshness.stale_reason || 'stale'}).${activeFreshness.refresh_queued ? ' Refresh queued.' : ' Refresh pending.'}`
-                                : `Fresh DB snapshot${activeFreshness.last_updated ? ` as of ${activeFreshness.last_updated}` : ''}.`}
+                    {freshnessBanner && (
+                        <div className={`mb-4 rounded border px-3 py-2 text-xs ${freshnessBanner.tone === 'stale' ? 'border-yellow-700 bg-yellow-950/40 text-yellow-200' : 'border-emerald-700 bg-emerald-950/40 text-emerald-200'}`}>
+                            {freshnessBanner.text}
                         </div>
                     )}
                     {loading ? (

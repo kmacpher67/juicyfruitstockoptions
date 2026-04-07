@@ -45,6 +45,20 @@ def test_evaluate_stock_data_freshness_respects_system_config_threshold_override
     assert freshness["is_stale"] is False
 
 
+def test_is_us_equity_market_session_closed_on_holiday():
+    # July 4, 2025 is an NYSE holiday (Friday).
+    holiday_utc = datetime(2025, 7, 4, 15, 0, tzinfo=timezone.utc)  # 11:00 ET
+    assert routes._is_us_equity_market_session(holiday_utc) is False  # pylint: disable=protected-access
+
+
+def test_is_us_equity_market_session_uses_early_close_window():
+    # Day after Thanksgiving (Nov 28, 2025) is an early-close day (1:00 PM ET).
+    before_close_utc = datetime(2025, 11, 28, 17, 0, tzinfo=timezone.utc)  # 12:00 ET
+    after_close_utc = datetime(2025, 11, 28, 19, 0, tzinfo=timezone.utc)   # 14:00 ET
+    assert routes._is_us_equity_market_session(before_close_utc) is True  # pylint: disable=protected-access
+    assert routes._is_us_equity_market_session(after_close_utc) is False  # pylint: disable=protected-access
+
+
 def test_get_ticker_analysis_marks_stale_and_queues_refresh_task():
     stale_iso = (datetime.now(timezone.utc) - timedelta(days=4)).isoformat()
     bt = BackgroundTasks()

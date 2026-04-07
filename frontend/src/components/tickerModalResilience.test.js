@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { classifyTabError, getBadgeText, TAB_ERROR_REASON } from './tickerModalResilience.js';
+import { classifyTabError, getBadgeText, TAB_ERROR_REASON, getFreshnessBannerModel } from './tickerModalResilience.js';
 
 // ---------------------------------------------------------------------------
 // classifyTabError
@@ -166,4 +166,28 @@ test('scenario: per-request timeout error produces timeout badge text', () => {
     const reason = classifyTabError(false, timeoutErr);
     assert.equal(reason, TAB_ERROR_REASON.TIMEOUT);
     assert.equal(getBadgeText(reason), 'Timed out — data unavailable');
+});
+
+test('getFreshnessBannerModel: returns stale banner text with queued marker', () => {
+    const model = getFreshnessBannerModel({
+        is_stale: true,
+        stale_reason: 'older_than_30m',
+        refresh_queued: true,
+    });
+    assert.equal(model.tone, 'stale');
+    assert.equal(model.text, 'Stale DB snapshot (older_than_30m). Refresh queued.');
+});
+
+test('getFreshnessBannerModel: returns fresh banner text with timestamp', () => {
+    const model = getFreshnessBannerModel({
+        is_stale: false,
+        last_updated: '2026-04-07T13:35:00Z',
+    });
+    assert.equal(model.tone, 'fresh');
+    assert.equal(model.text, 'Fresh DB snapshot as of 2026-04-07T13:35:00Z.');
+});
+
+test('getFreshnessBannerModel: returns null when freshness metadata is absent', () => {
+    assert.equal(getFreshnessBannerModel(null), null);
+    assert.equal(getFreshnessBannerModel({}), null);
 });

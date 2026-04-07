@@ -261,9 +261,16 @@ def get_nav_history_stats(account_id: str | None = None):
     if has_live_snapshot:
         live_nav = live_snapshot.get("total_nav")
         stats["current_nav_rt"] = live_nav
-        stats["data_source"] = "tws_live"
-        stats["last_updated"] = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
-        stats["last_updated_rt"] = stats["last_updated"]
+        live_last_updated = live_snapshot.get("last_tws_update") or live_snapshot.get("timestamp")
+        if live_is_recent:
+            stats["data_source"] = "tws_live"
+            stats["last_updated"] = live_last_updated
+        elif s_1d:
+            # Source precedence fallback: stale intraday snapshots should not override EOD truth.
+            stats["last_updated"] = s_1d.get("_report_date")
+        else:
+            stats["last_updated"] = live_last_updated
+        stats["last_updated_rt"] = live_last_updated
         stats["rt_unrealized_pnl"] = live_snapshot.get("unrealized_pnl")
         stats["rt_realized_pnl"] = live_snapshot.get("realized_pnl")
         stats["timeframe_meta"]["rt"]["end_date"] = stats["last_updated_rt"]

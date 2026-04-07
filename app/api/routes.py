@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import timedelta, datetime, timezone
+from datetime import date, timedelta, datetime, timezone
 import math
 import re
 from typing import Annotated, List
@@ -97,13 +97,92 @@ def _sanitize_for_json(value):
     return value
 
 
+def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
+    first = date(year, month, 1)
+    first_delta = (weekday - first.weekday()) % 7
+    day = 1 + first_delta + ((n - 1) * 7)
+    return date(year, month, day)
+
+
+def _last_weekday_of_month(year: int, month: int, weekday: int) -> date:
+    if month == 12:
+        cursor = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        cursor = date(year, month + 1, 1) - timedelta(days=1)
+    while cursor.weekday() != weekday:
+        cursor -= timedelta(days=1)
+    return cursor
+
+
+def _observe_fixed_holiday(d: date) -> date:
+    if d.weekday() == 5:  # Saturday observed Friday
+        return d - timedelta(days=1)
+    if d.weekday() == 6:  # Sunday observed Monday
+        return d + timedelta(days=1)
+    return d
+
+
+def _easter_sunday(year: int) -> date:
+    # Anonymous Gregorian algorithm.
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _us_equity_market_holidays(year: int) -> set[date]:
+    good_friday = _easter_sunday(year) - timedelta(days=2)
+    return {
+        _observe_fixed_holiday(date(year, 1, 1)),          # New Year's Day
+        _nth_weekday_of_month(year, 1, 0, 3),              # MLK Day
+        _nth_weekday_of_month(year, 2, 0, 3),              # Presidents Day
+        good_friday,                                        # Good Friday
+        _last_weekday_of_month(year, 5, 0),                # Memorial Day
+        _observe_fixed_holiday(date(year, 6, 19)),         # Juneteenth
+        _observe_fixed_holiday(date(year, 7, 4)),          # Independence Day
+        _nth_weekday_of_month(year, 9, 0, 1),              # Labor Day
+        _nth_weekday_of_month(year, 11, 3, 4),             # Thanksgiving
+        _observe_fixed_holiday(date(year, 12, 25)),        # Christmas
+    }
+
+
+def _us_equity_early_close_dates(year: int) -> set[date]:
+    thanksgiving = _nth_weekday_of_month(year, 11, 3, 4)
+    day_after_thanksgiving = thanksgiving + timedelta(days=1)
+    july_3 = date(year, 7, 3)
+    christmas_eve = date(year, 12, 24)
+    early_closes = set()
+    if day_after_thanksgiving.weekday() < 5:
+        early_closes.add(day_after_thanksgiving)
+    if july_3.weekday() < 5:
+        early_closes.add(july_3)
+    if christmas_eve.weekday() < 5:
+        early_closes.add(christmas_eve)
+    return early_closes
+
+
 def _is_us_equity_market_session(now_utc: datetime | None = None) -> bool:
     now_utc = now_utc or datetime.now(timezone.utc)
     et_now = now_utc.astimezone(ZoneInfo("America/New_York"))
     if et_now.weekday() >= 5:
         return False
+    et_date = et_now.date()
+    if et_date in _us_equity_market_holidays(et_date.year):
+        return False
     open_et = et_now.replace(hour=9, minute=30, second=0, microsecond=0)
-    close_et = et_now.replace(hour=16, minute=0, second=0, microsecond=0)
+    close_hour = 13 if et_date in _us_equity_early_close_dates(et_date.year) else 16
+    close_et = et_now.replace(hour=close_hour, minute=0, second=0, microsecond=0)
     return open_et <= et_now <= close_et
 
 

@@ -58,3 +58,23 @@ export const getBadgeText = (reason) => {
             return 'Data unavailable';
     }
 };
+
+/**
+ * Build standardized freshness banner content from API freshness metadata.
+ *
+ * @param {object|null|undefined} freshness
+ * @returns {{ tone: 'stale' | 'fresh', text: string } | null}
+ */
+export const getFreshnessBannerModel = (freshness) => {
+    if (!freshness || typeof freshness !== 'object' || !('is_stale' in freshness)) return null;
+    if (freshness.is_stale) {
+        return {
+            tone: 'stale',
+            text: `Stale DB snapshot (${freshness.stale_reason || 'stale'}).${freshness.refresh_queued ? ' Refresh queued.' : ' Refresh pending.'}`,
+        };
+    }
+    return {
+        tone: 'fresh',
+        text: `Fresh DB snapshot${freshness.last_updated ? ` as of ${freshness.last_updated}` : ''}.`,
+    };
+};
