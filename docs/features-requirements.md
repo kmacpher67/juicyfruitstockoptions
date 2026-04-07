@@ -107,11 +107,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Settings Management**:
     - [ ] Admin defaults vs User overrides.
     - [ ] Enforce "minimum safe settings" that users cannot override.
+    - [ ] Each user can set their own Timeout for Authentication logout (Admin sets the default to 30 minutes, but can be changed)
     - [ ] Define Configuration Schema (using Pydantic).
     - [ ] Create Frontend UI for editing allowed settings.
     - [x] **setup-config-ui-stock-analysis-http-001**: Dashboard Settings should expose stock-analysis HTTP pacing and scheduler-sharding controls for admin users and include a clear enabled/disabled status indicator for sharding. *(Completed 2026-04-07: Settings modal includes stock-analysis HTTP and scheduler sharding controls plus explicit `Sharding Status: Enabled/Disabled` indicator.)*
     - [ ] **User Preferences**:
         - [ ] Default time view on the `?view=TRADES` page.
+        - [ ] Each user can set their own Timeout for Authentication logout
         - [ ] Grid density and column visibility preferences for data-heavy tables.
         - [ ] Theme preference support when/if multiple themes are intentionally supported.
     - [ ] **Operator / Admin Controls**:
@@ -340,10 +342,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [x] **Backend API — Smart Rolls**: `GET /api/analysis/rolls/{symbol}` — returns roll suggestions with scoring (`routes.py` L816).
         - [x] **Backend API — Signals**: `GET /api/analysis/signals/{symbol}` — returns Kalman + Markov analysis (`routes.py` L1038).
         - [x] **Frontend — TickerModal UI**: 6 tabs (Analytics, Signals, Opportunity, Optimizer, Price Action, Smart Rolls) with loading spinner and dark theme. `TickerModal.jsx`.
+        - [x] **Frontend — TickerModal Copy Info**: Add `COPY INFO` action in detail modal header to copy header context (ticker/descriptor/price/change/last update) plus currently active tab details (Analytics/Signals/Opportunity/Optimizer/Price Action/Smart Rolls/Profile). *(Completed 2026-04-07: `TickerModal.jsx` adds tab-aware clipboard payload builder and copy feedback states.)*
         - [x] **Frontend — StockGrid Integration**: Ticker column click handler passes ticker to Dashboard state → opens modal. `StockGrid.jsx` + `Dashboard.jsx`.
         - [x] **Frontend — PortfolioGrid Integration**: Ticker click in portfolio view also opens the same TickerModal. `PortfolioGrid.jsx`.
         - [x] **All ~40 Columns in Analytics Tab**: The Analytics tab currently shows a subset of data. Expand to surface all ~40 analysis columns from the stock analysis spreadsheet. *(Completed 2026-04-03: analytics tab renders full stock-analysis field groups via shared presentation config.)*
     - [x] **Stock Analysis — Feature Docs**: See [Ticker Click Feature Overview](features/stock_analysis_ticker_click.md) and [Stock Analysis Recap](features/stock_analysis_feature_recap.md).
+    - [ ] **Stock Analysis-Analytics Layout Refinement**: Refine Analytics tab information layout for readability and scan speed — clearer section hierarchy, improved spacing/alignment, consistent label/value widths, and better grouping for high-priority metrics vs supporting metrics.
+    - [ ] **Stock Analysis-Copy Output Enhancement**: Refine `COPY INFO` output layout so copied text is easier to share/read — consistent section headers, ordered fields, cleaner spacing, normalized numeric/date formatting, and tab-specific summary blocks.
     - [ ] **Stock Analysis-Analytics**: Deeper technical analysis drill-down in the Analytics tab — IV surface visualization, Greeks heatmap, historical metrics comparison, and all moving average highlight deltas. Related: [SMA/EMA/HMA/TSMOM Guide](features/SMA-EMA-HMA-TSMON.md), [Greeks Data Ingestion](learning/greeks-data-ingestion.md).
     - [ ] **Stock Analysis-Signals**: Expand Signals tab beyond Kalman/Markov to include news sentiment signals ([LLM Macro Targeting](learning/llm-macro-news-targeting.md)), macro impact scoring, and TSMOM trend alerts. Related: [Kalman Filters](learning/kalman-filters.md), [Markov Chains](learning/markov-chains-signals.md).
     - [ ] **Stock Analysis-Opportunities**: Surface actionable Buy/Sell recommendations in Opportunity tab — dividend capture candidates, covered call premium opportunities, and gap share alerts. Integrate with `DividendScanner` and `ExpirationScanner`. Related: [Opportunity Scoring](learning/opportunity-scoring.md), [Opportunity Persistence & Grading](learning/opportunity-persistence-and-grading.md).

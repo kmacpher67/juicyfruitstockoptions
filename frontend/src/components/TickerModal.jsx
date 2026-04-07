@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
+import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2, Copy, Check } from 'lucide-react';
 import { buildTickerHeaderModel } from './tickerModalHeader';
 import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
 import { classifyTabError, getBadgeText, getFreshnessBannerModel } from './tickerModalResilience';
@@ -19,6 +19,42 @@ const TAB_ERROR_REASON_DEFAULT = {
     smart_rolls: null,
 };
 
+const TAB_LABELS = {
+    analytics: 'Analytics',
+    signals: 'Signals',
+    opportunity: 'Opportunity',
+    optimizer: 'Optimizer',
+    price_action: 'Price Action',
+    smart_rolls: 'Smart Rolls',
+    profile: 'Profile',
+};
+
+const formatCopyValue = (value) => {
+    if (value === undefined || value === null || value === '') return '-';
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map((item) => formatCopyValue(item)).join(', ');
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+};
+
+const copyViaFallback = (text) => {
+    if (typeof document === 'undefined') return false;
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+};
+
 const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('analytics');
     const [loading, setLoading] = useState(false);
@@ -31,7 +67,9 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [signalData, setSignalData] = useState(null);
     const [tabLoadState, setTabLoadState] = useState(TAB_DEFAULT_STATE);
     const [tabErrorReasons, setTabErrorReasons] = useState(TAB_ERROR_REASON_DEFAULT);
+    const [copyStatus, setCopyStatus] = useState('idle');
     const requestSeq = useRef(0);
+    const copyResetTimer = useRef(null);
 
     // Reset state when ticker changes
     useEffect(() => {
@@ -47,9 +85,18 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setTabLoadState(TAB_DEFAULT_STATE);
             setTabErrorReasons(TAB_ERROR_REASON_DEFAULT);
             setActiveTab('analytics');
+            setCopyStatus('idle');
             fetchData();
         }
     }, [isOpen, ticker]);
+
+    useEffect(() => {
+        return () => {
+            if (copyResetTimer.current) {
+                clearTimeout(copyResetTimer.current);
+            }
+        };
+    }, []);
 
     const fetchData = async () => {
         setLoading(true);
@@ -223,6 +270,201 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     if (!isOpen) return null;
 
     const headerModel = buildTickerHeaderModel({ ticker, tickerData });
+    const buildCopyText = () => {
+        const lines = [
+            'Ticker Detail Snapshot',
+            `Captured At: ${new Date().toLocaleString()}`,
+            `Tab: ${TAB_LABELS[activeTab] || activeTab}`,
+            `Ticker: ${headerModel.ticker}`,
+            `Descriptor: ${headerModel.descriptor || '-'}`,
+            `Price: ${headerModel.priceText || '-'}`,
+            `Change: ${headerModel.changeText || '-'}`,
+            `Last Update: ${headerModel.lastUpdateText || '-'}`,
+            '',
+            `${TAB_LABELS[activeTab] || activeTab} Details`,
+        ];
+
+        if (activeTab === 'analytics') {
+            if (!tickerData?.found || !tickerData?.data) {
+                lines.push('No data found for this ticker.');
+                return lines.join('\n');
+            }
+            const stock = tickerData.data;
+            ANALYTICS_FIELD_GROUPS.forEach((group) => {
+                lines.push(`[${group.title}]`);
+                group.fields.forEach(([label, field]) => {
+                    lines.push(`${label}: ${formatCopyValue(stock?.[field])}`);
+                });
+                lines.push('');
+            });
+            lines.push('[Price Action Snapshot]');
+            lines.push(JSON.stringify(stock?.['Price Action'] || {}, null, 2));
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'signals') {
+            if (!signalData) {
+                lines.push('No signal data available.');
+                return lines.join('\n');
+            }
+            const { advice, kalman, markov } = signalData;
+            lines.push(`Recommendation: ${formatCopyValue(advice?.recommendation)}`);
+            lines.push(`Reason: ${formatCopyValue(advice?.reason)}`);
+            lines.push(`Confidence: ${formatCopyValue(advice?.confidence)}`);
+            lines.push('');
+            lines.push('[Kalman]');
+            lines.push(`Signal: ${formatCopyValue(kalman?.signal)}`);
+            lines.push(`Trend Mean: ${formatCopyValue(kalman?.kalman_mean)}`);
+            lines.push('');
+            lines.push('[Markov]');
+            lines.push(`Current State: ${formatCopyValue(markov?.current_state)}`);
+            if (markov?.transitions && typeof markov.transitions === 'object') {
+                Object.entries(markov.transitions).forEach(([state, prob]) => {
+                    lines.push(`${state}: ${formatCopyValue(prob)}`);
+                });
+            }
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'opportunity') {
+            if (!opportunityData) {
+                lines.push('No opportunity data available.');
+                return lines.join('\n');
+            }
+            lines.push(`Juicy Score: ${formatCopyValue(opportunityData.juicy_score)}`);
+            lines.push('');
+            lines.push('[Drivers]');
+            if (Array.isArray(opportunityData.reasons) && opportunityData.reasons.length > 0) {
+                opportunityData.reasons.forEach((reason) => lines.push(`- ${formatCopyValue(reason)}`));
+            } else {
+                lines.push('- None');
+            }
+            lines.push('');
+            lines.push('[Risks]');
+            if (Array.isArray(opportunityData.risks) && opportunityData.risks.length > 0) {
+                opportunityData.risks.forEach((risk) => {
+                    lines.push(`- ${formatCopyValue(risk?.type)} (${formatCopyValue(risk?.level)}): ${formatCopyValue(risk?.message)}`);
+                });
+            } else {
+                lines.push('- None');
+            }
+            lines.push('');
+            lines.push('[Metrics]');
+            Object.entries(opportunityData.metrics || {}).forEach(([metric, value]) => {
+                lines.push(`${metric}: ${formatCopyValue(value)}`);
+            });
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'optimizer') {
+            if (!optimizerData || optimizerData.length === 0) {
+                lines.push('No optimization strategies found.');
+                return lines.join('\n');
+            }
+            optimizerData.forEach((strat, index) => {
+                lines.push(`[Strategy ${index + 1}]`);
+                lines.push(`Strategy: ${formatCopyValue(strat?.strategy)}`);
+                lines.push(`Action: ${formatCopyValue(strat?.action)}`);
+                lines.push(`Reason: ${formatCopyValue(strat?.reason)}`);
+                lines.push(`Strike Target: ${formatCopyValue(strat?.strike_target)}`);
+                lines.push('');
+            });
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'price_action') {
+            const priceAction = tickerData?.data?.['Price Action'];
+            if (!priceAction) {
+                lines.push('No Price Action data available.');
+                return lines.join('\n');
+            }
+            lines.push(`Trend: ${formatCopyValue(priceAction.trend)}`);
+            lines.push('');
+            lines.push('[Recent Market Structure]');
+            (priceAction.structure || []).slice(-4).reverse().forEach((point) => {
+                lines.push(`${formatCopyValue(point?.label)} | value=${formatCopyValue(point?.value)} | date=${formatCopyValue(point?.date)}`);
+            });
+            lines.push('');
+            lines.push('[Order Blocks]');
+            (priceAction.order_blocks || []).slice(-3).reverse().forEach((orderBlock) => {
+                lines.push(`${formatCopyValue(orderBlock?.type)} | ${formatCopyValue(orderBlock?.bottom)}-${formatCopyValue(orderBlock?.top)} | bos_index=${formatCopyValue(orderBlock?.associated_bos_index)}`);
+            });
+            lines.push('');
+            lines.push('[Fair Value Gaps]');
+            (priceAction.fvgs || []).slice(-3).reverse().forEach((fvg) => {
+                lines.push(`${formatCopyValue(fvg?.type)} | ${formatCopyValue(fvg?.bottom)}-${formatCopyValue(fvg?.top)} | date=${formatCopyValue(fvg?.date)}`);
+            });
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'smart_rolls') {
+            if (!smartRollsData || smartRollsData.length === 0) {
+                lines.push('No smart roll opportunities found.');
+                return lines.join('\n');
+            }
+            smartRollsData.forEach((roll, index) => {
+                lines.push(`[Roll ${index + 1}]`);
+                lines.push(`Roll Type: ${formatCopyValue(roll?.roll_type)}`);
+                lines.push(`Type: ${formatCopyValue(roll?.type)}`);
+                lines.push(`Strike: ${formatCopyValue(roll?.strike)}`);
+                lines.push(`Expiration: ${formatCopyValue(roll?.expiration)}`);
+                lines.push(`Net Credit: ${formatCopyValue(roll?.net_credit)}`);
+                lines.push(`Cost To Close: ${formatCopyValue(roll?.cost_to_close)}`);
+                lines.push(`Score: ${formatCopyValue(roll?.score)}`);
+                lines.push(`Reasons: ${formatCopyValue(roll?.reasons)}`);
+                lines.push('');
+            });
+            return lines.join('\n');
+        }
+
+        if (activeTab === 'profile') {
+            const profile = tickerData?.profile;
+            if (!profile) {
+                lines.push('Profile data unavailable. Run Live Comparison to populate.');
+                return lines.join('\n');
+            }
+            lines.push(`Sector: ${formatCopyValue(profile.sector)}`);
+            lines.push(`Industry: ${formatCopyValue(profile.industry)}`);
+            lines.push(`Style: ${formatCopyValue(profile.style)}`);
+            lines.push(`Category: ${formatCopyValue(profile.category)}`);
+            lines.push(`Exchange: ${formatCopyValue(profile.exchange)}`);
+            lines.push(`Country: ${formatCopyValue(profile.country)}`);
+            lines.push(`Employees: ${formatCopyValue(profile.employees)}`);
+            lines.push(`Recommendation: ${formatCopyValue(profile.recommendation)}`);
+            lines.push(`Analyst Opinions: ${formatCopyValue(profile.analyst_opinions)}`);
+            lines.push(`Description: ${formatCopyValue(profile.description)}`);
+            if (Array.isArray(profile.news) && profile.news.length > 0) {
+                lines.push('');
+                lines.push('[Recent News]');
+                profile.news.forEach((item, index) => {
+                    lines.push(`${index + 1}. ${formatCopyValue(item?.title)} | ${formatCopyValue(item?.publisher)} | ${formatCopyValue(item?.published_at)} | ${formatCopyValue(item?.link)}`);
+                });
+            }
+            return lines.join('\n');
+        }
+
+        lines.push('No details available for this tab.');
+        return lines.join('\n');
+    };
+
+    const handleCopyInfo = async () => {
+        const payload = buildCopyText();
+        try {
+            let copied = false;
+            if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(payload);
+                copied = true;
+            } else {
+                copied = copyViaFallback(payload);
+            }
+            if (!copied) throw new Error('Clipboard write failed');
+            setCopyStatus('copied');
+        } catch {
+            setCopyStatus('error');
+        }
+        if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+        copyResetTimer.current = setTimeout(() => setCopyStatus('idle'), 1800);
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
@@ -266,9 +508,25 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             <span className="text-sm text-gray-500">Loading price...</span>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-                        <X className="w-6 h-6" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleCopyInfo}
+                            className={`px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider border transition-colors flex items-center gap-1.5 ${copyStatus === 'copied'
+                                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200'
+                                : copyStatus === 'error'
+                                    ? 'bg-red-900/50 border-red-500 text-red-200'
+                                    : 'bg-gray-800 border-gray-600 text-gray-200 hover:text-white hover:border-gray-400'
+                                }`}
+                            title="Copy header and active tab details"
+                            aria-label="Copy info"
+                        >
+                            {copyStatus === 'copied' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Copy Failed' : 'Copy Info'}
+                        </button>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs */}
