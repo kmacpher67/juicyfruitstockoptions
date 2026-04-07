@@ -910,6 +910,47 @@ def test_get_portfolio_holdings_defaults_pending_fields_when_no_active_orders(cl
             assert row["pending_roll_contracts"] == 0.0
 
 
+def test_get_portfolio_holdings_ignores_flex_order_history_for_live_pending_effect(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        mock_holdings = [
+            {"symbol": "AMD", "secType": "STK", "account_id": "U1", "quantity": 200, "market_price": 110.0},
+            {"symbol": "AMD", "secType": "OPT", "account_id": "U1", "quantity": -1, "underlying_symbol": "AMD", "right": "C", "strike": 115.0, "expiry": "2026-04-18"},
+        ]
+        # Flex row intentionally looks "active", but should not be treated as live pending intent.
+        mock_orders = [
+            {
+                "source": "flex_order_history",
+                "account_id": "U1",
+                "symbol": "AMD   260425C00120000",
+                "underlying_symbol": "AMD",
+                "secType": "OPT",
+                "action": "SELL",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "multiplier": "100",
+                "right": "C",
+                "strike": 120.0,
+            }
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.ibkr_orders.find.return_value = mock_orders
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        stock_row = next(h for h in response.json() if h["security_type"] == "STK")
+
+        assert stock_row["pending_order_count"] == 0
+        assert stock_row["pending_order_effect"] == "none"
+
+
 def test_get_portfolio_holdings_marks_exact_account_underlying_200_shares_and_2_short_calls_as_covered(client):
     with patch("app.api.routes.MongoClient") as mock_mongo_cls:
         mock_client = MagicMock()

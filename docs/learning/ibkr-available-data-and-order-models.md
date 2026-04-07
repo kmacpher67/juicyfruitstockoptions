@@ -268,14 +268,14 @@ The second layer is a projection, not a replacement for the first.
 5. Add detail-drawer order facts and focus filters.
 6. Add Flex order-history ingestion only if the configured Flex reports actually provide usable order rows.
 
-Current implementation note (2026-04-02):
+Current implementation note (updated 2026-04-07):
 
 - `query_id_orders` is now exposed in IBKR Integration settings.
-- Flex order-history sync path is intentionally stubbed pending real report creation and parser mapping.
+- Flex order-history sync path now includes conservative CSV/XML parsing and upserts audit rows as `source: flex_order_history` (historical/backfill context).
 - Orders UI now includes manual refresh, view-active auto polling, and a stale-feed indicator keyed off `last_order_update`.
 - TWS order reconciliation marks previously persisted but no-longer-open orders as `Inactive` once a full open-order snapshot completes (helps clear stale BAG/combo parent remnants).
-- BAG leg decomposition is still a planned follow-up; current Orders view shows BAG parents but not detailed combo legs.
-- Action needed: create the Flex Orders report/query in IBKR, set the new Query ID, then implement/verify parser coverage for `source: flex_order_history`.
+- BAG leg decomposition + BAG visibility controls are implemented in `?view=ORDERS`.
+- Action needed: create/verify the account's Flex Orders report in IBKR and validate parser field aliases against real report output (tight mapping + runtime verification).
 
 ---
 
@@ -295,3 +295,4 @@ Current implementation note (2026-04-02):
 | 2026-04-02 | **CREATED** | Documented IBKR source availability and proposed normalized models for pending orders and coverage intent. |
 | 2026-04-02 | **UPDATED** | Added Orders view expectations and documented `query_id_orders` Flex ingestion stub and required setup follow-ups. |
 | 2026-04-02 | **UPDATED** | Added BAG/combo interpretation guidance, current Juicy Fruit BAG limitation, and decomposition follow-up direction. |
+| 2026-04-07 | **UPDATED** | Documented conservative Flex order-history parser ingestion (`source=flex_order_history`), BAG UI completion, and remaining Flex report verification step. |

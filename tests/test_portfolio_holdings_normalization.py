@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+from datetime import datetime, timezone, timedelta
 
 from app.api.routes import _load_portfolio_holdings_rows, _merge_portfolio_rows, _normalize_portfolio_row, _portfolio_row_key
 
@@ -109,6 +110,7 @@ def test_portfolio_row_key_matches_flex_and_tws_option_shapes():
 
 
 def test_merge_portfolio_rows_prefers_live_values_without_losing_flex_fields():
+    fresh_tws_ts = datetime.now(timezone.utc).isoformat()
     flex_row = _normalize_portfolio_row(
         {
             "symbol": "AMD  260402C00202500",
@@ -135,7 +137,7 @@ def test_merge_portfolio_rows_prefers_live_values_without_losing_flex_fields():
             "market_price": 2.95,
             "market_value": -295.0,
             "unrealized_pnl": 180.0,
-            "last_tws_update": "2026-03-31T14:35:00Z",
+            "last_tws_update": fresh_tws_ts,
             "last_trade_date": "20260402",
             "right": "C",
             "strike": 202.5,
@@ -150,6 +152,51 @@ def test_merge_portfolio_rows_prefers_live_values_without_losing_flex_fields():
     assert merged["unrealized_pnl"] == 180.0
     assert merged["cost_basis"] == 4.75
     assert merged["display_symbol"] == "AMD 2026-04-02 202.5 Call"
+    assert merged["merged_sources"] == ["flex", "tws"]
+
+
+def test_merge_portfolio_rows_keeps_flex_values_when_tws_snapshot_is_stale():
+    stale_tws_ts = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    flex_row = _normalize_portfolio_row(
+        {
+            "symbol": "AMD  260402C00202500",
+            "asset_class": "OPT",
+            "account_id": "U110638",
+            "quantity": -1,
+            "cost_basis": 4.75,
+            "market_price": 3.2,
+            "market_value": -320.0,
+            "unrealized_pnl": 155.0,
+            "expiry": "2026-04-02",
+            "right": "C",
+            "strike": 202.5,
+            "source": "flex",
+        }
+    )
+    tws_row = _normalize_portfolio_row(
+        {
+            "symbol": "AMD",
+            "local_symbol": "AMD   260402C00202500",
+            "secType": "OPT",
+            "account": "U110638",
+            "position": -1,
+            "market_price": 2.95,
+            "market_value": -295.0,
+            "unrealized_pnl": 180.0,
+            "last_tws_update": stale_tws_ts,
+            "last_trade_date": "20260402",
+            "right": "C",
+            "strike": 202.5,
+            "source": "tws",
+        }
+    )
+
+    merged = _merge_portfolio_rows(flex_row, tws_row)
+
+    assert merged["market_price"] == 3.2
+    assert merged["market_value"] == -320.0
+    assert merged["unrealized_pnl"] == 155.0
+    assert merged["cost_basis"] == 4.75
     assert merged["merged_sources"] == ["flex", "tws"]
 
 

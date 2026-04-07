@@ -123,6 +123,40 @@ def test_get_open_orders_active_only_false_includes_filled_rows():
     assert payload[0]["last_price"] == 200.0
 
 
+def test_get_open_orders_active_only_true_queries_tws_source_only():
+    with patch("app.api.routes.MongoClient") as mock_mongo:
+        mock_db = MagicMock()
+        mock_mongo.return_value.get_default_database.return_value = mock_db
+        mock_db.ibkr_orders.find.return_value = []
+
+        asyncio.run(
+            routes.get_open_orders(
+                current_user=User(username="u", role="admin", disabled=False),
+                active_only=True,
+            )
+        )
+
+    query = mock_db.ibkr_orders.find.call_args[0][0]
+    assert query == {"source": {"$in": ["tws_open_order"]}}
+
+
+def test_get_open_orders_active_only_false_queries_tws_and_flex_sources():
+    with patch("app.api.routes.MongoClient") as mock_mongo:
+        mock_db = MagicMock()
+        mock_mongo.return_value.get_default_database.return_value = mock_db
+        mock_db.ibkr_orders.find.return_value = []
+
+        asyncio.run(
+            routes.get_open_orders(
+                current_user=User(username="u", role="admin", disabled=False),
+                active_only=False,
+            )
+        )
+
+    query = mock_db.ibkr_orders.find.call_args[0][0]
+    assert query == {"source": {"$in": ["tws_open_order", "flex_order_history"]}}
+
+
 def test_get_order_live_status_requires_portfolio_access():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(routes.get_order_live_status(current_user=User(username="u", role="basic", disabled=False)))

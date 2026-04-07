@@ -1,6 +1,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from app.services.ibkr_service import fetch_flex_report, parse_and_store_holdings, parse_and_store_trades
+from app.services.ibkr_service import (
+    fetch_flex_report,
+    parse_and_store_holdings,
+    parse_and_store_trades,
+    parse_and_store_order_history,
+)
 
 # Sample XML Data
 SAMPLE_HOLDINGS_XML = """
@@ -79,3 +84,52 @@ def test_parse_and_store_trades(mock_mongo):
     assert query["trade_id"] == "T999"
     assert update["$set"]["symbol"] == "TSLA"
     assert update["$set"]["price"] == 200.0
+
+
+@patch("app.services.ibkr_service.MongoClient")
+def test_parse_and_store_order_history_csv_upserts_flex_order_history_rows(mock_mongo):
+    mock_db = mock_mongo.return_value.get_default_database.return_value
+    mock_collection = mock_db.ibkr_orders
+    csv_payload = """Symbol,Buy/Sell,Status,ClientAccountID,OrderID,PermID,Quantity,FilledQuantity,RemainingQuantity,SecType,Put/Call,Strike,Expiry,LimitPrice,DateTime
+AMD   260417C00120000,SELL,Filled,U1,1001,9001,1,1,0,OPT,C,120,20260417,1.25,2026-04-07 10:00:00
+"""
+
+    parse_and_store_order_history(csv_payload.encode("utf-8"))
+
+    assert mock_collection.update_one.called
+    query = mock_collection.update_one.call_args[0][0]
+    update = mock_collection.update_one.call_args[0][1]["$set"]
+    assert query["source"] == "flex_order_history"
+    assert update["source"] == "flex_order_history"
+    assert update["is_historical"] is True
+    assert update["symbol"] == "AMD   260417C00120000"
+    assert update["underlying_symbol"] == "AMD"
+    assert update["action"] == "SELL"
+    assert update["status"] == "Filled"
+
+
+@patch("app.services.ibkr_service.MongoClient")
+def test_parse_and_store_order_history_xml_upserts_flex_order_history_rows(mock_mongo):
+    mock_db = mock_mongo.return_value.get_default_database.return_value
+    mock_collection = mock_db.ibkr_orders
+    xml_payload = b"""
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement>
+      <Orders>
+        <Order accountId="U2" symbol="MSFT  260516C00130000" buySell="BUY" orderStatus="Cancelled" orderId="777" quantity="2" filledQuantity="2" secType="OPT" putCall="C" strike="130" expiry="20260516" />
+      </Orders>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    parse_and_store_order_history(xml_payload)
+
+    assert mock_collection.update_one.called
+    update = mock_collection.update_one.call_args[0][1]["$set"]
+    assert update["source"] == "flex_order_history"
+    assert update["symbol"] == "MSFT  260516C00130000"
+    assert update["underlying_symbol"] == "MSFT"
+    assert update["action"] == "BUY"
+    assert update["status"] == "Cancelled"

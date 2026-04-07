@@ -481,6 +481,10 @@ def _normalize_order_action(raw_value):
 
 
 def _is_active_pending_order(row: dict) -> bool:
+    if str(row.get("source") or "").strip() == "flex_order_history":
+        # Flex order-history rows are audit/backfill context, not live pending intent.
+        return False
+
     status = str(row.get("status") or "").strip()
     if status in {"Filled", "Cancelled", "ApiCancelled", "Inactive"}:
         return False
@@ -592,7 +596,8 @@ def _market_context_for_ticker(db, ticker: str | None) -> dict:
 
 def _load_pending_order_summaries(db, coverage_by_account) -> dict[tuple[str, str], dict]:
     try:
-        orders = list(db.ibkr_orders.find({"source": {"$in": ["tws_open_order", "flex_order_history"]}}, {"_id": 0}))
+        # Pending intent should be derived from realtime working orders only.
+        orders = list(db.ibkr_orders.find({"source": "tws_open_order"}, {"_id": 0}))
     except Exception:
         orders = []
 
@@ -840,6 +845,14 @@ def _merge_portfolio_rows(base_row: dict, incoming_row: dict) -> dict:
         merged_sources.add(incoming_source)
 
     if incoming_source == "tws":
+        tws_timestamp = _parse_datetime_utc(incoming_row.get("last_tws_update") or incoming_row.get("date"))
+        threshold_mins = _get_freshness_threshold_minutes().get(
+            "price_open_min" if _is_us_equity_market_session() else "price_closed_min",
+            15,
+        )
+        tws_recent = False
+        if tws_timestamp is not None:
+            tws_recent = (datetime.now(timezone.utc) - tws_timestamp) <= timedelta(minutes=int(threshold_mins))
         preferred_fields = [
             "quantity",
             "market_price",
@@ -850,10 +863,12 @@ def _merge_portfolio_rows(base_row: dict, incoming_row: dict) -> dict:
             "date",
             "source",
         ]
-        for field in preferred_fields:
-            value = incoming_row.get(field)
-            if value is not None:
-                merged[field] = value
+        # Source precedence rule: stale TWS snapshots must not overwrite Flex canonical values.
+        if tws_recent:
+            for field in preferred_fields:
+                value = incoming_row.get(field)
+                if value is not None:
+                    merged[field] = value
 
     for field, value in incoming_row.items():
         if field == "merged_sources":
@@ -1584,7 +1599,7 @@ async def get_open_orders(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
 
-    sources = ["tws_open_order", "flex_order_history"]
+    sources = ["tws_open_order"] if active_only else ["tws_open_order", "flex_order_history"]
     orders = list(db.ibkr_orders.find({"source": {"$in": sources}}, {"_id": 0}))
 
     normalized_rows = [_normalize_order_row(order) for order in orders]

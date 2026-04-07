@@ -1,6 +1,7 @@
 import requests
 import xml.etree.ElementTree as ET
 import logging
+import re
 from datetime import datetime, timedelta
 from pymongo import MongoClient
 from app.config import settings
@@ -513,16 +514,210 @@ def parse_and_store_dividends(content):
 
 def parse_and_store_order_history(content):
     """
-    Stub parser for Flex order-history rows.
-    Current implementation intentionally no-ops until report format and mapping are finalized.
+    Parse Flex order-history rows for audit/backfill.
+    This path is intentionally conservative: rows are stored as historical
+    (`source=flex_order_history`) and should not be used as live pending truth.
     """
     if not content:
         logging.info("Skipping Flex order-history parse: empty payload.")
         return
-    logging.warning(
-        "Flex order-history ingestion stub reached. "
-        "Configure/query the Orders Flex report and implement parse mapping to persist source='flex_order_history'."
-    )
+
+    def _first_non_empty(row: dict, keys: list[str]):
+        for key in keys:
+            value = row.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    def _safe_float(value, default=None):
+        if value in (None, ""):
+            return default
+        try:
+            return float(str(value).replace(",", ""))
+        except (TypeError, ValueError):
+            return default
+
+    def _normalize_action(raw):
+        value = str(raw or "").strip().upper()
+        if value in {"BOT", "BUY"}:
+            return "BUY"
+        if value in {"SLD", "SELL"}:
+            return "SELL"
+        return value or None
+
+    def _normalize_status(raw):
+        value = str(raw or "").strip()
+        return value or "Filled"
+
+    def _normalize_expiry(raw):
+        value = str(raw or "").strip()
+        if not value:
+            return None
+        if len(value) == 8 and value.isdigit():
+            return f"{value[:4]}-{value[4:6]}-{value[6:]}"
+        if len(value) == 6 and value.isdigit():
+            return f"20{value[:2]}-{value[2:4]}-{value[4:]}"
+        return value
+
+    def _normalize_right(raw):
+        value = str(raw or "").strip().upper()
+        if value.startswith("C"):
+            return "C"
+        if value.startswith("P"):
+            return "P"
+        return None
+
+    def _extract_underlying(symbol_value, explicit_underlying):
+        explicit = str(explicit_underlying or "").strip().upper()
+        if explicit:
+            return explicit
+        symbol = str(symbol_value or "").strip().upper()
+        if not symbol:
+            return None
+        occ_match = re.match(r"^([A-Z]{1,6})\s*\d{6}[CP]\d+", symbol)
+        if occ_match:
+            return occ_match.group(1)
+        parts = symbol.split()
+        return parts[0] if parts else symbol
+
+    def _normalize_row(raw_row: dict):
+        account_id = _first_non_empty(raw_row, ["ClientAccountID", "AccountId", "accountId", "account"])
+        symbol = _first_non_empty(raw_row, ["Symbol", "symbol", "LocalSymbol", "localSymbol"])
+        if symbol is not None:
+            symbol = str(symbol).strip().upper()
+
+        action = _normalize_action(_first_non_empty(raw_row, ["Buy/Sell", "buySell", "action", "Action", "side"]))
+        status = _normalize_status(_first_non_empty(raw_row, ["Status", "orderStatus", "status"]))
+        sec_type = _first_non_empty(raw_row, ["SecType", "secType", "AssetClass", "assetCategory"])
+        if sec_type is not None:
+            sec_type = str(sec_type).strip().upper()
+
+        right = _normalize_right(_first_non_empty(raw_row, ["Put/Call", "putCall", "Right", "right"]))
+        expiry = _normalize_expiry(
+            _first_non_empty(
+                raw_row,
+                [
+                    "Expiry",
+                    "Expiration",
+                    "expiry",
+                    "lastTradeDateOrContractMonth",
+                    "LastTradeDateOrContractMonth",
+                    "lastTradeDate",
+                    "LastTradeDate",
+                ],
+            )
+        )
+        strike = _safe_float(_first_non_empty(raw_row, ["Strike", "strike"]))
+        underlying_symbol = _extract_underlying(
+            symbol,
+            _first_non_empty(raw_row, ["UnderlyingSymbol", "underlyingSymbol", "underlying_symbol"]),
+        )
+        total_qty = _safe_float(_first_non_empty(raw_row, ["Quantity", "quantity", "TotalQuantity", "totalQuantity"]))
+        filled_qty = _safe_float(_first_non_empty(raw_row, ["FilledQuantity", "filledQuantity", "filled"]))
+        remaining_qty = _safe_float(_first_non_empty(raw_row, ["RemainingQuantity", "remainingQuantity", "remaining"]))
+        if remaining_qty is None and total_qty is not None and filled_qty is not None:
+            remaining_qty = max(total_qty - filled_qty, 0.0)
+
+        doc = {
+            "source": "flex_order_history",
+            "source_as_of": datetime.utcnow(),
+            "is_historical": True,
+            "account_id": account_id,
+            "symbol": symbol,
+            "local_symbol": _first_non_empty(raw_row, ["LocalSymbol", "localSymbol"]),
+            "underlying_symbol": underlying_symbol,
+            "secType": sec_type,
+            "right": right,
+            "expiry": expiry,
+            "strike": strike,
+            "action": action,
+            "status": status,
+            "order_id": _first_non_empty(raw_row, ["OrderID", "orderId"]),
+            "perm_id": _first_non_empty(raw_row, ["PermID", "permId"]),
+            "parent_id": _first_non_empty(raw_row, ["ParentID", "parentId"]),
+            "order_type": _first_non_empty(raw_row, ["OrderType", "orderType"]),
+            "order_ref": _first_non_empty(raw_row, ["OrderRef", "orderRef"]),
+            "total_quantity": total_qty,
+            "filled_quantity": filled_qty,
+            "remaining_quantity": remaining_qty,
+            "limit_price": _safe_float(_first_non_empty(raw_row, ["LimitPrice", "limitPrice", "lmtPrice"])),
+            "aux_price": _safe_float(_first_non_empty(raw_row, ["AuxPrice", "auxPrice"])),
+            "date_time": _first_non_empty(raw_row, ["DateTime", "dateTime", "Time", "time"]),
+            "raw": raw_row,
+        }
+        if not doc.get("symbol"):
+            return None
+        return doc
+
+    def _upsert_orders(rows: list[dict]):
+        if not rows:
+            logging.warning(
+                "Flex order-history parse completed but no recognizable rows were found. "
+                "Verify Flex Orders query columns and parser aliases."
+            )
+            return
+
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        collection = db.ibkr_orders
+        upserts = 0
+        for row in rows:
+            if not row:
+                continue
+            query = {
+                "source": "flex_order_history",
+                "account_id": row.get("account_id"),
+            }
+            if row.get("perm_id") not in (None, ""):
+                query["perm_id"] = row.get("perm_id")
+            elif row.get("order_id") not in (None, ""):
+                query["order_id"] = row.get("order_id")
+            else:
+                query.update(
+                    {
+                        "symbol": row.get("symbol"),
+                        "action": row.get("action"),
+                        "date_time": row.get("date_time"),
+                        "total_quantity": row.get("total_quantity"),
+                        "limit_price": row.get("limit_price"),
+                    }
+                )
+            collection.update_one(query, {"$set": row}, upsert=True)
+            upserts += 1
+        logging.info("Processed %s flex order-history rows.", upserts)
+
+    parsed_rows = []
+    try:
+        if content.strip().startswith(b"<"):
+            root = ET.fromstring(content)
+            for element in root.iter():
+                tag = str(element.tag or "").lower()
+                if tag not in {"order", "openorder", "ordertransaction", "trade"}:
+                    continue
+                if not element.attrib:
+                    continue
+                normalized = _normalize_row(dict(element.attrib))
+                if normalized:
+                    parsed_rows.append(normalized)
+        else:
+            import csv
+
+            decoded = content.decode("utf-8", errors="ignore")
+            lines = decoded.splitlines()
+            start_idx = 0
+            for i, line in enumerate(lines):
+                if "Symbol" in line and ("Buy/Sell" in line or "Action" in line or "OrderID" in line):
+                    start_idx = i
+                    break
+            for row in csv.DictReader(lines[start_idx:]):
+                normalized = _normalize_row(dict(row))
+                if normalized:
+                    parsed_rows.append(normalized)
+    except Exception as exc:
+        logging.exception("Failed to parse Flex order-history payload: %s", exc)
+        return
+
+    _upsert_orders(parsed_rows)
 
 def save_sync_status(status: str, message: str):
     """Persist the result of the sync job."""
