@@ -6,6 +6,52 @@ from pymongo import MongoClient
 from stock_live_comparison import StockLiveComparison
 from app.config import settings
 
+DEFAULT_STOCK_ANALYSIS_HTTP_SETTINGS = {
+    "download_batch_size": 6,
+    "batch_pause_sec": 8.0,
+    "request_throttle_interval_sec": 1.5,
+}
+
+
+def _coerce_stock_analysis_http_settings(doc: dict | None) -> dict:
+    payload = dict(DEFAULT_STOCK_ANALYSIS_HTTP_SETTINGS)
+    source = doc or {}
+
+    raw_batch_size = source.get("download_batch_size", payload["download_batch_size"])
+    raw_batch_pause = source.get("batch_pause_sec", payload["batch_pause_sec"])
+    raw_throttle = source.get(
+        "request_throttle_interval_sec",
+        source.get("min_request_interval_sec", payload["request_throttle_interval_sec"]),
+    )
+
+    try:
+        payload["download_batch_size"] = max(1, int(raw_batch_size))
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        payload["batch_pause_sec"] = max(0.0, float(raw_batch_pause))
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        payload["request_throttle_interval_sec"] = max(0.0, float(raw_throttle))
+    except (TypeError, ValueError):
+        pass
+
+    return payload
+
+
+def _load_stock_analysis_http_settings() -> dict:
+    try:
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+        doc = db.system_config.find_one({"_id": "stock_analysis_http_config"}) or {}
+        return _coerce_stock_analysis_http_settings(doc)
+    except Exception as exc:
+        logging.warning("stock analysis http settings fallback to defaults: %s", exc)
+        return dict(DEFAULT_STOCK_ANALYSIS_HTTP_SETTINGS)
+
 
 def _persist_stock_ingest_telemetry(payload: dict) -> None:
     try:
@@ -41,7 +87,20 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
              tickers = StockLiveComparison.get_default_tickers()
         logging.info("run_stock_live_comparison.ticker_count=%s trigger=%s", len(tickers or []), trigger)
 
-        comp = StockLiveComparison(tickers)
+        http_settings = _load_stock_analysis_http_settings()
+        logging.info(
+            "run_stock_live_comparison.http_settings trigger=%s download_batch_size=%s batch_pause_sec=%s request_throttle_interval_sec=%s",
+            trigger,
+            http_settings["download_batch_size"],
+            http_settings["batch_pause_sec"],
+            http_settings["request_throttle_interval_sec"],
+        )
+        comp = StockLiveComparison(
+            tickers,
+            download_batch_size=http_settings["download_batch_size"],
+            batch_pause_sec=http_settings["batch_pause_sec"],
+            min_request_interval_sec=http_settings["request_throttle_interval_sec"],
+        )
 
         if trigger == "sync":
             latest_viable, _ = comp.get_latest_viable_spreadsheet(

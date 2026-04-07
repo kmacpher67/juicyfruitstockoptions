@@ -3,12 +3,20 @@ import api from '../api/axios';
 import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2 } from 'lucide-react';
 import { buildTickerHeaderModel } from './tickerModalHeader';
 import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
+import { classifyTabError, getBadgeText } from './tickerModalResilience';
 
 const TAB_DEFAULT_STATE = {
     signals: 'idle',
     opportunity: 'idle',
     optimizer: 'idle',
     smart_rolls: 'idle',
+};
+
+const TAB_ERROR_REASON_DEFAULT = {
+    signals: null,
+    opportunity: null,
+    optimizer: null,
+    smart_rolls: null,
 };
 
 const TickerModal = ({ ticker, isOpen, onClose }) => {
@@ -22,6 +30,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [smartRollsMeta, setSmartRollsMeta] = useState(null);
     const [signalData, setSignalData] = useState(null);
     const [tabLoadState, setTabLoadState] = useState(TAB_DEFAULT_STATE);
+    const [tabErrorReasons, setTabErrorReasons] = useState(TAB_ERROR_REASON_DEFAULT);
     const requestSeq = useRef(0);
 
     // Reset state when ticker changes
@@ -36,6 +45,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setSmartRollsMeta(null);
             setSignalData(null);
             setTabLoadState(TAB_DEFAULT_STATE);
+            setTabErrorReasons(TAB_ERROR_REASON_DEFAULT);
             setActiveTab('analytics');
             fetchData();
         }
@@ -125,6 +135,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         if (tabLoadState[tab] === 'loading' || tabLoadState[tab] === 'loaded') return;
         const timeoutMs = 12000;
         const seq = requestSeq.current;
+        const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
         setTabLoadState((current) => ({ ...current, [tab]: 'loading' }));
         try {
             if (tab === 'signals') {
@@ -158,19 +169,21 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                 setSmartRollsMeta(Array.isArray(payload) ? null : payload);
                 setTabLoadState((current) => ({ ...current, smart_rolls: 'loaded' }));
             }
-        } catch (_error) {
+        } catch (err) {
             if (requestSeq.current !== seq) return;
+            const reason = classifyTabError(isOffline, err);
             if (tab === 'signals') setSignalData(null);
-            if (tab === 'opportunity') setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
+            if (tab === 'opportunity') setOpportunityData(null);
             if (tab === 'optimizer') {
-                setOptimizerData([]);
+                setOptimizerData(null);
                 setOptimizerMeta(null);
             }
             if (tab === 'smart_rolls') {
-                setSmartRollsData([]);
+                setSmartRollsData(null);
                 setSmartRollsMeta(null);
             }
             setTabLoadState((current) => ({ ...current, [tab]: 'error' }));
+            setTabErrorReasons((current) => ({ ...current, [tab]: reason }));
         }
     };
 
@@ -198,6 +211,10 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     <p className="text-gray-400">Loading {tab.replace('_', ' ')}...</p>
                 </div>
             );
+        }
+        if (state === 'error') {
+            const reason = tabErrorReasons[tab];
+            return <TabErrorBadge reason={reason} />;
         }
         return view;
     };
@@ -326,6 +343,21 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     )}
                 </div>
             </div>
+        </div>
+    );
+};
+
+// --- Degraded-state badge ---
+
+const TabErrorBadge = ({ reason }) => {
+    const text = getBadgeText(reason);
+    return (
+        <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded bg-yellow-950/40 border border-yellow-700 text-yellow-300 text-xs w-fit"
+            data-testid="tab-error-badge"
+            data-reason={reason || ''}
+        >
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>{text}</span>
         </div>
     );
 };

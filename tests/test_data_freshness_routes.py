@@ -22,6 +22,18 @@ def test_evaluate_stock_data_freshness_marks_recent_record_fresh():
     assert freshness["last_updated"] is not None
 
 
+def test_find_stock_data_by_symbol_ignores_non_dict_records():
+    fake_db = type("DB", (), {})()
+    fake_db.stock_data = type("Collection", (), {})()
+    fake_db.stock_data.find_one = lambda *args, **kwargs: object()
+
+    stock, query, symbol = routes._find_stock_data_by_symbol(fake_db, "aapl")  # pylint: disable=protected-access
+
+    assert stock is None
+    assert symbol == "AAPL"
+    assert query == {"Ticker": "AAPL"}
+
+
 def test_evaluate_stock_data_freshness_respects_system_config_threshold_override():
     stock = {"_last_persisted_at": (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()}
     fake_db = type("DB", (), {})()
@@ -305,6 +317,75 @@ def test_update_data_freshness_config_persists_values():
             admin,
         )
     assert payload.price_open_min == 40
+    mock_db.system_config.update_one.assert_called_once()
+
+
+def test_get_stock_analysis_http_config_reads_system_config_overrides():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {
+            "_id": "stock_analysis_http_config",
+            "download_batch_size": 4,
+            "batch_pause_sec": 1.75,
+            "request_throttle_interval_sec": 0.6,
+        }
+        payload = routes.get_stock_analysis_http_config(admin)
+    assert payload.download_batch_size == 4
+    assert payload.batch_pause_sec == 1.75
+    assert payload.request_throttle_interval_sec == 0.6
+
+
+def test_get_stock_analysis_http_config_coerces_invalid_values():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {
+            "_id": "stock_analysis_http_config",
+            "download_batch_size": "oops",
+            "batch_pause_sec": -5,
+            "request_throttle_interval_sec": None,
+        }
+        payload = routes.get_stock_analysis_http_config(admin)
+    assert payload.download_batch_size == 6
+    assert payload.batch_pause_sec == 0.0
+    assert payload.request_throttle_interval_sec == 1.5
+
+
+def test_update_stock_analysis_http_config_requires_admin():
+    basic = User(username="u", role="basic", disabled=False)
+    config = routes.StockAnalysisHttpConfig()
+    try:
+        routes.update_stock_analysis_http_config(config, basic)
+        assert False, "expected HTTPException"
+    except Exception as exc:
+        from fastapi import HTTPException
+
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 403
+
+
+def test_update_stock_analysis_http_config_persists_values():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {
+            "_id": "stock_analysis_http_config",
+            "download_batch_size": 9,
+            "batch_pause_sec": 2.5,
+            "request_throttle_interval_sec": 1.0,
+        }
+        payload = routes.update_stock_analysis_http_config(
+            routes.StockAnalysisHttpConfig(
+                download_batch_size=9,
+                batch_pause_sec=2.5,
+                request_throttle_interval_sec=1.0,
+            ),
+            admin,
+        )
+    assert payload.download_batch_size == 9
+    assert payload.batch_pause_sec == 2.5
+    assert payload.request_throttle_interval_sec == 1.0
     mock_db.system_config.update_one.assert_called_once()
 
 

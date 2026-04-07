@@ -286,3 +286,126 @@ def test_normalize_order_row_handles_bag_combo_parent_shape():
     assert normalized["action"] == "SELL"
     assert normalized["remaining_quantity"] == 1.0
     assert normalized["is_active"] is True
+
+
+# ---------------------------------------------------------------------------
+# ibkr-orders-012 — BAG leg decomposition: API response tests
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_order_row_bag_preserves_combo_legs_in_response():
+    """BAG orders must include comboLegs in their normalized output."""
+    legs = [
+        {"action": "BUY", "ratio": 1, "conid": 111, "exchange": "CBOE"},
+        {"action": "SELL", "ratio": 1, "conid": 222, "exchange": "CBOE"},
+    ]
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U4",
+            "symbol": "AMD",
+            "secType": "BAG",
+            "action": "SELL",
+            "status": "Submitted",
+            "total_quantity": 1,
+            "filled_quantity": 0,
+            "source": "tws_open_order",
+            "comboLegs": legs,
+        }
+    )
+
+    assert normalized["is_bag"] is True
+    assert isinstance(normalized["comboLegs"], list)
+    assert len(normalized["comboLegs"]) == 2
+
+
+def test_normalize_order_row_bag_2_leg_roll_has_buy_and_sell_actions():
+    """A 2-leg roll BAG order must have exactly one BUY and one SELL leg."""
+    legs = [
+        {"action": "BUY", "ratio": 1, "conid": 333},
+        {"action": "SELL", "ratio": 1, "conid": 444},
+    ]
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U5",
+            "symbol": "MSFT",
+            "secType": "BAG",
+            "action": "SELL",
+            "status": "PreSubmitted",
+            "total_quantity": 2,
+            "filled_quantity": 0,
+            "source": "tws_open_order",
+            "comboLegs": legs,
+        }
+    )
+
+    combo_legs = normalized["comboLegs"]
+    assert len(combo_legs) == 2
+    actions = {leg["action"] for leg in combo_legs}
+    assert actions == {"BUY", "SELL"}
+    for leg in combo_legs:
+        assert "action" in leg
+        assert "ratio" in leg
+
+
+def test_normalize_order_row_non_bag_has_no_combo_legs():
+    """Non-BAG orders must not have a non-None comboLegs field."""
+    normalized = routes._normalize_order_row(  # pylint: disable=protected-access
+        {
+            "account_id": "U6",
+            "symbol": "AAPL",
+            "secType": "STK",
+            "action": "BUY",
+            "status": "Submitted",
+            "total_quantity": 10,
+            "filled_quantity": 0,
+            "source": "tws_open_order",
+        }
+    )
+
+    assert normalized.get("comboLegs") is None
+    assert normalized.get("is_bag") is False
+
+
+def test_get_open_orders_bag_rows_include_combo_legs_in_api_response():
+    """The /orders/open endpoint must return comboLegs for BAG orders."""
+    with patch("app.api.routes.MongoClient") as mock_mongo:
+        mock_db = MagicMock()
+        mock_mongo.return_value.get_default_database.return_value = mock_db
+
+        mock_db.ibkr_orders.find.return_value = [
+            {
+                "order_key": "perm:8001",
+                "source": "tws_open_order",
+                "account_id": "U1",
+                "symbol": "AMD",
+                "secType": "BAG",
+                "action": "SELL",
+                "status": "Submitted",
+                "remaining_quantity": 1,
+                "total_quantity": 1,
+                "filled_quantity": 0,
+                "comboLegs": [
+                    {"action": "BUY", "ratio": 1, "conid": 555},
+                    {"action": "SELL", "ratio": 1, "conid": 666},
+                ],
+            },
+        ]
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": 170.00,
+        }
+
+        payload = asyncio.run(
+            routes.get_open_orders(
+                current_user=User(username="u", role="admin", disabled=False)
+            )
+        )
+
+    assert len(payload) == 1
+    row = payload[0]
+    assert row["is_bag"] is True
+    assert isinstance(row["comboLegs"], list)
+    assert len(row["comboLegs"]) == 2
+    leg_actions = {leg["action"] for leg in row["comboLegs"]}
+    assert "BUY" in leg_actions
+    assert "SELL" in leg_actions

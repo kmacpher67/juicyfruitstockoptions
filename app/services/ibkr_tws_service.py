@@ -541,7 +541,31 @@ class IBKRTWSApp(EWrapper, EClient):
             "remaining_quantity": getattr(order, "totalQuantity", 0),
             "last_update": timestamp,
             "source": "tws_open_order",
+            "combo_legs_descrip": getattr(contract, "comboLegsDescrip", "") or "",
         }
+        # Capture per-leg metadata for BAG/combo orders so the UI can show
+        # explicit leg rows (BUY-to-close + SELL-to-open) rather than just
+        # the net parent row.
+        raw_combo_legs = getattr(contract, "comboLegs", None) or []
+        if raw_combo_legs:
+            serialized_legs = []
+            for leg in raw_combo_legs:
+                serialized_legs.append(
+                    {
+                        "conid": getattr(leg, "conId", None),
+                        "ratio": getattr(leg, "ratio", 1),
+                        "action": str(getattr(leg, "action", "") or "").upper(),
+                        "exchange": getattr(leg, "exchange", ""),
+                        "open_close": getattr(leg, "openClose", 0),
+                    }
+                )
+            payload["comboLegs"] = serialized_legs
+            self.logger.debug(
+                "%s - IBKRTWSService-openOrder - DEBUG - Captured %d combo legs for BAG order %s.",
+                datetime.now(timezone.utc).isoformat(),
+                len(serialized_legs),
+                storage_key,
+            )
         with self._lock:
             existing = self.orders.get(storage_key, {})
             merged = {**existing, **payload}

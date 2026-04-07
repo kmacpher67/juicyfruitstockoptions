@@ -151,6 +151,36 @@ These items from `features-requirements.md` remain incomplete:
 
 ---
 
+---
+
+## Degraded-State UX — Per-Tab Error Badges
+
+When a tab endpoint fails (timeout, network error, HTTP 4xx/5xx) or the browser is offline, the tab body renders a compact inline reason badge instead of a silently empty section.
+
+### Reason Codes and Badge Text
+
+| Reason | Trigger | Badge Text |
+|:---|:---|:---|
+| `timeout` | axios `ECONNABORTED`, message contains "timeout", or watchdog exit with no error | `Timed out — data unavailable` |
+| `offline` | `navigator.onLine === false` at fetch time | `Offline — no network` |
+| `endpoint` | HTTP 4xx/5xx, `Network Error`, `ECONNREFUSED`, `failed to fetch` | `Endpoint unavailable` |
+| `stale` | Explicit stale-cache path (reserved for future use) | `Showing cached data` |
+
+### Architecture
+
+- **`tickerModalResilience.js`** — Pure-function module exporting `classifyTabError(isOffline, error)` and `getBadgeText(reason)`. Kept separate from the React component for `node:test` unit testability.
+- **`TickerModal.jsx`** — Adds `tabErrorReasons` state (per-tab, mirrors `tabLoadState`). `fetchTabData` catches errors, calls `classifyTabError`, stores the reason. `renderTabPanel` checks `state === 'error'` and renders `TabErrorBadge` with the stored reason.
+- **`TabErrorBadge`** — Minimal React component: amber text, dark background, `AlertTriangle` icon, dark-theme compatible. Renders `data-testid="tab-error-badge"` and `data-reason` attributes for testing.
+
+### Invariants
+
+- A failed tab badge does NOT affect other tabs — each tab's error reason is independent.
+- Successful tabs always render their data view as before.
+- The badge replaces the tab content (not an overlay or modal-level error).
+- `tabErrorReasons` is reset to `null` for all tabs on ticker change/modal open.
+
+---
+
 ## Changelog
 
 | Date | Action | Reason |
@@ -158,3 +188,4 @@ These items from `features-requirements.md` remain incomplete:
 | 2026-03-28 | **CREATED** | Initial feature overview documenting existing ticker click behavior, data flow, tabs, API endpoints, and all related docs |
 | 2026-04-02 | **UPDATED** | Header enrichment completed in `TickerModal`: ticker/descriptive link targets, `%` formatting fix, and last-update normalization with utility tests |
 | 2026-04-03 | **UPDATED** | Detail-loading reliability hardening: canonical ticker routing from Portfolio/Trades and backend relaxed ticker lookup fallback for local DB resolution |
+| 2026-04-07 | **UPDATED** | resilience-004/005: per-tab degraded reason badges (`TabErrorBadge`, `tickerModalResilience.js`) and regression tests (`tickerModalResilience.test.js`) |

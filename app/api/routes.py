@@ -221,13 +221,13 @@ def _find_stock_data_by_symbol(db, raw_symbol: str) -> tuple[dict | None, dict, 
 
     exact_query = {"Ticker": symbol}
     stock = db.stock_data.find_one(exact_query, {"_id": 0})
-    if stock:
+    if isinstance(stock, dict) and stock:
         return stock, exact_query, symbol
 
     escaped = re.escape(symbol)
     relaxed_query = {"Ticker": {"$regex": rf"^\s*{escaped}\s*$", "$options": "i"}}
     stock = db.stock_data.find_one(relaxed_query, {"_id": 0})
-    if stock:
+    if isinstance(stock, dict) and stock:
         return stock, relaxed_query, _normalize_ticker_symbol(stock.get("Ticker") or symbol)
 
     return None, exact_query, symbol
@@ -432,6 +432,13 @@ def _normalize_order_row(order: dict) -> dict:
     if remaining_quantity is None:
         remaining_quantity = total_quantity
 
+    # Preserve comboLegs for BAG/combo orders so the UI can render per-leg
+    # drill-down rows.  The field may already be a list of dicts (captured by
+    # ibkr_tws_service) or absent for non-BAG orders.
+    combo_legs = normalized.get("comboLegs")
+    if not isinstance(combo_legs, list):
+        combo_legs = None
+
     normalized.update(
         {
             "account_id": account_id,
@@ -446,6 +453,8 @@ def _normalize_order_row(order: dict) -> dict:
             "filled_quantity": filled_quantity,
             "remaining_quantity": remaining_quantity,
             "is_active": _is_active_pending_order(normalized),
+            "is_bag": security_type == "BAG",
+            "comboLegs": combo_legs,
             "limit_price": _safe_float(normalized.get("limit_price")),
             "aux_price": _safe_float(normalized.get("aux_price")),
             "avg_fill_price": _safe_float(normalized.get("avg_fill_price")),
@@ -973,6 +982,45 @@ class DataFreshnessConfig(BaseModel):
     profile_open_min: int = 24 * 60
     profile_closed_min: int = 24 * 60 * 7
 
+
+class StockAnalysisHttpConfig(BaseModel):
+    download_batch_size: int = 6
+    batch_pause_sec: float = 8.0
+    request_throttle_interval_sec: float = 1.5
+
+
+def _get_stock_analysis_http_settings(db=None):
+    defaults = {
+        "download_batch_size": 6,
+        "batch_pause_sec": 8.0,
+        "request_throttle_interval_sec": 1.5,
+    }
+    client = None
+    if db is None:
+        client = MongoClient(settings.MONGO_URI)
+        db = client.get_default_database("stock_analysis")
+
+    doc = db.system_config.find_one({"_id": "stock_analysis_http_config"}) or {}
+    merged = dict(defaults)
+    merged.update({k: v for k, v in doc.items() if k in defaults})
+
+    try:
+        merged["download_batch_size"] = max(1, int(merged["download_batch_size"]))
+    except (TypeError, ValueError):
+        merged["download_batch_size"] = defaults["download_batch_size"]
+
+    try:
+        merged["batch_pause_sec"] = max(0.0, float(merged["batch_pause_sec"]))
+    except (TypeError, ValueError):
+        merged["batch_pause_sec"] = defaults["batch_pause_sec"]
+
+    try:
+        merged["request_throttle_interval_sec"] = max(0.0, float(merged["request_throttle_interval_sec"]))
+    except (TypeError, ValueError):
+        merged["request_throttle_interval_sec"] = defaults["request_throttle_interval_sec"]
+
+    return merged
+
 @router.get("/schedule", response_model=ScheduleConfig)
 @log_endpoint
 def get_schedule(
@@ -1024,6 +1072,37 @@ def update_data_freshness_config(
     )
     merged = _get_freshness_threshold_minutes(db=db)
     return DataFreshnessConfig(**merged)
+
+
+@router.get("/settings/stock-analysis-http", response_model=StockAnalysisHttpConfig)
+@log_endpoint
+def get_stock_analysis_http_config(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    merged = _get_stock_analysis_http_settings(db=db)
+    return StockAnalysisHttpConfig(**merged)
+
+
+@router.post("/settings/stock-analysis-http", response_model=StockAnalysisHttpConfig)
+@log_endpoint
+def update_stock_analysis_http_config(
+    config: StockAnalysisHttpConfig,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    payload = config.model_dump()
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    db.system_config.update_one(
+        {"_id": "stock_analysis_http_config"},
+        {"$set": payload},
+        upsert=True,
+    )
+    merged = _get_stock_analysis_http_settings(db=db)
+    return StockAnalysisHttpConfig(**merged)
 
 # --- User Settings Persistence ---
 
@@ -2090,6 +2169,12 @@ def get_ticker_signals(
         kalman = service.get_kalman_signal(data)
         markov = service.get_markov_probabilities(data)
         advice = service.get_roll_vs_hold_advice(ticker, {}, mock_price_data=data)
+        if not isinstance(kalman, dict):
+            kalman = {}
+        if not isinstance(markov, dict):
+            markov = {}
+        if not isinstance(advice, dict):
+            advice = {}
         _persist_signal_payload(db, ticker, kalman, markov, advice)
         
         freshness = _evaluate_stock_data_freshness(stock, tier="mixed", db=db)

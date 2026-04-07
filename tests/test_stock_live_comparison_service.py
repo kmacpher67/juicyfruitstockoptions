@@ -3,8 +3,9 @@ from unittest.mock import patch
 
 
 class DummyComparison:
-    def __init__(self, tickers):
+    def __init__(self, tickers, **kwargs):
         self.tickers = tickers
+        self.kwargs = kwargs
         self.filename = "report-results/AI_Stock_Live_Comparison_20260402_052900.xlsx"
         self.run_calls = []
         self.output_dir = "report-results"
@@ -29,8 +30,8 @@ class DummyComparison:
 def test_service_manual_trigger_creates_new_file(monkeypatch):
     created = {}
 
-    def fake_ctor(tickers):
-        created["comp"] = DummyComparison(tickers)
+    def fake_ctor(tickers, **kwargs):
+        created["comp"] = DummyComparison(tickers, **kwargs)
         return created["comp"]
 
     monkeypatch.setattr(svc, "StockLiveComparison", fake_ctor)
@@ -48,8 +49,8 @@ def test_service_manual_trigger_creates_new_file(monkeypatch):
 def test_service_sync_trigger_reuses_existing_without_new_file(monkeypatch):
     created = {}
 
-    def fake_ctor(tickers):
-        created["comp"] = DummyComparison(tickers)
+    def fake_ctor(tickers, **kwargs):
+        created["comp"] = DummyComparison(tickers, **kwargs)
         return created["comp"]
 
     monkeypatch.setattr(svc, "StockLiveComparison", fake_ctor)
@@ -71,8 +72,8 @@ def test_service_sync_trigger_skips_when_no_viable_existing_report(monkeypatch):
         def get_latest_viable_spreadsheet(self, directory, min_bytes=10 * 1024):
             return None, None
 
-    def fake_ctor(tickers):
-        created["comp"] = DummyNoViable(tickers)
+    def fake_ctor(tickers, **kwargs):
+        created["comp"] = DummyNoViable(tickers, **kwargs)
         return created["comp"]
 
     monkeypatch.setattr(svc, "StockLiveComparison", fake_ctor)
@@ -98,3 +99,52 @@ def test_service_error_persists_telemetry(monkeypatch):
 
     assert result["status"] == "error"
     mock_db.stock_ingest_runs.insert_one.assert_called_once()
+
+
+def test_service_uses_stock_analysis_http_settings_from_system_config(monkeypatch):
+    created = {}
+
+    def fake_ctor(tickers, **kwargs):
+        created["comp"] = DummyComparison(tickers, **kwargs)
+        return created["comp"]
+
+    monkeypatch.setattr(svc, "StockLiveComparison", fake_ctor)
+    with patch("app.services.stock_live_comparison.MongoClient") as mock_mongo:
+        mock_db = mock_mongo.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {
+            "_id": "stock_analysis_http_config",
+            "download_batch_size": 3,
+            "batch_pause_sec": 1.25,
+            "request_throttle_interval_sec": 0.5,
+        }
+        result = svc.run_stock_live_comparison(["AAPL"], trigger="manual")
+
+    assert result["status"] == "success"
+    assert created["comp"].kwargs["download_batch_size"] == 3
+    assert created["comp"].kwargs["batch_pause_sec"] == 1.25
+    assert created["comp"].kwargs["min_request_interval_sec"] == 0.5
+    mock_db.stock_ingest_runs.insert_one.assert_called_once()
+
+
+def test_service_coerces_invalid_stock_analysis_http_settings_to_safe_defaults(monkeypatch):
+    created = {}
+
+    def fake_ctor(tickers, **kwargs):
+        created["comp"] = DummyComparison(tickers, **kwargs)
+        return created["comp"]
+
+    monkeypatch.setattr(svc, "StockLiveComparison", fake_ctor)
+    with patch("app.services.stock_live_comparison.MongoClient") as mock_mongo:
+        mock_db = mock_mongo.return_value.get_default_database.return_value
+        mock_db.system_config.find_one.return_value = {
+            "_id": "stock_analysis_http_config",
+            "download_batch_size": "bad",
+            "batch_pause_sec": -7,
+            "request_throttle_interval_sec": None,
+        }
+        result = svc.run_stock_live_comparison(["AAPL"], trigger="manual")
+
+    assert result["status"] == "success"
+    assert created["comp"].kwargs["download_batch_size"] == 6
+    assert created["comp"].kwargs["batch_pause_sec"] == 0.0
+    assert created["comp"].kwargs["min_request_interval_sec"] == 1.5

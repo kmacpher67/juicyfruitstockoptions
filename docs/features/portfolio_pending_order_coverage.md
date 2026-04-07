@@ -266,6 +266,81 @@ Example:
 
 ---
 
+## BAG Leg Decomposition UX (ibkr-orders-012 and ibkr-orders-013)
+
+### What was built
+
+IBKR uses `secType: "BAG"` for combo/spread orders such as roll orders that
+buy-to-close one option leg and sell-to-open another.  The following was
+implemented to give Trader Ken per-leg visibility inside the `?view=ORDERS`
+table without losing the net combo row context.
+
+#### Backend changes
+
+- `ibkr_tws_service.py — openOrder` callback: now serializes `contract.comboLegs`
+  into a list of dicts (`conid`, `ratio`, `action`, `exchange`, `open_close`) and
+  stores them under the key `comboLegs` in the `ibkr_orders` document.
+  A debug log is emitted with the count of legs captured.
+
+- `routes.py — _normalize_order_row`: extracts `comboLegs` from the raw document
+  and passes it through unchanged (as a list) or sets it to `None` if absent.
+  Also sets `is_bag: True/False` on every normalized row so the frontend can
+  gate rendering without re-examining `security_type`.
+
+#### Frontend changes (`OrdersGrid.jsx`)
+
+- BAG parent rows show a `[COMBO]` label and a chevron expand/collapse button.
+  Clicking the chevron injects per-leg child rows immediately below the parent
+  row in the ag-grid data array.
+
+- Leg child rows are styled with a blue left border and indented display to
+  distinguish them from parent rows.  Market context columns (price, change,
+  skew, etc.) show `-` for leg rows since legs do not have independent market
+  context.
+
+- For 2-leg roll combos (one BUY + one SELL on the same BAG parent) the leg
+  action label is shown as `BUY-to-close` and `SELL-to-open` respectively.
+
+- The `limit_price` column for BAG parent rows shows a `Net debit $X.XX` or
+  `Net credit $X.XX` label derived from the combo limit price (negative = debit,
+  positive = credit).
+
+#### Toolbar toggles (`ibkr-orders-013`)
+
+Two checkbox controls appear in the Orders toolbar strip when the dataset
+contains at least one BAG/combo order:
+
+| Toggle | Default | Effect when enabled |
+|:---|:---|:---|
+| Show BAG parents | ON | BAG parent rows are visible and expandable (default view) |
+| Show decomposed legs only | OFF | BAG parent rows are suppressed; per-leg rows appear as flat standalone rows |
+
+The two toggles are mutually exclusive in their extreme states:
+- Enabling `Show decomposed legs only` automatically clears `Show BAG parents`.
+- Disabling `Show BAG parents` without enabling `Show decomposed legs only`
+  hides BAG parent rows entirely (neither parent row nor flat legs are shown).
+
+#### Pure-function test surface (`ordersViewUtils.js`)
+
+All non-React BAG logic (leg labeling, roll detection, debit/credit label, leg
+row building, visibility filtering) is extracted to `ordersViewUtils.js`.  This
+file is fully side-effect-free and is exercised by `OrdersView.bag.test.js`
+using the native Node test runner without a React environment.
+
+### Acceptance criteria
+
+- BAG orders in `/api/orders/open` response include `comboLegs` array with
+  `action` and `ratio` on each leg.
+- 2-leg roll order has exactly one `BUY` and one `SELL` leg.
+- Non-BAG orders have `comboLegs: null` in the response.
+- BAG parent row in the Orders table renders with a chevron expand control.
+- After expanding, 2 child leg rows appear with correct BUY-to-close /
+  SELL-to-open labels.
+- `Show BAG parents` OFF hides BAG parent row.
+- `Show decomposed legs only` ON shows legs as flat rows without the parent.
+
+---
+
 ## Flex Orders Work Items
 
 Current state:
@@ -295,3 +370,4 @@ Required follow-ups:
 | 2026-04-02 | **UPDATED** | Added Orders view freshness UX requirements (manual refresh, auto-refresh, and stale indicator). |
 | 2026-04-02 | **UPDATED** | Captured BAG/combo current limitation (no leg drill-down yet), target decomposition UX, and follow-up F-R links for BAG handling. |
 | 2026-04-02 | **UPDATED** | Implemented Portfolio focus controls and visual badges for `Pending Cover`, `Pending BTC`, and `Pending Roll` on `?view=PORTFOLIO`. |
+| 2026-04-07 | **UPDATED** | Implemented BAG leg decomposition UX (ibkr-orders-012): TWS service captures `comboLegs`, API passes them through, OrdersGrid shows expandable leg child rows with BUY-to-close/SELL-to-open labels and net debit/credit on limit price. Added BAG-parent visibility toggles (ibkr-orders-013): `Show BAG parents` and `Show decomposed legs only` checkboxes in Orders toolbar. Pure-function logic in `ordersViewUtils.js`; tested by `OrdersView.bag.test.js`. |

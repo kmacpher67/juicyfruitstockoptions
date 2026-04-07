@@ -399,22 +399,32 @@ class StockLiveComparison:
 
         # Company profile + recent news (stored as sub-document)
         news_items = []
+        raw_news = []
         if self.fetch_profile_news:
             try:
                 raw_news = chain.news or []
-                news_items = [
-                    {
-                        "title": n.get("title", ""),
-                        "publisher": n.get("publisher", ""),
-                        "link": n.get("link", ""),
-                        "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
-                        if n.get("providerPublishTime") else "",
-                    }
-                    for n in raw_news[:5]
-                ]
             except Exception as e:
                 self.logger.warning(f"stock_live_comparison.fetch_ticker_record - Could not fetch news for {ticker}: {e}")
-                news_items = []
+                raw_news = []
+        else:
+            # Preserve preloaded/mocked news without triggering live HTTP profile-news calls.
+            chain_dict = getattr(chain, "__dict__", {}) if chain is not None else {}
+            maybe_news = chain_dict.get("news")
+            if isinstance(maybe_news, list):
+                raw_news = maybe_news
+
+        if isinstance(raw_news, list) and raw_news:
+            news_items = [
+                {
+                    "title": n.get("title", ""),
+                    "publisher": n.get("publisher", ""),
+                    "link": n.get("link", ""),
+                    "published_at": datetime.fromtimestamp(n["providerPublishTime"]).strftime("%Y-%m-%d %H:%M")
+                    if n.get("providerPublishTime") else "",
+                }
+                for n in raw_news[:5]
+                if isinstance(n, dict)
+            ]
 
         record["profile"] = {
             "sector": info.get("sector", ""),

@@ -11,7 +11,7 @@ class DummyJob:
 
 
 def test_run_endpoint_queues_single_background_task(monkeypatch):
-    monkeypatch.setattr("app.api.routes.create_job", lambda: DummyJob(id="job-123"))
+    monkeypatch.setattr("app.api.routes.create_job", lambda *args, **kwargs: DummyJob(id="job-123"))
     background_tasks = BackgroundTasks()
 
     response = run_stock_live_comparison_endpoint(
@@ -24,7 +24,7 @@ def test_run_endpoint_queues_single_background_task(monkeypatch):
 
 
 def test_run_endpoint_background_task_uses_manual_trigger(monkeypatch):
-    monkeypatch.setattr("app.api.routes.create_job", lambda: DummyJob(id="job-456"))
+    monkeypatch.setattr("app.api.routes.create_job", lambda *args, **kwargs: DummyJob(id="job-456"))
 
     called = {}
 

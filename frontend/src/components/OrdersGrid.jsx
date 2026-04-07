@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, ChevronRight, ChevronDown } from 'lucide-react';
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import { applyBagVisibility, buildLegRows, netDebitCreditLabel } from './ordersViewUtils.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -43,7 +44,80 @@ const SourceBadge = ({ source }) => {
     );
 };
 
+/**
+ * Toolbar checkbox for BAG visibility toggles.
+ */
+const BagToggle = ({ id, label, checked, onChange }) => (
+    <label
+        htmlFor={id}
+        className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer select-none"
+    >
+        <input
+            id={id}
+            type="checkbox"
+            checked={checked}
+            onChange={e => onChange(e.target.checked)}
+            className="accent-blue-500 cursor-pointer"
+            data-testid={id}
+        />
+        {label}
+    </label>
+);
+
+/**
+ * OrdersGrid — flat + BAG-expand open-orders table.
+ *
+ * Props:
+ *   data          {Object[]}  Normalized order rows from /api/orders/open
+ *   onTickerClick {Function}  Called with underlying ticker symbol on click
+ */
 const OrdersGrid = ({ data, onTickerClick }) => {
+    const [expandedBagKeys, setExpandedBagKeys] = useState(new Set());
+    const [showBagParents, setShowBagParents] = useState(true);
+    const [showLegsOnly, setShowLegsOnly] = useState(false);
+
+    const toggleExpand = useCallback((orderKey) => {
+        setExpandedBagKeys(prev => {
+            const next = new Set(prev);
+            if (next.has(orderKey)) {
+                next.delete(orderKey);
+            } else {
+                next.add(orderKey);
+            }
+            return next;
+        });
+    }, []);
+
+    /**
+     * Build the display rows:
+     * 1. Apply BAG parent visibility filter.
+     * 2. For each visible BAG parent that is expanded (and not in legs-only
+     *    mode), inject its leg rows immediately after the parent row.
+     */
+    const displayRows = useMemo(() => {
+        const filtered = applyBagVisibility(data || [], showBagParents, showLegsOnly);
+        if (showLegsOnly) {
+            // Legs are already flat; no expansion needed.
+            return filtered;
+        }
+
+        const result = [];
+        for (const row of filtered) {
+            result.push(row);
+            const isBag = row.security_type === 'BAG' || row.is_bag === true;
+            if (isBag && expandedBagKeys.has(row.order_key)) {
+                const legRows = buildLegRows(row);
+                result.push(...legRows);
+            }
+        }
+        return result;
+    }, [data, showBagParents, showLegsOnly, expandedBagKeys]);
+
+    const bagCount = useMemo(
+        () => (data || []).filter(r => r.security_type === 'BAG' || r.is_bag).length,
+        [data]
+    );
+
     const colDefs = useMemo(() => [
         {
             field: "account_id",
@@ -57,14 +131,35 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             field: "display_symbol",
             headerName: "Order Ticker",
             sortable: true,
-            width: 250,
+            width: 260,
             pinned: 'left',
             sort: 'asc',
             sortIndex: 1,
             cellRenderer: (params) => {
                 const row = params.data || {};
+                const isLegRow = row._rowType === 'bag_leg';
+                const isBag = row.security_type === 'BAG' || row.is_bag === true;
+                const orderKey = row.order_key;
+                const isExpanded = expandedBagKeys.has(orderKey);
                 const label = params.value || row.symbol || row.underlying_ticker;
                 const ticker = row.underlying_ticker || row.symbol;
+
+                if (isLegRow) {
+                    return (
+                        <div className="flex items-center gap-1 pl-6 border-l-2 border-blue-600/40">
+                            <span className="text-blue-300 text-[10px] font-semibold uppercase mr-1">
+                                {row.action_label || row.action}
+                            </span>
+                            <span className="text-gray-400 text-xs">
+                                {row.conid ? `conid:${row.conid}` : '-'}
+                            </span>
+                            {row.ratio && row.ratio !== 1 && (
+                                <span className="text-gray-500 text-[10px] ml-1">x{row.ratio}</span>
+                            )}
+                        </div>
+                    );
+                }
+
                 if (!label) return null;
 
                 const googleUrl = ticker ? `https://www.google.com/finance/quote/${ticker}:NASDAQ` : '#';
@@ -73,6 +168,19 @@ const OrdersGrid = ({ data, onTickerClick }) => {
 
                 return (
                     <div className="flex items-center gap-2">
+                        {isBag && (
+                            <button
+                                aria-label={isExpanded ? 'Collapse legs' : 'Expand legs'}
+                                data-testid={`bag-expand-${orderKey}`}
+                                onClick={() => toggleExpand(orderKey)}
+                                className="text-gray-400 hover:text-blue-300 transition-colors flex-shrink-0"
+                            >
+                                {isExpanded
+                                    ? <ChevronDown className="w-3.5 h-3.5" />
+                                    : <ChevronRight className="w-3.5 h-3.5" />
+                                }
+                            </button>
+                        )}
                         <span
                             className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
                             onClick={() => ticker && params.context.onTickerClick && params.context.onTickerClick(ticker)}
@@ -80,6 +188,9 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                             aria-label={detailLabel}
                         >
                             {label}
+                            {isBag && (
+                                <span className="ml-1 text-[10px] text-blue-400/70 font-normal">[COMBO]</span>
+                            )}
                             <ExternalLink
                                 className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
                                 aria-hidden="true"
@@ -105,13 +216,36 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             headerName: "Type",
             width: 80,
             sortable: true,
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                if (row._rowType === 'bag_leg') return null;
+                return params.value || '-';
+            },
         },
         {
             field: "action",
             headerName: "Action",
             width: 90,
             sortable: true,
-            cellClass: (params) => params.value === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold',
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                if (row._rowType === 'bag_leg') {
+                    return (
+                        <span className={
+                            row.action === 'BUY'
+                                ? 'text-green-400 font-bold text-xs'
+                                : 'text-red-400 font-bold text-xs'
+                        }>
+                            {row.action_label || row.action}
+                        </span>
+                    );
+                }
+                return (
+                    <span className={params.value === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                        {params.value}
+                    </span>
+                );
+            },
         },
         { field: "status", headerName: "Status", width: 120, sortable: true },
         {
@@ -119,21 +253,33 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             headerName: "Remaining",
             width: 105,
             sortable: true,
-            valueFormatter: p => formatNumber(p.value, 2),
+            valueFormatter: p => {
+                const row = p.data || {};
+                if (row._rowType === 'bag_leg') {
+                    return row.ratio != null ? `x${row.ratio}` : '-';
+                }
+                return formatNumber(p.value, 2);
+            },
         },
         {
             field: "total_quantity",
             headerName: "Total Qty",
             width: 95,
             sortable: true,
-            valueFormatter: p => formatNumber(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatNumber(p.value, 2);
+            },
         },
         {
             field: "filled_quantity",
             headerName: "Filled",
             width: 90,
             sortable: true,
-            valueFormatter: p => formatNumber(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatNumber(p.value, 2);
+            },
         },
         {
             field: "order_type",
@@ -147,72 +293,115 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             headerName: "Limit",
             width: 95,
             sortable: true,
-            valueFormatter: p => formatCurrency(p.value, 2),
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                if (row._rowType !== 'bag_leg' && (row.security_type === 'BAG' || row.is_bag)) {
+                    const label = netDebitCreditLabel(params.value);
+                    return label ? (
+                        <span className={params.value <= 0 ? 'text-red-300 text-xs' : 'text-green-300 text-xs'}>
+                            {label}
+                        </span>
+                    ) : formatCurrency(params.value);
+                }
+                return formatCurrency(params.value);
+            },
         },
         {
             field: "last_price",
             headerName: "Last",
             width: 95,
             sortable: true,
-            valueFormatter: p => formatCurrency(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatCurrency(p.value, 2);
+            },
         },
         {
             field: "day_change_pct",
             headerName: "1D %",
             width: 85,
             sortable: true,
-            valueFormatter: p => formatPercent(p.value, 2),
-            cellClass: (params) => (getNumericValue(params.value) || 0) >= 0 ? 'text-green-400' : 'text-red-400',
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatPercent(p.value, 2);
+            },
+            cellClass: (params) => {
+                if ((params.data || {})._rowType === 'bag_leg') return '';
+                return (getNumericValue(params.value) || 0) >= 0 ? 'text-green-400' : 'text-red-400';
+            },
         },
         {
             field: "call_put_skew",
             headerName: "Skew",
             width: 85,
             sortable: true,
-            valueFormatter: p => formatNumber(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatNumber(p.value, 2);
+            },
         },
         {
             field: "tsmom_60",
             headerName: "TSMOM 60",
             width: 100,
             sortable: true,
-            valueFormatter: p => formatNumber(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatNumber(p.value, 2);
+            },
         },
         {
             field: "ma_200",
             headerName: "200 MA",
             width: 90,
             sortable: true,
-            valueFormatter: p => formatCurrency(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatCurrency(p.value, 2);
+            },
         },
         {
             field: "ema_20",
             headerName: "EMA 20",
             width: 90,
             sortable: true,
-            valueFormatter: p => formatCurrency(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatCurrency(p.value, 2);
+            },
         },
         {
             field: "hma_20",
             headerName: "HMA 20",
             width: 90,
             sortable: true,
-            valueFormatter: p => formatCurrency(p.value, 2),
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return formatCurrency(p.value, 2);
+            },
         },
         {
             field: "source",
             headerName: "Source",
             width: 110,
             sortable: true,
-            cellRenderer: (params) => <SourceBadge source={params.value} />,
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                if (row._rowType === 'bag_leg') return null;
+                return <SourceBadge source={params.value} />;
+            },
         },
         {
             field: "last_update",
             headerName: "Last Update",
             width: 190,
             sortable: true,
+            valueFormatter: p => {
+                if ((p.data || {})._rowType === 'bag_leg') return '-';
+                return p.value || '-';
+            },
         },
-    ], []);
+    ], [expandedBagKeys, toggleExpand]);
 
     const defaultColDef = {
         minWidth: 70,
@@ -221,15 +410,61 @@ const OrdersGrid = ({ data, onTickerClick }) => {
         filter: true,
     };
 
+    const getRowClass = useCallback((params) => {
+        const row = params.data || {};
+        if (row._rowType === 'bag_leg') {
+            return 'bg-gray-900/60 text-gray-400 border-l-2 border-blue-600/30';
+        }
+        if (row.security_type === 'BAG' || row.is_bag) {
+            return 'bg-blue-950/20';
+        }
+        return '';
+    }, []);
+
     return (
-        <div className="ag-theme-alpine-dark h-full w-full">
-            <AgGridReact
-                rowData={data}
-                columnDefs={colDefs}
-                defaultColDef={defaultColDef}
-                animateRows={true}
-                context={{ onTickerClick }}
-            />
+        <div className="flex flex-col h-full">
+            {/* BAG visibility toolbar strip */}
+            {bagCount > 0 && (
+                <div
+                    className="flex items-center gap-4 px-3 py-1.5 bg-gray-850 border-b border-gray-700 text-xs"
+                    data-testid="bag-toolbar"
+                >
+                    <span className="text-gray-500 uppercase tracking-wide text-[10px]">
+                        BAG / Combo
+                    </span>
+                    <BagToggle
+                        id="toggle-show-bag-parents"
+                        label="Show BAG parents"
+                        checked={showBagParents}
+                        onChange={(val) => {
+                            setShowBagParents(val);
+                            if (!val) setShowLegsOnly(false);
+                        }}
+                    />
+                    <BagToggle
+                        id="toggle-show-legs-only"
+                        label="Show decomposed legs only"
+                        checked={showLegsOnly}
+                        onChange={(val) => {
+                            setShowLegsOnly(val);
+                            if (val) setShowBagParents(false);
+                        }}
+                    />
+                    <span className="text-gray-600 text-[10px]">
+                        {bagCount} combo order{bagCount !== 1 ? 's' : ''}
+                    </span>
+                </div>
+            )}
+            <div className="ag-theme-alpine-dark flex-1 w-full">
+                <AgGridReact
+                    rowData={displayRows}
+                    columnDefs={colDefs}
+                    defaultColDef={defaultColDef}
+                    animateRows={true}
+                    context={{ onTickerClick }}
+                    getRowClass={getRowClass}
+                />
+            </div>
         </div>
     );
 };

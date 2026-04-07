@@ -21,8 +21,10 @@ import pytest
 def cleanup_dependency_overrides():
     """Ensure FastAPI dependency overrides are cleared after each test."""
     from app.main import app
+    from app.services.data_refresh_queue import get_data_refresh_queue
     yield
     app.dependency_overrides.clear()
+    get_data_refresh_queue().clear()
 
 @pytest.fixture(autouse=True)
 def mock_mongo_client(monkeypatch):

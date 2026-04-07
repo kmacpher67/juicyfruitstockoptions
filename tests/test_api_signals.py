@@ -27,19 +27,25 @@ def client():
 
 class TestSignalAPI:
 
+    @patch('app.api.routes.MongoClient')
     @patch('app.api.routes.SignalService')
     @patch('app.api.routes.yf.download')
-    def test_get_ticker_signals(self, mock_yf, mock_service_cls, client):
+    def test_get_ticker_signals(self, mock_yf, mock_service_cls, mock_mongo, client):
         # Mock YF Data
         import pandas as pd
         df = pd.DataFrame({'Close': [100, 101]})
         # Simple dataframe doesn't have multi-index columns by default
         mock_yf.return_value = df
         
+        # Mock DB
+        mock_db = mock_mongo.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = None
+
         # Mock Service Response
         service_instance = mock_service_cls.return_value
         service_instance.get_kalman_signal.return_value = {"signal": "Bullish", "current": 101}
         service_instance.get_markov_probabilities.return_value = {"current_state": "UP", "transitions": {}}
+        service_instance.get_roll_vs_hold_advice.return_value = {"action": "HOLD"}
         
         response = client.get("/api/analysis/signals/SPY")
         
@@ -48,8 +54,13 @@ class TestSignalAPI:
         assert data["ticker"] == "SPY"
         assert data["kalman"]["signal"] == "Bullish"
 
+    @patch('app.api.routes.MongoClient')
     @patch('app.api.routes.yf.download')
-    def test_get_ticker_signals_error_handling(self, mock_yf, client):
+    def test_get_ticker_signals_error_handling(self, mock_yf, mock_mongo, client):
+        # Mock DB
+        mock_db = mock_mongo.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = None
+
         mock_yf.side_effect = Exception("API Error")
         response = client.get("/api/analysis/signals/SPY")
         assert response.status_code == 500

@@ -160,9 +160,40 @@ The `AVAILABLE_COLUMNS` array in `Dashboard.jsx` (L16-27) mirrors the same limit
 
 ---
 
+---
+
+## Stuck-Button Recovery (run-obs-004)
+
+**Problem:** When a stock-live-comparison job gets stuck or stale, the Run button stays grayed out indefinitely. The original code only cleared `running` state when the specific job-id poll returned `completed` or `failed` — it never consulted the latest-job endpoint to reconcile after a page reload or timer loss.
+
+**Fix (2026-04-07):**
+
+- `Dashboard.jsx` now calls `GET /api/jobs/latest/stock-live-comparison` once on mount (via a `useEffect`) to pre-populate the button state. If the server reports `"running"`, the watchdog interval starts immediately.
+- A 15-second watchdog `setInterval` (stored in `watchdogIntervalRef`) polls the latest-job endpoint while `running === true`. When the endpoint returns any terminal status (`completed`, `failed`, `timed_out`, `stale_watchdog_failed`), the button is re-enabled and a short reason string is displayed inline.
+- `runObsUtils.js` extracts the pure `deriveRunButtonState(job)` and `fetchLatestJob(token)` helpers so the logic is testable without a DOM.
+- The watchdog interval ref is cleared in the `useEffect` cleanup to prevent leaks on unmount.
+
+**Status reason text displayed near the button:**
+
+| Server status | Button | Label shown |
+|:---|:---|:---|
+| `running` | Disabled | Analysis running... |
+| `completed` | Enabled | (none) |
+| `failed` | Enabled | Previous run failed -- ready to retry |
+| `timed_out` | Enabled | Previous run timed out -- ready to retry |
+| `stale_watchdog_failed` | Enabled | Stale run cleared -- ready to retry |
+
+**Files changed:**
+- `frontend/src/components/Dashboard.jsx` — watchdog `useEffect`, `runStatusLabel` state, updated `runAnalysis`
+- `frontend/src/components/runObsUtils.js` — shared pure helpers (new)
+- `frontend/src/components/runObsUtils.test.js` — 15 Node test cases (new)
+
+---
+
 ## Changelog
 
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-03-28 | **CREATED** | Initial feature recap documenting Stock Analysis breakage root cause |
 | 2026-04-03 | **UPDATED** | Documented yfinance 429 retry-loop fix and added regression test coverage |
+| 2026-04-07 | **UPDATED** | Documented stuck-button recovery behavior (run-obs-004) |
