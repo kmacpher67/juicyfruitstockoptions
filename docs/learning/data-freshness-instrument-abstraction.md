@@ -6,7 +6,7 @@ This document defines DB-first freshness behavior for Juicy Fruit across stocks 
 - **Instrument** is the correct umbrella term for STK/OPT/FUT/BOND.
 - Use stable naming across docs/code. Prefer one naming scheme:
   - `stock_data` (existing heavy analysis snapshot for stock analytics),
-  - `instrument_snapshot` (optional generalized latest snapshot),
+  - `instrument_snapshot` (generalized latest snapshot for fast reads),
   - `instrument_price_history` (append-only high-churn price/history stream).
 
 ## 2. Core Read Contract (DB-First)

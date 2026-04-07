@@ -16,6 +16,7 @@ from app.services.instrument_identity import canonical_instrument_key
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
     _price_history_indexes_ensured = False
+    _instrument_snapshot_indexes_ensured = False
 
     def __init__(
         self,
@@ -1121,7 +1122,9 @@ class StockLiveComparison:
         """
         try:
             db = AiStockDatabase(collection_name="stock_data")
+            snapshot_db = AiStockDatabase(collection_name="instrument_snapshot")
             price_history_db = AiStockDatabase(collection_name="instrument_price_history")
+            self.ensure_instrument_snapshot_indexes(snapshot_db.collection)
             self.ensure_price_history_indexes(price_history_db.collection)
             records = df.to_dict(orient="records")
             required = self.required_detail_fields()
@@ -1139,6 +1142,9 @@ class StockLiveComparison:
                     merged["Ticker"] = ticker
                     merged["_last_persisted_at"] = now_ts
                     db.upsert_stock_record(merged, key_fields=("Ticker",))
+                    snapshot_record = self.build_instrument_snapshot_record(merged, default_ts=now_ts)
+                    if snapshot_record:
+                        snapshot_db.upsert_stock_record(snapshot_record, key_fields=("instrument_key",))
                     history_record = self.build_price_history_record(merged, default_ts=now_ts)
                     if history_record:
                         price_history_db.upsert_stock_record(
@@ -1169,6 +1175,40 @@ class StockLiveComparison:
             cls._price_history_indexes_ensured = True
         except Exception as exc:
             logging.warning("Unable to ensure instrument_price_history indexes: %s", exc)
+
+    @classmethod
+    def ensure_instrument_snapshot_indexes(cls, collection):
+        if cls._instrument_snapshot_indexes_ensured:
+            return
+        try:
+            collection.create_index([("instrument_key", 1)], unique=True)
+            collection.create_index([("symbol", 1), ("instrument_type", 1)])
+            cls._instrument_snapshot_indexes_ensured = True
+        except Exception as exc:
+            logging.warning("Unable to ensure instrument_snapshot indexes: %s", exc)
+
+    @staticmethod
+    def build_instrument_snapshot_record(record, default_ts=None):
+        ticker = str((record or {}).get("Ticker") or "").strip().upper()
+        if not ticker:
+            return None
+        timestamp = (record or {}).get("Last Update") or (record or {}).get("_last_persisted_at") or default_ts
+        if not timestamp:
+            return None
+        canonical_key = canonical_instrument_key(ticker=ticker, sec_type="STK")
+        return {
+            "instrument_key": canonical_key,
+            "instrument_key_legacy": ticker,
+            "symbol": ticker,
+            "instrument_type": "STK",
+            "last_updated": str(timestamp),
+            "current_price": (record or {}).get("Current Price"),
+            "day_change_pct": (record or {}).get("1D % Change"),
+            "company_name": (record or {}).get("Company Name"),
+            "source": "stock_live_comparison",
+            "_last_persisted_at": str((record or {}).get("_last_persisted_at") or default_ts or timestamp),
+            "_ingested_at": default_ts or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
     @staticmethod
     def build_price_history_record(record, default_ts=None):

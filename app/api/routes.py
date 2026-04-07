@@ -313,6 +313,18 @@ def _find_stock_data_by_symbol(db, raw_symbol: str) -> tuple[dict | None, dict, 
     return None, exact_query, symbol
 
 
+def _find_instrument_snapshot_by_symbol(db, raw_symbol: str) -> tuple[dict | None, str]:
+    symbol = _normalize_ticker_symbol(raw_symbol)
+    if not symbol:
+        return None, symbol
+    canonical_key = canonical_instrument_key(ticker=symbol, sec_type="STK")
+    snapshot = db.instrument_snapshot.find_one(
+        {"$or": [{"instrument_key": canonical_key}, {"instrument_key": symbol}]},
+        {"_id": 0},
+    )
+    return snapshot, symbol
+
+
 def _canonical_security_type(row: dict) -> str:
     candidates = [
         row.get("security_type"),
@@ -2339,10 +2351,18 @@ def get_ticker_analysis(
     
     # Fetch from stock_data
     stock, stock_query, symbol = _find_stock_data_by_symbol(db, symbol)
+    snapshot, _ = _find_instrument_snapshot_by_symbol(db, symbol)
     try:
         if not stock:
             # transform default structure if not found
-            freshness = _evaluate_stock_data_freshness(None, tier="mixed", db=db)
+            freshness_seed = None
+            if snapshot:
+                freshness_seed = {
+                    "_last_persisted_at": snapshot.get("_last_persisted_at") or snapshot.get("last_updated"),
+                    "source": snapshot.get("source") or "instrument_snapshot_db",
+                    "Last Update": snapshot.get("last_updated"),
+                }
+            freshness = _evaluate_stock_data_freshness(freshness_seed, tier="mixed", db=db)
             return {"symbol": symbol, "found": False, "price": 0.0, **freshness}
 
         # DB-first path: do not block modal rendering on live yfinance calls.
@@ -2384,7 +2404,15 @@ def get_ticker_price_history(
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
-    freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
+    snapshot, _ = _find_instrument_snapshot_by_symbol(db, symbol)
+    freshness_seed = stock
+    if not freshness_seed and snapshot:
+        freshness_seed = {
+            "_last_persisted_at": snapshot.get("_last_persisted_at") or snapshot.get("last_updated"),
+            "source": snapshot.get("source") or "instrument_snapshot_db",
+            "Last Update": snapshot.get("last_updated"),
+        }
+    freshness = _evaluate_stock_data_freshness(freshness_seed, tier="price", db=db)
     canonical_symbol_key = canonical_instrument_key(ticker=symbol, sec_type="STK")
 
     rows = list(

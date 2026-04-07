@@ -83,6 +83,26 @@ def test_get_ticker_analysis_marks_stale_and_queues_refresh_task():
     assert bt.tasks[0].args == (["AAPL"], "sync")
 
 
+def test_get_ticker_analysis_uses_snapshot_freshness_when_stock_record_missing():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    recent_iso = datetime.now(timezone.utc).isoformat()
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = None
+        mock_db.instrument_snapshot.find_one.return_value = {
+            "instrument_key": "STK:AAPL",
+            "symbol": "AAPL",
+            "_last_persisted_at": recent_iso,
+            "source": "stock_live_comparison",
+        }
+        payload = routes.get_ticker_analysis("AAPL", bt, admin)
+
+    assert payload["found"] is False
+    assert payload["is_stale"] is False
+    assert payload["data_source"] == "stock_live_comparison"
+
+
 def test_get_ticker_signals_prefers_persisted_db_signals_without_yfinance():
     bt = BackgroundTasks()
     admin = User(username="u", role="admin", disabled=False)
@@ -209,6 +229,27 @@ def test_get_ticker_price_history_returns_db_rows_with_freshness():
     query = mock_db.instrument_price_history.find.call_args.args[0]
     assert {"instrument_key": "STK:AAPL"} in query["$or"]
     assert {"instrument_key": "AAPL"} in query["$or"]
+
+
+def test_get_ticker_price_history_uses_snapshot_freshness_when_stock_missing():
+    admin = User(username="u", role="admin", disabled=False)
+    recent_iso = datetime.now(timezone.utc).isoformat()
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = None
+        mock_db.instrument_snapshot.find_one.return_value = {
+            "instrument_key": "STK:AAPL",
+            "symbol": "AAPL",
+            "_last_persisted_at": recent_iso,
+            "source": "stock_live_comparison",
+        }
+        mock_cursor = mock_db.instrument_price_history.find.return_value
+        mock_cursor.sort.return_value.limit.return_value = []
+
+        payload = routes.get_ticker_price_history("AAPL", admin, limit=50)
+
+    assert payload["is_stale"] is False
+    assert payload["data_source"] == "stock_live_comparison"
 
 
 def test_get_ticker_price_history_clamps_limit():

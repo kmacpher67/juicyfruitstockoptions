@@ -622,6 +622,7 @@ def test_merge_detail_record_preserves_existing_profile_and_price_action_when_in
 def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     comp = StockLiveComparison(["AAPL"])
     StockLiveComparison._price_history_indexes_ensured = False
+    StockLiveComparison._instrument_snapshot_indexes_ensured = False
     df = pd.DataFrame(
         [
             {
@@ -641,18 +642,22 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     fake_collection.find_one.return_value = {}
     fake_db = MagicMock()
     fake_db.collection = fake_collection
+    fake_snapshot_db = MagicMock()
+    fake_snapshot_collection = MagicMock()
+    fake_snapshot_db.collection = fake_snapshot_collection
     fake_price_db = MagicMock()
     fake_price_collection = MagicMock()
     fake_price_db.collection = fake_price_collection
 
-    db_ctor = MagicMock(side_effect=[fake_db, fake_price_db])
+    db_ctor = MagicMock(side_effect=[fake_db, fake_snapshot_db, fake_price_db])
     monkeypatch.setattr("stock_live_comparison.AiStockDatabase", db_ctor)
 
     comp.upsert_to_mongo(df)
 
-    assert db_ctor.call_count == 2
+    assert db_ctor.call_count == 3
     assert db_ctor.call_args_list[0].kwargs["collection_name"] == "stock_data"
-    assert db_ctor.call_args_list[1].kwargs["collection_name"] == "instrument_price_history"
+    assert db_ctor.call_args_list[1].kwargs["collection_name"] == "instrument_snapshot"
+    assert db_ctor.call_args_list[2].kwargs["collection_name"] == "instrument_price_history"
     fake_db.upsert_stock_record.assert_called_once()
     args, kwargs = fake_db.upsert_stock_record.call_args
     persisted = args[0]
@@ -660,6 +665,12 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     assert "profile" in persisted
     assert "Price Action" in persisted
     assert kwargs["key_fields"] == ("Ticker",)
+    fake_snapshot_db.upsert_stock_record.assert_called_once()
+    snapshot_args, snapshot_kwargs = fake_snapshot_db.upsert_stock_record.call_args
+    persisted_snapshot = snapshot_args[0]
+    assert persisted_snapshot["instrument_key"] == "STK:AAPL"
+    assert persisted_snapshot["symbol"] == "AAPL"
+    assert snapshot_kwargs["key_fields"] == ("instrument_key",)
     fake_price_db.upsert_stock_record.assert_called_once()
     hist_args, hist_kwargs = fake_price_db.upsert_stock_record.call_args
     persisted_hist = hist_args[0]
@@ -667,6 +678,7 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     assert persisted_hist["instrument_key_legacy"] == "AAPL"
     assert persisted_hist["source"] == "stock_live_comparison"
     assert hist_kwargs["key_fields"] == ("instrument_key", "timestamp", "source")
+    assert fake_snapshot_collection.create_index.call_count == 2
     assert fake_price_collection.create_index.call_count == 2
 
 
