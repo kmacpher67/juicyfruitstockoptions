@@ -28,12 +28,15 @@ def test_run_endpoint_background_task_uses_manual_trigger(monkeypatch):
 
     called = {}
 
-    def fake_run_stock_live_comparison(*args, **kwargs):
+    def fake_run_stock_live_comparison_with_optional_sharding(*args, **kwargs):
         called["args"] = args
         called["kwargs"] = kwargs
         return {"status": "success"}
 
-    monkeypatch.setattr("app.api.routes.run_stock_live_comparison", fake_run_stock_live_comparison)
+    monkeypatch.setattr(
+        "app.api.routes.run_stock_live_comparison_with_optional_sharding",
+        fake_run_stock_live_comparison_with_optional_sharding,
+    )
 
     background_tasks = BackgroundTasks()
     run_stock_live_comparison_endpoint(
@@ -47,4 +50,3 @@ def test_run_endpoint_background_task_uses_manual_trigger(monkeypatch):
 
     assert called["args"] == ()
     assert called["kwargs"] == {"trigger": "manual"}
-

@@ -23,7 +23,10 @@ from app.models import (
     FrontendLogPayload,
 )
 from app.services.portfolio_fixer import run_portfolio_fixer
-from app.services.stock_live_comparison import run_stock_live_comparison
+from app.services.stock_live_comparison import (
+    run_stock_live_comparison,
+    run_stock_live_comparison_with_optional_sharding,
+)
 from app.services.ibkr_service import fetch_and_store_nav_report
 from app.database import get_db
 from app.services.signal_service import SignalService
@@ -1101,7 +1104,7 @@ def run_stock_live_comparison_endpoint(
     background_tasks.add_task(
         background_job_wrapper,
         job.id,
-        lambda: run_stock_live_comparison(trigger="manual"),
+        lambda: run_stock_live_comparison_with_optional_sharding(trigger="manual"),
     )
     
     return {"job_id": job.id, "status": "queued"}

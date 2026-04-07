@@ -174,3 +174,68 @@ def test_service_coerces_invalid_stock_analysis_http_settings_to_safe_defaults(m
     assert created["comp"].kwargs["download_batch_size"] == 6
     assert created["comp"].kwargs["batch_pause_sec"] == 0.0
     assert created["comp"].kwargs["min_request_interval_sec"] == 1.5
+
+
+def test_optional_sharding_manual_uses_single_new_file_then_reuses(monkeypatch):
+    monkeypatch.setattr(
+        svc,
+        "_load_stock_analysis_http_settings",
+        lambda: {
+            "download_batch_size": 6,
+            "batch_pause_sec": 8.0,
+            "request_throttle_interval_sec": 2.0,
+            "scheduler_sharding_enabled": True,
+            "scheduler_shard_size": 2,
+            "scheduler_shard_pause_sec": 0.01,
+        },
+    )
+    monkeypatch.setattr(svc.StockLiveComparison, "get_default_tickers", staticmethod(lambda: ["AAPL", "MSFT", "NVDA"]))
+    monkeypatch.setattr("app.services.ticker_discovery.discover_and_track_tickers", lambda: None)
+
+    calls = []
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return {"status": "success", "rows_updated": 1, "failure_count": 0, "source_used": "yfinance_live"}
+
+    monkeypatch.setattr(svc, "run_stock_live_comparison", fake_run)
+    with patch("app.services.stock_live_comparison.time.sleep") as mock_sleep:
+        result = svc.run_stock_live_comparison_with_optional_sharding(trigger="manual")
+
+    assert result["status"] == "success"
+    assert result["mode"] == "sharded"
+    assert result["shard_count"] == 2
+    assert len(calls) == 2
+    assert calls[0]["kwargs"]["tickers"] == ["AAPL", "MSFT"]
+    assert calls[0]["kwargs"]["trigger"] == "manual"
+    assert calls[0]["kwargs"]["force_new_file_override"] is True
+    assert calls[0]["kwargs"]["allow_create_if_missing_override"] is True
+    assert calls[1]["kwargs"]["tickers"] == ["NVDA"]
+    assert calls[1]["kwargs"]["trigger"] == "manual"
+    assert calls[1]["kwargs"]["force_new_file_override"] is False
+    assert calls[1]["kwargs"]["allow_create_if_missing_override"] is True
+    mock_sleep.assert_called_once()
+
+
+def test_optional_sharding_sync_bypasses_sharding(monkeypatch):
+    monkeypatch.setattr(
+        svc,
+        "_load_stock_analysis_http_settings",
+        lambda: {
+            "scheduler_sharding_enabled": True,
+            "scheduler_shard_size": 2,
+            "scheduler_shard_pause_sec": 0.01,
+        },
+    )
+    calls = []
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return {"status": "success"}
+
+    monkeypatch.setattr(svc, "run_stock_live_comparison", fake_run)
+    result = svc.run_stock_live_comparison_with_optional_sharding(tickers=["AAPL"], trigger="sync")
+
+    assert result["status"] == "success"
+    assert len(calls) == 1
+    assert calls[0]["kwargs"] == {"tickers": ["AAPL"], "trigger": "sync"}

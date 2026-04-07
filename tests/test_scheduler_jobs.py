@@ -88,9 +88,9 @@ def test_start_scheduler_registers_price_history_retention_job():
 
 def test_run_stock_live_comparison_scheduled_runs_single_job_when_sharding_disabled():
     with patch(
-        "app.scheduler.jobs._get_stock_analysis_scheduler_config",
-        return_value={"scheduler_sharding_enabled": False, "scheduler_shard_size": 2, "scheduler_shard_pause_sec": 0.0},
-    ), patch("app.scheduler.jobs.run_stock_live_comparison", return_value={"status": "success"}) as mock_run:
+        "app.scheduler.jobs.run_stock_live_comparison_with_optional_sharding",
+        return_value={"status": "success"},
+    ) as mock_run:
         result = jobs.run_stock_live_comparison_scheduled()
 
     assert result["status"] == "success"
@@ -99,21 +99,9 @@ def test_run_stock_live_comparison_scheduled_runs_single_job_when_sharding_disab
 
 def test_run_stock_live_comparison_scheduled_shards_tickers_and_paces_between_shards():
     with patch(
-        "app.scheduler.jobs._get_stock_analysis_scheduler_config",
-        return_value={"scheduler_sharding_enabled": True, "scheduler_shard_size": 2, "scheduler_shard_pause_sec": 0.01},
-    ), patch(
-        "app.scheduler.jobs.run_stock_live_comparison",
-        side_effect=[
-            {"status": "success", "file": "f.xlsx", "rows_updated": 2, "failure_count": 0, "source_used": "yfinance_live"},
-            {"status": "success", "file": "f.xlsx", "rows_updated": 1, "failure_count": 1, "source_used": "yfinance_live"},
-            {"status": "success", "file": "f.xlsx", "rows_updated": 1, "failure_count": 0, "source_used": "yfinance_live"},
-        ],
-    ) as mock_run, patch(
-        "app.scheduler.jobs.time.sleep"
-    ) as mock_sleep, patch("app.services.ticker_discovery.discover_and_track_tickers"), patch(
-        "stock_live_comparison.StockLiveComparison.get_default_tickers",
-        return_value=["AAPL", "MSFT", "NVDA", "AMD", "GOOG"],
-    ):
+        "app.scheduler.jobs.run_stock_live_comparison_with_optional_sharding",
+        return_value={"status": "success", "mode": "sharded", "shard_count": 3, "rows_updated": 4, "failure_count": 1},
+    ) as mock_run:
         result = jobs.run_stock_live_comparison_scheduled()
 
     assert result["status"] == "success"
@@ -121,11 +109,7 @@ def test_run_stock_live_comparison_scheduled_shards_tickers_and_paces_between_sh
     assert result["shard_count"] == 3
     assert result["rows_updated"] == 4
     assert result["failure_count"] == 1
-    assert mock_run.call_count == 3
-    assert mock_run.call_args_list[0].kwargs == {"tickers": ["AAPL", "MSFT"], "trigger": "scheduled"}
-    assert mock_run.call_args_list[1].kwargs == {"tickers": ["NVDA", "AMD"], "trigger": "scheduled"}
-    assert mock_run.call_args_list[2].kwargs == {"tickers": ["GOOG"], "trigger": "scheduled"}
-    assert mock_sleep.call_count == 2
+    mock_run.assert_called_once_with(trigger="scheduled")
 
 
 def test_start_scheduler_registers_stock_comparison_wrapper_job():

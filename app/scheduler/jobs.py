@@ -1,12 +1,14 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta, timezone
-import time
 
 from pymongo import MongoClient
 
 from app.config import settings
 from app.services.portfolio_fixer import run_portfolio_fixer
-from app.services.stock_live_comparison import run_stock_live_comparison
+from app.services.stock_live_comparison import (
+    run_stock_live_comparison,
+    run_stock_live_comparison_with_optional_sharding,
+)
 from app.services.ibkr_service import run_ibkr_sync
 from app.services.ibkr_tws_service import get_ibkr_tws_service
 from app.services.dividend_scanner import DividendScanner
@@ -71,77 +73,8 @@ def _get_stock_analysis_scheduler_config() -> dict:
 
 
 def run_stock_live_comparison_scheduled():
-    """Run stock comparison in scheduler mode, optionally sharded to reduce burst traffic."""
-    config = _get_stock_analysis_scheduler_config()
-    sharding_enabled = bool(config.get("scheduler_sharding_enabled"))
-    shard_size = int(config.get("scheduler_shard_size", 25))
-    shard_pause_sec = float(config.get("scheduler_shard_pause_sec", 20.0))
-
-    if not sharding_enabled:
-        return run_stock_live_comparison(trigger="scheduled")
-
-    try:
-        from app.services.ticker_discovery import discover_and_track_tickers
-
-        discover_and_track_tickers()
-    except Exception as exc:
-        logging.error("Scheduler: auto-discovery failed before sharded stock run: %s", exc)
-
-    try:
-        from stock_live_comparison import StockLiveComparison
-
-        tickers = StockLiveComparison.get_default_tickers()
-    except Exception as exc:
-        logging.error("Scheduler: failed loading default tickers for sharded stock run: %s", exc)
-        return run_stock_live_comparison(trigger="scheduled")
-
-    if not tickers:
-        logging.info("Scheduler: stock comparison sharded run skipped because ticker list is empty.")
-        return {"status": "skipped", "reason": "no_tickers"}
-
-    if len(tickers) <= shard_size:
-        return run_stock_live_comparison(tickers=tickers, trigger="scheduled")
-
-    shards = [tickers[i : i + shard_size] for i in range(0, len(tickers), shard_size)]
-    summary = {
-        "status": "success",
-        "mode": "sharded",
-        "shard_count": len(shards),
-        "ticker_count": len(tickers),
-        "rows_updated": 0,
-        "failure_count": 0,
-        "results": [],
-    }
-    for idx, shard in enumerate(shards, start=1):
-        logging.info(
-            "Scheduler: running stock comparison shard %s/%s size=%s",
-            idx,
-            len(shards),
-            len(shard),
-        )
-        shard_result = run_stock_live_comparison(tickers=shard, trigger="scheduled")
-        summary["results"].append(
-            {
-                "shard_index": idx,
-                "shard_size": len(shard),
-                "status": shard_result.get("status"),
-                "file": shard_result.get("file"),
-                "reason": shard_result.get("reason"),
-                "error": shard_result.get("error"),
-                "rows_updated": shard_result.get("rows_updated"),
-                "failure_count": shard_result.get("failure_count"),
-                "stale_hit_ratio": shard_result.get("stale_hit_ratio"),
-                "source_used": shard_result.get("source_used"),
-            }
-        )
-        summary["rows_updated"] += int(shard_result.get("rows_updated") or 0)
-        summary["failure_count"] += int(shard_result.get("failure_count") or 0)
-        if shard_result.get("status") == "error":
-            summary["status"] = "partial_error"
-        if idx < len(shards) and shard_pause_sec > 0:
-            time.sleep(shard_pause_sec)
-
-    return summary
+    """Run stock comparison in scheduler mode with optional sharding."""
+    return run_stock_live_comparison_with_optional_sharding(trigger="scheduled")
 
 
 def run_price_history_retention_cleanup():

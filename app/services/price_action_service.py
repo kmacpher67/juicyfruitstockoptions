@@ -44,7 +44,7 @@ class PriceActionService:
         # Convert to numpy for speed
         highs = df['High'].values
         lows = df['Low'].values
-        dates = df['Date'].values
+        dates = df['Date'].values if 'Date' in df.columns else df.index.values
         
         for i in range(n, len(df) - n):
             # Check Swing High
@@ -125,7 +125,7 @@ class PriceActionService:
         
         # We need to scan from the last structural point forward
         closes = df['Close'].values
-        dates = df['Date'].values
+        dates = df['Date'].values if 'Date' in df.columns else df.index.values
         
         last_high = None
         last_low = None
@@ -193,7 +193,7 @@ class PriceActionService:
 
         highs = df['High'].values
         lows = df['Low'].values
-        dates = df['Date'].values
+        dates = df['Date'].values if 'Date' in df.columns else df.index.values
 
         for i in range(len(df) - 2):
             # Bullish FVG
@@ -251,7 +251,7 @@ class PriceActionService:
         closes = df['Close'].values
         highs = df['High'].values
         lows = df['Low'].values
-        dates = df['Date'].values
+        dates = df['Date'].values if 'Date' in df.columns else df.index.values
         
         for bos in bos_events:
             if bos["type"] == "BOS_BULL":

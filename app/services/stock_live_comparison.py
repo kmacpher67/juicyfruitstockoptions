@@ -1,6 +1,7 @@
 import logging
 from typing import List
 from datetime import datetime, timezone
+import time
 from pymongo import MongoClient
 
 from stock_live_comparison import StockLiveComparison
@@ -128,7 +129,12 @@ def _build_ingest_telemetry_fields(
         "ingest_mode": "realtime_sync" if trigger == "sync" else "batch",
     }
 
-def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "scheduled") -> dict:
+def run_stock_live_comparison(
+    tickers: List[str] | None = None,
+    trigger: str = "scheduled",
+    force_new_file_override: bool | None = None,
+    allow_create_if_missing_override: bool | None = None,
+) -> dict:
     """Run stock comparison and control report-file creation by trigger.
 
     trigger values:
@@ -200,9 +206,11 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                 return result
 
         started = datetime.now()
+        force_new_file = (trigger == "manual") if force_new_file_override is None else bool(force_new_file_override)
+        allow_create_if_missing = (trigger != "sync") if allow_create_if_missing_override is None else bool(allow_create_if_missing_override)
         run_summary = comp.run(
-            force_new_file=(trigger == "manual"),
-            allow_create_if_missing=(trigger != "sync"),
+            force_new_file=force_new_file,
+            allow_create_if_missing=allow_create_if_missing,
         )
         if not isinstance(run_summary, dict):
             run_summary = {}
@@ -256,3 +264,103 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
             }
         )
         return {"status": "error", "error": str(exc)}
+
+
+def run_stock_live_comparison_with_optional_sharding(
+    tickers: List[str] | None = None,
+    trigger: str = "scheduled",
+) -> dict:
+    """Run stock analysis with optional trigger-aware sharding.
+
+    - `sync` always runs non-sharded.
+    - `scheduled` and `manual` may shard when enabled in stock_analysis_http_config.
+    - For `manual` sharding, shard 1 creates a new file and subsequent shards reuse it.
+    """
+    if trigger not in {"manual", "scheduled", "sync"}:
+        logging.warning(
+            "Unknown stock comparison trigger '%s' for optional sharding; defaulting to scheduled",
+            trigger,
+        )
+        trigger = "scheduled"
+
+    if trigger == "sync":
+        return run_stock_live_comparison(tickers=tickers, trigger=trigger)
+
+    settings_payload = _load_stock_analysis_http_settings()
+    sharding_enabled = bool(settings_payload.get("scheduler_sharding_enabled"))
+    shard_size = int(settings_payload.get("scheduler_shard_size", 25))
+    shard_pause_sec = float(settings_payload.get("scheduler_shard_pause_sec", 20.0))
+
+    if not sharding_enabled:
+        return run_stock_live_comparison(tickers=tickers, trigger=trigger)
+
+    ticker_list = list(tickers or [])
+    if not ticker_list:
+        try:
+            from app.services.ticker_discovery import discover_and_track_tickers
+
+            discover_and_track_tickers()
+        except Exception as exc:
+            logging.error("stock analysis %s sharded run auto-discovery failed: %s", trigger, exc)
+
+        try:
+            ticker_list = StockLiveComparison.get_default_tickers()
+        except Exception as exc:
+            logging.error("stock analysis %s sharded run default ticker load failed: %s", trigger, exc)
+            return run_stock_live_comparison(tickers=tickers, trigger=trigger)
+
+    if not ticker_list:
+        logging.info("stock analysis %s sharded run skipped because ticker list is empty.", trigger)
+        return {"status": "skipped", "reason": "no_tickers", "trigger": trigger}
+
+    if len(ticker_list) <= shard_size:
+        return run_stock_live_comparison(tickers=ticker_list, trigger=trigger)
+
+    shards = [ticker_list[i : i + shard_size] for i in range(0, len(ticker_list), shard_size)]
+    summary = {
+        "status": "success",
+        "mode": "sharded",
+        "trigger": trigger,
+        "shard_count": len(shards),
+        "ticker_count": len(ticker_list),
+        "rows_updated": 0,
+        "failure_count": 0,
+        "results": [],
+    }
+    for idx, shard in enumerate(shards, start=1):
+        logging.info(
+            "Stock analysis: running %s shard %s/%s size=%s",
+            trigger,
+            idx,
+            len(shards),
+            len(shard),
+        )
+        shard_result = run_stock_live_comparison(
+            tickers=shard,
+            trigger=trigger,
+            # Preserve single-new-file semantics for manual runs.
+            force_new_file_override=(idx == 1) if trigger == "manual" else None,
+            allow_create_if_missing_override=True if trigger == "manual" else None,
+        )
+        summary["results"].append(
+            {
+                "shard_index": idx,
+                "shard_size": len(shard),
+                "status": shard_result.get("status"),
+                "file": shard_result.get("file"),
+                "reason": shard_result.get("reason"),
+                "error": shard_result.get("error"),
+                "rows_updated": shard_result.get("rows_updated"),
+                "failure_count": shard_result.get("failure_count"),
+                "stale_hit_ratio": shard_result.get("stale_hit_ratio"),
+                "source_used": shard_result.get("source_used"),
+            }
+        )
+        summary["rows_updated"] += int(shard_result.get("rows_updated") or 0)
+        summary["failure_count"] += int(shard_result.get("failure_count") or 0)
+        if shard_result.get("status") == "error":
+            summary["status"] = "partial_error"
+        if idx < len(shards) and shard_pause_sec > 0:
+            time.sleep(shard_pause_sec)
+
+    return summary
