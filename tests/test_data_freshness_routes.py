@@ -578,3 +578,53 @@ def test_get_ticker_analysis_sanitizes_nan_values_to_avoid_500():
         payload = routes.get_ticker_analysis("AMD", bt, admin)
     assert payload["found"] is True
     assert payload["data"]["Current Price"] is None
+
+
+def test_core_db_first_endpoints_expose_standard_freshness_metadata():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    expected = {"data_source", "last_updated", "is_stale", "stale_reason", "refresh_queued"}
+    persisted_at = datetime.now(timezone.utc).isoformat()
+
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": 190.0,
+            "_last_persisted_at": persisted_at,
+            "signals": {"kalman": {}, "markov": {}, "advice": {}},
+        }
+        mock_cursor = mock_db.instrument_price_history.find.return_value
+        mock_cursor.sort.return_value.limit.return_value = []
+
+        ticker_payload = routes.get_ticker_analysis("AMD", bt, admin)
+        opportunity_payload = routes.get_opportunity_analysis("AMD", bt, admin)
+        signals_payload = routes.get_ticker_signals("AMD", bt, admin)
+        history_payload = routes.get_ticker_price_history("AMD", admin, limit=20)
+
+    for payload in (ticker_payload, opportunity_payload, signals_payload, history_payload):
+        assert expected.issubset(payload.keys())
+
+
+def test_meta_opt_in_endpoints_expose_standard_freshness_metadata():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    expected = {"data_source", "last_updated", "is_stale", "stale_reason", "refresh_queued"}
+    persisted_at = datetime.now(timezone.utc).isoformat()
+
+    with patch("app.api.routes.MongoClient") as mock_client, patch("app.services.roll_service.RollService") as mock_roll_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "Current Price": 190.0,
+            "_last_persisted_at": persisted_at,
+        }
+        mock_db.ibkr_holdings.find.return_value = []
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap-1"}
+        mock_roll_cls.return_value.analyze_portfolio_rolls.return_value = []
+
+        optimizer_payload = routes.get_portfolio_optimizer("AMD", bt, admin, include_meta=True)
+        smart_roll_payload = routes.analyze_ticker_smart_rolls("AMD", bt, include_meta=True, current_user=admin)
+
+    for payload in (optimizer_payload, smart_roll_payload):
+        assert expected.issubset(payload.keys())

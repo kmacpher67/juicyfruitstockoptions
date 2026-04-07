@@ -1,4 +1,4 @@
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Literal
 from enum import Enum
 from pydantic import BaseModel, Field, AliasChoices
 
@@ -139,3 +139,15 @@ class IBKRStatus(BaseModel):
     query_id_nav_1y: Optional[str] = None
     query_id_dividends: Optional[str] = None
     last_sync: Optional[dict] = None
+
+
+class FrontendLogPayload(BaseModel):
+    level: Literal["debug", "info", "warning", "error"] = "error"
+    source: str = "frontend"
+    boundary: Optional[str] = None
+    message: str = Field(..., min_length=1, max_length=2000)
+    stack: Optional[str] = Field(None, max_length=12000)
+    componentStack: Optional[str] = Field(None, max_length=12000)
+    timestamp: Optional[str] = None
+    path: Optional[str] = Field(None, max_length=1024)
+    userAgent: Optional[str] = Field(None, max_length=1024)

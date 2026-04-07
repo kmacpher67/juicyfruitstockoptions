@@ -27,7 +27,7 @@ class AppErrorBoundary extends React.Component {
                     <div className="max-w-xl text-center space-y-3">
                         <h1 className="text-xl font-semibold">Something went wrong in the dashboard.</h1>
                         <p className="text-sm text-gray-400">
-                            The error was logged in the browser console. Please refresh the page and retry.
+                            The error was logged for diagnostics. Please refresh the page and retry.
                         </p>
                     </div>
                 </div>

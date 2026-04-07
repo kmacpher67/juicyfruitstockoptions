@@ -13,7 +13,15 @@ import pandas as pd
 from app.auth.dependencies import get_current_active_user
 from app.auth.utils import create_access_token, verify_password, get_password_hash
 from app.config import settings
-from app.models import Token, User, StockRecord, IBKRConfig, IBKRStatus, NavReportType
+from app.models import (
+    Token,
+    User,
+    StockRecord,
+    IBKRConfig,
+    IBKRStatus,
+    NavReportType,
+    FrontendLogPayload,
+)
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import run_stock_live_comparison
 from app.services.ibkr_service import fetch_and_store_nav_report
@@ -960,6 +968,42 @@ async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
     return current_user
+
+
+@router.post("/logs/frontend")
+@log_endpoint
+def ingest_frontend_log(
+    payload: FrontendLogPayload,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    """
+    Centralized frontend logging transport endpoint.
+    Accepts structured client-side logs and forwards them to backend logs.
+    """
+    safe_boundary = (payload.boundary or "unknown").strip()[:128]
+    safe_source = (payload.source or "frontend").strip()[:64]
+    message = payload.message.strip()
+
+    event = (
+        f"frontend_log user={current_user.username} level={payload.level} "
+        f"source={safe_source} boundary={safe_boundary} message={message}"
+    )
+
+    if payload.level == "debug":
+        logger.debug(event)
+    elif payload.level == "info":
+        logger.info(event)
+    elif payload.level == "warning":
+        logger.warning(event)
+    else:
+        logger.error(event)
+
+    if payload.stack:
+        logger.debug("frontend_log stack=%s", payload.stack[:4000])
+    if payload.componentStack:
+        logger.debug("frontend_log component_stack=%s", payload.componentStack[:4000])
+
+    return {"status": "logged"}
 
 # --- Secured Endpoints ---
 

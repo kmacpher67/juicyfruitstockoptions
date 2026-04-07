@@ -142,14 +142,14 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Ticker Modal Validation (`tests/specs/modal.spec.js`)**: Verify that clicking a ticker opens the modal, fires the parallel intercept requests, and handles the "Offline" degraded state badge.
 
 ### Data Reliability
-- [ ] **Mongo Backup Automation**:
+- [x] **Mongo Backup Automation**: *(Completed 2026-04-07: automation path and backup-storage recommendations documented; current backup workflow is no longer manual-only.)*
     - [X] Automate backup to GitHub (current manual process).
     - [X] Investigate Google Drive as alternative storage.
     - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
-- [ ] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches.
-    - [/] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately.
-    - [/] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources.
-    - [/] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`.
+- [x] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches. *(Completed 2026-04-07: DB-first + async refresh + freshness metadata are now baseline contracts with route-level regression coverage.)*
+    - [x] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately. *(Completed 2026-04-07: routes/tests cover persisted-first behavior for ticker analysis, news, opportunity, optimizer, signals, smart-roll, and price-history paths.)*
+    - [x] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources. *(Completed 2026-04-07: stale-path responses queue background sync with cooldown-aware dedupe; regression coverage in `tests/test_data_freshness_routes.py` and `tests/test_portfolio_features.py`.)*
+    - [x] **data-freshness-db-first-003**: Standardize freshness metadata on API responses: `data_source`, `last_updated`, `is_stale`, `stale_reason`, and `refresh_queued`. *(Completed 2026-04-07: standardized metadata is now validated across core and include-meta endpoints in route regression tests.)*
     - [x] **data-freshness-policy-001**: Define field-level freshness tiers and TTL/SLA windows. *(Completed 2026-04-07: documented tiered SLA policy + endpoint-tier mapping in `docs/features/data_freshness_sla_policy.md`; thresholds are operator-configurable via `/api/settings/data-freshness` and admin UI.)*
     - [x] **data-freshness-policy-002**: Tier A (price-derived fields such as `Current Price`, `% Change`, price-based `P/E`) refreshes on short intraday cadence during market session. *(Completed 2026-04-07: `price_open_min`/`price_closed_min` are validated config settings and route coverage confirms Tier A behavior.)*
     - [x] **data-freshness-policy-003**: Tier B (fundamental periodic fields such as quarterly earnings, analyst targets) refreshes daily or per-report cadence. *(Completed 2026-04-07: `mixed_open_min`/`mixed_closed_min` are validated config settings and route coverage confirms Tier B behavior.)*
@@ -299,10 +299,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 
 
 ### Observability & Logging
-- [/] **Logging**: Implement logging for all backend services.  
+- [x] **Logging**: Implement logging for all backend services. *(Completed 2026-04-07: backend structured logging baseline plus authenticated frontend log-ingest endpoint `/api/logs/frontend`.)*
     - [x] Implement detailed DEBUG - **Style:** preface all logs with "{datetime stamp} - {filename-class-method/function_name} - {LEVEL} - {message text}"    the message text should tell the user what is happening (if possible, include the result of the action)
 - [x] **Logging**: Implement logging for all frontend services. 
-    - [ ] **Frontend centralized logging transport**: Research/send frontend logs to backend API (next step after local boundary logging baseline).
+    - [x] **Frontend centralized logging transport**: Research/send frontend logs to backend API (next step after local boundary logging baseline). *(Completed 2026-04-07: `logFrontendError` now forwards structured payloads to `/api/logs/frontend` with best-effort fallback.)*
     - [x] Implement React Error Boundary logging.
 - [x] **Structured Logging:** Use the standard `logging` library.
 - [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
