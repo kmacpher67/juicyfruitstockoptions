@@ -679,7 +679,11 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     assert persisted_hist["source"] == "stock_live_comparison"
     assert hist_kwargs["key_fields"] == ("instrument_key", "timestamp", "source")
     assert fake_snapshot_collection.create_index.call_count == 2
-    assert fake_price_collection.create_index.call_count == 2
+    assert fake_price_collection.create_index.call_count == 3
+    assert any(
+        call.args and call.args[0] == [("timestamp", -1)]
+        for call in fake_price_collection.create_index.call_args_list
+    )
 
 
 def test_missing_required_detail_fields_requires_profile_news_key():

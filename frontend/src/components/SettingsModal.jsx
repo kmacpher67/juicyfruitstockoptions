@@ -400,6 +400,17 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                                 Enable Scheduler Sharding
                                             </label>
                                         </div>
+                                        <div className="flex items-end">
+                                            <span
+                                                className={`inline-flex items-center rounded px-2 py-1 text-xs font-semibold ${
+                                                    stockHttpConfig.scheduler_sharding_enabled
+                                                        ? "bg-green-900/60 text-green-300 border border-green-700"
+                                                        : "bg-gray-700 text-gray-300 border border-gray-600"
+                                                }`}
+                                            >
+                                                Sharding Status: {stockHttpConfig.scheduler_sharding_enabled ? "Enabled" : "Disabled"}
+                                            </span>
+                                        </div>
                                         <div>
                                             <label className="block text-gray-400 text-xs mb-1">Scheduler Shard Size</label>
                                             <input

@@ -75,6 +75,19 @@ Implemented baseline session logic (2026-04-07):
 
 At ~100 tracked stocks, daily snapshots are manageable, but intraday streams still need indexing and retention planning.
 
+Implemented baseline retention/indexing policy (2026-04-07):
+- `instrument_snapshot` indexes:
+  - unique key index: `(instrument_key)`
+  - lookup index: `(symbol, instrument_type)`
+- `instrument_price_history` indexes:
+  - query index: `(instrument_key, timestamp desc)` for ticker chart reads
+  - source+time index: `(source, timestamp desc)` for source diagnostics
+  - time index: `(timestamp desc)` for retention and broad time-window scans
+- Retention cleanup:
+  - scheduler job `instrument_price_history_retention_daily` runs at `03:45` server time
+  - deletes rows older than `price_history_retention_days` from `system_config._id = data_freshness_config`
+  - safety floor is `30` days when invalid/missing config is provided
+
 ## 7. Data Hygiene Rules
 - Normalize instrument keys (case/whitespace, option symbol canonicalization).
 - Remove duplicate logical fields from ingestion mappings.

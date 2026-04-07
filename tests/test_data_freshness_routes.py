@@ -353,6 +353,55 @@ def test_get_ticker_news_falls_back_to_live_when_cache_missing():
     assert payload["stale_reason"] == "db_record_missing"
 
 
+def test_get_ticker_news_stale_cached_record_returns_db_first_and_queues_refresh():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    stale_iso = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    with patch("app.api.routes.MongoClient") as mock_client, patch(
+        "app.services.news_service.NewsService"
+    ) as mock_news_cls:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AMD",
+            "_last_persisted_at": stale_iso,
+            "profile": {"news": [{"title": "cached-stale-news"}]},
+        }
+
+        payload = routes.get_ticker_news("AMD", bt, admin, limit=5, include_meta=True)
+
+    assert payload["symbol"] == "AMD"
+    assert payload["news"][0]["title"] == "cached-stale-news"
+    assert payload["is_stale"] is True
+    assert payload["refresh_queued"] is True
+    assert len(bt.tasks) == 1
+    assert bt.tasks[0].func is routes.run_stock_live_comparison
+    assert bt.tasks[0].args == (["AMD"], "sync")
+    mock_news_cls.assert_not_called()
+
+
+def test_get_opportunity_analysis_stale_record_queues_refresh():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    stale_iso = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "NVDA",
+            "IV Rank": 55,
+            "Liquidity Rating": 4,
+            "_last_persisted_at": stale_iso,
+        }
+
+        payload = routes.get_opportunity_analysis("NVDA", bt, admin)
+
+    assert payload["symbol"] == "NVDA"
+    assert payload["is_stale"] is True
+    assert payload["refresh_queued"] is True
+    assert len(bt.tasks) == 1
+    assert bt.tasks[0].func is routes.run_stock_live_comparison
+    assert bt.tasks[0].args == (["NVDA"], "sync")
+
+
 def test_endpoint_freshness_tiers_apply_different_thresholds():
     stale_20m = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
     bt = BackgroundTasks()

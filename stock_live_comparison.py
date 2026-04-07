@@ -1172,6 +1172,7 @@ class StockLiveComparison:
         try:
             collection.create_index([("instrument_key", 1), ("timestamp", -1)])
             collection.create_index([("source", 1), ("timestamp", -1)])
+            collection.create_index([("timestamp", -1)])
             cls._price_history_indexes_ensured = True
         except Exception as exc:
             logging.warning("Unable to ensure instrument_price_history indexes: %s", exc)
