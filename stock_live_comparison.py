@@ -1313,6 +1313,21 @@ class StockLiveComparison:
         minimum_allowed = max(5, int(expected * 0.2))
         return int(record_count) < minimum_allowed
 
+    @staticmethod
+    def summarize_fetched_records(records):
+        failed_tickers = []
+        for record in records or []:
+            if isinstance(record, dict) and record.get("Error"):
+                failed_tickers.append(str(record.get("Ticker") or "UNKNOWN"))
+        total = len(records or [])
+        failed_count = len(failed_tickers)
+        return {
+            "fetched_records_count": total,
+            "successful_fetch_count": max(0, total - failed_count),
+            "failed_fetch_count": failed_count,
+            "failed_tickers": failed_tickers,
+        }
+
     def run(self, force_new_file=False, allow_create_if_missing=True):
         self.now = datetime.now()
         self.filename = self.select_output_report_file(
@@ -1340,6 +1355,13 @@ class StockLiveComparison:
         final_records = []
         put_col = None
         call_col = None
+        tickers_to_fetch = []
+        fetched_summary = {
+            "fetched_records_count": 0,
+            "successful_fetch_count": 0,
+            "failed_fetch_count": 0,
+            "failed_tickers": [],
+        }
         
         if self.latest_viable_file:
             df_existing = pd.read_excel(self.latest_viable_file)
@@ -1369,6 +1391,7 @@ class StockLiveComparison:
                 
                 fetched_records = self.fetch_data(tickers_to_fetch)
                 logging.info(f"fetched: {len(fetched_records)} records")
+                fetched_summary = self.summarize_fetched_records(fetched_records)
                 
                 # Combine preserved existing records with new fetched records
                 final_records = preserved_records + fetched_records
@@ -1376,7 +1399,9 @@ class StockLiveComparison:
         else:
             logging.info("No existing spreadsheet found. Fetching all data.")
             tickers_to_fetch = self.tickers
-            final_records = self.fetch_data(tickers_to_fetch)
+            fetched_records = self.fetch_data(tickers_to_fetch)
+            fetched_summary = self.summarize_fetched_records(fetched_records)
+            final_records = fetched_records
 
         # Create DataFrame from final combined list
         df = pd.DataFrame(final_records)
@@ -1421,6 +1446,20 @@ class StockLiveComparison:
             logging.error(f"Failed to auto-export JSON backup: {e}")
         
         logging.info(f"Spreadsheet generated: {self.filename}")
+        requested_count = len(self.tickers or [])
+        stale_candidate_count = len(tickers_to_fetch or [])
+        stale_hit_ratio = (
+            round(stale_candidate_count / requested_count, 4)
+            if requested_count > 0
+            else 0.0
+        )
+        return {
+            "requested_tickers_count": requested_count,
+            "stale_candidate_count": stale_candidate_count,
+            "stale_hit_ratio": stale_hit_ratio,
+            "rows_written": len(df),
+            **fetched_summary,
+        }
 
 import argparse
 

@@ -76,7 +76,12 @@ db.system_config.updateOne(
 2. Confirm scheduler run logs include shard execution lines:
    - `Scheduler: running stock comparison shard ...`
 3. Confirm no large burst pattern in logs during daily run.
-4. Confirm `stock_ingest_runs` telemetry continues to record per-run status.
+4. Confirm `stock_ingest_runs` telemetry continues to record per-run diagnostics:
+   - `source_used`
+   - `rows_updated`
+   - `stale_hit_ratio`
+   - `failure_count`
+   - `failures`
 
 ## Suggested Starting Values
 - `download_batch_size`: `4` to `8`

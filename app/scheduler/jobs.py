@@ -108,6 +108,8 @@ def run_stock_live_comparison_scheduled():
         "mode": "sharded",
         "shard_count": len(shards),
         "ticker_count": len(tickers),
+        "rows_updated": 0,
+        "failure_count": 0,
         "results": [],
     }
     for idx, shard in enumerate(shards, start=1):
@@ -126,8 +128,14 @@ def run_stock_live_comparison_scheduled():
                 "file": shard_result.get("file"),
                 "reason": shard_result.get("reason"),
                 "error": shard_result.get("error"),
+                "rows_updated": shard_result.get("rows_updated"),
+                "failure_count": shard_result.get("failure_count"),
+                "stale_hit_ratio": shard_result.get("stale_hit_ratio"),
+                "source_used": shard_result.get("source_used"),
             }
         )
+        summary["rows_updated"] += int(shard_result.get("rows_updated") or 0)
+        summary["failure_count"] += int(shard_result.get("failure_count") or 0)
         if shard_result.get("status") == "error":
             summary["status"] = "partial_error"
         if idx < len(shards) and shard_pause_sec > 0:

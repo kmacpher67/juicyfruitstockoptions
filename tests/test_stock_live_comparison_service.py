@@ -22,6 +22,17 @@ class DummyComparison:
                 "allow_create_if_missing": allow_create_if_missing,
             }
         )
+        requested = len(self.tickers or [])
+        return {
+            "requested_tickers_count": requested,
+            "stale_candidate_count": requested,
+            "stale_hit_ratio": 1.0 if requested else 0.0,
+            "fetched_records_count": requested,
+            "successful_fetch_count": requested,
+            "failed_fetch_count": 0,
+            "failed_tickers": [],
+            "rows_written": requested,
+        }
 
     def get_latest_viable_spreadsheet(self, directory, min_bytes=10 * 1024):
         return self.filename, None
@@ -44,6 +55,12 @@ def test_service_manual_trigger_creates_new_file(monkeypatch):
         {"force_new_file": True, "allow_create_if_missing": True}
     ]
     mock_db.stock_ingest_runs.insert_one.assert_called_once()
+    payload = mock_db.stock_ingest_runs.insert_one.call_args.args[0]
+    assert payload["source_used"] == "yfinance_live"
+    assert payload["rows_updated"] == 1
+    assert payload["stale_hit_ratio"] == 1.0
+    assert payload["failure_count"] == 0
+    assert payload["failures"] == []
 
 
 def test_service_sync_trigger_reuses_existing_without_new_file(monkeypatch):
@@ -85,6 +102,11 @@ def test_service_sync_trigger_skips_when_no_viable_existing_report(monkeypatch):
     assert result["reason"] == "no_viable_existing_report_for_sync"
     assert created["comp"].run_calls == []
     mock_db.stock_ingest_runs.insert_one.assert_called_once()
+    payload = mock_db.stock_ingest_runs.insert_one.call_args.args[0]
+    assert payload["source_used"] == "none"
+    assert payload["rows_updated"] == 0
+    assert payload["failure_count"] == 0
+    assert payload["failures"] == []
 
 
 def test_service_error_persists_telemetry(monkeypatch):
@@ -99,6 +121,10 @@ def test_service_error_persists_telemetry(monkeypatch):
 
     assert result["status"] == "error"
     mock_db.stock_ingest_runs.insert_one.assert_called_once()
+    payload = mock_db.stock_ingest_runs.insert_one.call_args.args[0]
+    assert payload["source_used"] == "yfinance_live"
+    assert payload["rows_updated"] == 0
+    assert payload["failure_count"] == 0
 
 
 def test_service_uses_stock_analysis_http_settings_from_system_config(monkeypatch):

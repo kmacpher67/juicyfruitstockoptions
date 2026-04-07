@@ -101,7 +101,14 @@ def test_run_stock_live_comparison_scheduled_shards_tickers_and_paces_between_sh
     with patch(
         "app.scheduler.jobs._get_stock_analysis_scheduler_config",
         return_value={"scheduler_sharding_enabled": True, "scheduler_shard_size": 2, "scheduler_shard_pause_sec": 0.01},
-    ), patch("app.scheduler.jobs.run_stock_live_comparison", return_value={"status": "success", "file": "f.xlsx"}) as mock_run, patch(
+    ), patch(
+        "app.scheduler.jobs.run_stock_live_comparison",
+        side_effect=[
+            {"status": "success", "file": "f.xlsx", "rows_updated": 2, "failure_count": 0, "source_used": "yfinance_live"},
+            {"status": "success", "file": "f.xlsx", "rows_updated": 1, "failure_count": 1, "source_used": "yfinance_live"},
+            {"status": "success", "file": "f.xlsx", "rows_updated": 1, "failure_count": 0, "source_used": "yfinance_live"},
+        ],
+    ) as mock_run, patch(
         "app.scheduler.jobs.time.sleep"
     ) as mock_sleep, patch("app.services.ticker_discovery.discover_and_track_tickers"), patch(
         "stock_live_comparison.StockLiveComparison.get_default_tickers",
@@ -112,6 +119,8 @@ def test_run_stock_live_comparison_scheduled_shards_tickers_and_paces_between_sh
     assert result["status"] == "success"
     assert result["mode"] == "sharded"
     assert result["shard_count"] == 3
+    assert result["rows_updated"] == 4
+    assert result["failure_count"] == 1
     assert mock_run.call_count == 3
     assert mock_run.call_args_list[0].kwargs == {"tickers": ["AAPL", "MSFT"], "trigger": "scheduled"}
     assert mock_run.call_args_list[1].kwargs == {"tickers": ["NVDA", "AMD"], "trigger": "scheduled"}

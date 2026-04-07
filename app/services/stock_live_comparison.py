@@ -96,6 +96,38 @@ def _persist_stock_ingest_telemetry(payload: dict) -> None:
     except Exception as exc:
         logging.warning("stock ingest telemetry persist failed: %s", exc)
 
+
+def _build_ingest_telemetry_fields(
+    trigger: str,
+    source_used: str,
+    run_summary: dict | None = None,
+    fallback_ticker_count: int = 0,
+) -> dict:
+    run_summary = run_summary or {}
+    requested_tickers_count = int(run_summary.get("requested_tickers_count") or fallback_ticker_count or 0)
+    stale_candidate_count = int(run_summary.get("stale_candidate_count") or 0)
+    stale_hit_ratio = run_summary.get("stale_hit_ratio")
+    if stale_hit_ratio is None and requested_tickers_count > 0:
+        stale_hit_ratio = round(stale_candidate_count / requested_tickers_count, 4)
+    rows_updated = int(
+        run_summary.get(
+            "successful_fetch_count",
+            run_summary.get("fetched_records_count", 0),
+        )
+        or 0
+    )
+    failures = run_summary.get("failed_tickers") or []
+    return {
+        "source_used": source_used,
+        "requested_tickers_count": requested_tickers_count,
+        "stale_candidate_count": stale_candidate_count,
+        "stale_hit_ratio": stale_hit_ratio,
+        "rows_updated": rows_updated,
+        "failure_count": int(run_summary.get("failed_fetch_count") or len(failures)),
+        "failures": failures,
+        "ingest_mode": "realtime_sync" if trigger == "sync" else "batch",
+    }
+
 def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "scheduled") -> dict:
     """Run stock comparison and control report-file creation by trigger.
 
@@ -155,6 +187,12 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                         "status": "skipped",
                         "reason": "no_viable_existing_report_for_sync",
                         "ticker_count": len(tickers or []),
+                        **_build_ingest_telemetry_fields(
+                            trigger=trigger,
+                            source_used="none",
+                            run_summary=None,
+                            fallback_ticker_count=len(tickers or []),
+                        ),
                         "updated_at": datetime.now(timezone.utc),
                     }
                 )
@@ -162,11 +200,24 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                 return result
 
         started = datetime.now()
-        comp.run(
+        run_summary = comp.run(
             force_new_file=(trigger == "manual"),
             allow_create_if_missing=(trigger != "sync"),
         )
-        result = {"status": "success", "file": comp.filename, "ticker_count": len(tickers or [])}
+        if not isinstance(run_summary, dict):
+            run_summary = {}
+        telemetry_fields = _build_ingest_telemetry_fields(
+            trigger=trigger,
+            source_used="yfinance_live",
+            run_summary=run_summary,
+            fallback_ticker_count=len(tickers or []),
+        )
+        result = {
+            "status": "success",
+            "file": comp.filename,
+            "ticker_count": len(tickers or []),
+            **telemetry_fields,
+        }
         _persist_stock_ingest_telemetry(
             {
                 "job": "stock_live_comparison",
@@ -174,6 +225,7 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                 "status": "success",
                 "file": comp.filename,
                 "ticker_count": len(tickers or []),
+                **telemetry_fields,
                 "elapsed_sec": round((datetime.now() - started).total_seconds(), 2),
                 "updated_at": datetime.now(timezone.utc),
             }
@@ -194,6 +246,12 @@ def run_stock_live_comparison(tickers: List[str] | None = None, trigger: str = "
                 "status": "error",
                 "error": str(exc),
                 "ticker_count": len(tickers or []),
+                **_build_ingest_telemetry_fields(
+                    trigger=trigger,
+                    source_used="yfinance_live",
+                    run_summary=None,
+                    fallback_ticker_count=len(tickers or []),
+                ),
                 "updated_at": datetime.now(timezone.utc),
             }
         )

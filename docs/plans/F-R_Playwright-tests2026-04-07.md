@@ -25,6 +25,7 @@ An agent operates best within isolated, well-defined contexts. E2E tests are per
 - [ ] **Infrastructure Setup**:
     - [ ] `npm install -D @playwright/test` and initialize `playwright.config.js` in the frontend directory.
     - [ ] Setup Playwright to run Headless by default (Chromium, Firefox, WebKit) and integrate into Github Actions or local Docker CI.
+    - [ ] **Workflow & Script Integration**: Update `test-all.sh` to run `npx playwright test` and update `.agent/workflows/test-coverage.md` to include Playwright E2E standards.
 - [ ] **Page Object Model (POM) Pattern**:
     - [ ] Ensure agents create/use classes in `frontend/tests/pages/` to abstract UI selectors (e.g., `PortfolioGridPage.js`, `StockAnalysisPage.js`).
     - [ ] Limit hardcoded selectors in `*.spec.js` files; mandate POM usage.
