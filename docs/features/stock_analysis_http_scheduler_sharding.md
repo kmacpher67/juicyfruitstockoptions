@@ -10,6 +10,8 @@ These settings apply to stock-analysis execution paths that use `stock_analysis_
 
 Sharding settings affect daily scheduled runs only. Manual "Run Live Comparison" remains a single run.
 
+Data-freshness thresholds use a separate `system_config` document (`_id: data_freshness_config`) and are configurable from the same Dashboard Settings modal.
+
 ## Config Keys (`system_config._id = stock_analysis_http_config`)
 - `download_batch_size` (int, min 1): number of symbols per history download batch.
 - `batch_pause_sec` (float, min 0): pause between history batches.
@@ -82,6 +84,10 @@ db.system_config.updateOne(
    - `stale_hit_ratio`
    - `failure_count`
    - `failures`
+5. Confirm data-freshness settings read and write through `GET/POST /api/settings/data-freshness`:
+   - `price_open_min`, `price_closed_min`
+   - `mixed_open_min`, `mixed_closed_min`
+   - `profile_open_min`, `profile_closed_min`
 
 ## Suggested Starting Values
 - `download_batch_size`: `4` to `8`

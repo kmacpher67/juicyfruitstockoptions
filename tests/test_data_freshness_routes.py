@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import math
 from unittest.mock import patch
+from pydantic import ValidationError
 
 from fastapi import BackgroundTasks
 import pandas as pd
@@ -332,6 +333,14 @@ def test_update_data_freshness_config_persists_values():
         )
     assert payload.price_open_min == 40
     mock_db.system_config.update_one.assert_called_once()
+
+
+def test_data_freshness_config_rejects_non_positive_values():
+    try:
+        routes.DataFreshnessConfig(price_open_min=0)
+        assert False, "expected ValidationError"
+    except Exception as exc:
+        assert isinstance(exc, ValidationError)
 
 
 def test_get_stock_analysis_http_config_reads_system_config_overrides():

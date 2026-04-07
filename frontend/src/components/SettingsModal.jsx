@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import {
+    DEFAULT_DATA_FRESHNESS_CONFIG,
+    normalizeDataFreshnessConfig,
+    buildDataFreshnessPayload,
+} from './settingsConfigUtils';
 
 const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, userRole }) => {
     // --- General Settings ---
@@ -9,6 +14,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
     const [scheduleTime, setScheduleTime] = useState("10:00");
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [loadingStockHttpConfig, setLoadingStockHttpConfig] = useState(false);
+    const [loadingDataFreshnessConfig, setLoadingDataFreshnessConfig] = useState(false);
     const [stockHttpConfig, setStockHttpConfig] = useState({
         download_batch_size: 6,
         batch_pause_sec: 8.0,
@@ -17,6 +23,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
         scheduler_shard_size: 25,
         scheduler_shard_pause_sec: 20.0,
     });
+    const [dataFreshnessConfig, setDataFreshnessConfig] = useState(DEFAULT_DATA_FRESHNESS_CONFIG);
 
     // --- IBKR Integration (Admin) ---
     const [ibkrStatus, setIbkrStatus] = useState({ configured: false, masked: '' });
@@ -50,6 +57,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                 fetchIBKR();
                 fetchAccounts();
                 fetchStockAnalysisHttpConfig();
+                fetchDataFreshnessConfig();
             }
         }
     }, [currentSettings, isOpen, userRole]);
@@ -122,6 +130,21 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
             console.error("Failed to fetch stock-analysis-http config", error);
         } finally {
             setLoadingStockHttpConfig(false);
+        }
+    };
+
+    const fetchDataFreshnessConfig = async () => {
+        setLoadingDataFreshnessConfig(true);
+        try {
+            const api = (await import('../api/axios')).default;
+            const res = await api.get('/settings/data-freshness');
+            if (res.data) {
+                setDataFreshnessConfig(normalizeDataFreshnessConfig(res.data));
+            }
+        } catch (error) {
+            console.error("Failed to fetch data-freshness config", error);
+        } finally {
+            setLoadingDataFreshnessConfig(false);
         }
     };
 
@@ -215,6 +238,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                     scheduler_shard_size: Math.max(1, Number(stockHttpConfig.scheduler_shard_size) || 25),
                     scheduler_shard_pause_sec: Math.max(0, Number(stockHttpConfig.scheduler_shard_pause_sec) || 0),
                 });
+                await api.post('/settings/data-freshness', buildDataFreshnessPayload(dataFreshnessConfig));
 
                 // Save Account Configs
                 await saveAccounts(); // New function
@@ -414,6 +438,89 @@ const SettingsModal = ({ isOpen, onClose, onSave, currentSettings, columns, user
                                     <p className="text-[11px] text-gray-500">
                                         Sharding only affects daily scheduled stock-analysis runs, not manual one-click runs.
                                     </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Data Freshness TTLs</h3>
+                                <div className="bg-gray-900 p-4 rounded border border-gray-700 space-y-3">
+                                    <p className="text-xs text-gray-400">
+                                        Controls staleness evaluation windows (minutes) used by DB-first freshness metadata and refresh queueing.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier A Open (price)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.price_open_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, price_open_min: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier A Closed (price)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.price_closed_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, price_closed_min: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier B Open (mixed)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.mixed_open_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, mixed_open_min: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier B Closed (mixed)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.mixed_closed_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, mixed_closed_min: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier C Open (profile)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.profile_open_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, profile_open_min: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-xs mb-1">Tier C Closed (profile)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                disabled={loadingDataFreshnessConfig}
+                                                className="w-full bg-gray-800 text-white text-sm p-2 rounded border border-gray-600"
+                                                value={dataFreshnessConfig.profile_closed_min}
+                                                onChange={(e) => setDataFreshnessConfig((prev) => ({ ...prev, profile_closed_min: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

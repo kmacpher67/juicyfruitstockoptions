@@ -1047,19 +1047,19 @@ def get_latest_stock_live_job(
 
 # --- Scheduler Config Endpoints ---
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 class ScheduleConfig(BaseModel):
     hour: int
     minute: int
 
 
 class DataFreshnessConfig(BaseModel):
-    price_open_min: int = 15
-    price_closed_min: int = 12 * 60
-    mixed_open_min: int = 30
-    mixed_closed_min: int = 24 * 60
-    profile_open_min: int = 24 * 60
-    profile_closed_min: int = 24 * 60 * 7
+    price_open_min: int = Field(default=15, ge=1)
+    price_closed_min: int = Field(default=12 * 60, ge=1)
+    mixed_open_min: int = Field(default=30, ge=1)
+    mixed_closed_min: int = Field(default=24 * 60, ge=1)
+    profile_open_min: int = Field(default=24 * 60, ge=1)
+    profile_closed_min: int = Field(default=24 * 60 * 7, ge=1)
 
 
 class StockAnalysisHttpConfig(BaseModel):
