@@ -44,7 +44,10 @@ export const ANALYTICS_FIELD_GROUPS = [
     {
         title: 'Options Metrics',
         fields: [
+            ['1-yr 6% OTM PUT Strike', '1-yr 6% OTM PUT Strike'],
             ['1-yr 6% OTM PUT Price', '1-yr 6% OTM PUT Price'],
+            ['1-yr 6% OTM CALL Strike', '1-yr 6% OTM CALL Strike'],
+            ['1-yr 6% OTM CALL Price', '1-yr 6% OTM CALL Price'],
             ['Annual Yield Put Prem', 'Annual Yield Put Prem'],
             ['3-mo Call Yield', '3-mo Call Yield'],
             ['6-mo Call Yield', '6-mo Call Yield'],

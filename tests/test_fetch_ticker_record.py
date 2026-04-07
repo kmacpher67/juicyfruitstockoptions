@@ -30,6 +30,8 @@ def test_fetch_ticker_record_ma_and_highlight(mock_chain, monkeypatch):
     # Mock the OTM methods to avoid using chain
     monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
     monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
+    monkeypatch.setattr(comp, 'get_otm_call_contract', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_contract', lambda *args: (None, None, None))
     
     record = comp.fetch_ticker_record('TST', info, hist, mock_chain)
     
@@ -44,6 +46,8 @@ def test_fetch_ticker_record_handles_missing_hist(mock_chain, monkeypatch):
 
     monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
     monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
+    monkeypatch.setattr(comp, 'get_otm_call_contract', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_contract', lambda *args: (None, None, None))
 
     record = comp.fetch_ticker_record('TST', info, None, mock_chain)
 
@@ -98,6 +102,8 @@ def test_fetch_ticker_record_includes_profile(monkeypatch):
     comp = StockLiveComparison([])
     monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
     monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
+    monkeypatch.setattr(comp, 'get_otm_call_contract', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_contract', lambda *args: (None, None, None))
 
     chain = MockChainWithNews(news=[
         {'title': 'Big news', 'publisher': 'Reuters', 'link': 'http://x.com', 'providerPublishTime': 1700000000}
@@ -121,6 +127,8 @@ def test_fetch_ticker_record_profile_news_empty_on_exception(monkeypatch):
     comp = StockLiveComparison([])
     monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
     monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
+    monkeypatch.setattr(comp, 'get_otm_call_contract', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_contract', lambda *args: (None, None, None))
 
     class BrokenChain:
         @property
@@ -138,6 +146,8 @@ def test_fetch_ticker_record_profile_news_capped_at_5(monkeypatch):
     comp = StockLiveComparison([])
     monkeypatch.setattr(comp, 'get_otm_call_yield', lambda *args: (None, None, None))
     monkeypatch.setattr(comp, 'get_otm_put_price', lambda *args: (None, None))
+    monkeypatch.setattr(comp, 'get_otm_call_contract', lambda *args: (None, None, None))
+    monkeypatch.setattr(comp, 'get_otm_put_contract', lambda *args: (None, None, None))
 
     news = [
         {'title': f'News {i}', 'publisher': 'P', 'link': 'http://x.com', 'providerPublishTime': 1700000000}

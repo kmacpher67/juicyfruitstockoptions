@@ -258,6 +258,14 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def get_otm_call_yield(self, chain, current_price, target_days, otm_pct=6):
+        premium, strike, exp_date = self.get_otm_call_contract(chain, current_price, target_days, otm_pct=otm_pct)
+        if premium is None or current_price in [None, 0]:
+            return None, None, exp_date
+        yield_pct = (premium / current_price) * 100
+        return round(yield_pct, 2), strike, exp_date
+
+    # ------------------------------------------------------------------
+    def get_otm_call_contract(self, chain, current_price, target_days, otm_pct=6):
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
             return None, None, None
@@ -267,21 +275,25 @@ class StockLiveComparison:
         if calls.empty:
             return None, None, None
         call = calls.iloc[0]
-        yield_pct = (call['lastPrice'] / current_price) * 100
-        return round(yield_pct, 2), call['strike'], exp_date
+        return call['lastPrice'], call['strike'], exp_date
 
     # ------------------------------------------------------------------
     def get_otm_put_price(self, chain, current_price, target_days, otm_pct=6):
+        put_price, _, exp_date = self.get_otm_put_contract(chain, current_price, target_days, otm_pct=otm_pct)
+        return put_price, exp_date
+
+    # ------------------------------------------------------------------
+    def get_otm_put_contract(self, chain, current_price, target_days, otm_pct=6):
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
-            return None, None
+            return None, None, None
         puts = chain.option_chain(exp_date).puts
         target_strike = current_price * (1 - otm_pct / 100)
         puts = puts[puts['strike'] <= target_strike]
         if puts.empty:
-            return None, None
+            return None, None, None
         put = puts.iloc[-1]
-        return put['lastPrice'], exp_date
+        return put['lastPrice'], put['strike'], exp_date
 
     # ------------------------------------------------------------------
     def is_recent(self, row):
@@ -310,8 +322,11 @@ class StockLiveComparison:
 
         call3, _, call_date3 = self.get_otm_call_yield(chain, current_price, 90)
         call6, strike6, call_date6 = self.get_otm_call_yield(chain, current_price, 180)
-        call12, _, call_date12 = self.get_otm_call_yield(chain, current_price, 365)
-        put_price, put_date12 = self.get_otm_put_price(chain, current_price, 365)
+        call_price_12, call_strike_12, call_date12 = self.get_otm_call_contract(chain, current_price, 365)
+        put_price, put_strike_12, put_date12 = self.get_otm_put_contract(chain, current_price, 365)
+        call12 = None
+        if call_price_12 is not None and current_price not in [None, 0]:
+            call12 = round((call_price_12 / current_price) * 100, 2)
         analyst_target = info.get("targetMeanPrice")
 
         ex_div_raw = info.get("exDividendDate")
@@ -324,12 +339,16 @@ class StockLiveComparison:
             ex_div_date = None
 
         annual_yield_put = None
-        if put_price and current_price:
+        if put_price is not None and current_price not in [None, 0]:
             annual_yield_put = round((put_price / current_price) * 100, 2)
 
         annual_yield_call = None
-        if call12 and current_price:
-            annual_yield_call = round((call12 / current_price) * 100, 2)
+        if call_price_12 is not None and current_price not in [None, 0]:
+            annual_yield_call = round((call_price_12 / current_price) * 100, 2)
+
+        call_put_skew = None
+        if call_price_12 is not None and put_price not in [None, 0]:
+            call_put_skew = call_price_12 / put_price
 
         # New Indicators: EMA, HMA, TSMOM, RSI, ATR
         ema_20 = self.calculate_ema(ticker_hist['Close'], span=20) if ticker_hist is not None else None
@@ -380,12 +399,16 @@ class StockLiveComparison:
             "Ex-Div Date": ex_div_date,
             "Div Yield": info.get("dividendYield"),
             "Analyst 1-yr Target": analyst_target,
+            "1-yr 6% OTM PUT Strike": put_strike_12,
             "1-yr 6% OTM PUT Price": put_price,
+            "1-yr 6% OTM CALL Strike": call_strike_12,
+            "1-yr 6% OTM CALL Price": call_price_12,
             "Annual Yield Put Prem": annual_yield_put,
             "3-mo Call Yield": call3,
             "6-mo Call Yield": call6,
             "1-yr Call Yield": call12,
             "Annual Yield Call Prem": annual_yield_call,
+            "Call/Put Skew": call_put_skew,
             "6-mo Call Strike": strike6,
             "Error": None,
             "Last Update": self.now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -852,13 +875,27 @@ class StockLiveComparison:
                 call_col = len(df.columns)
                 put_col = len(df.columns)
 
-            # Convert to numeric, forcing non-numeric to NaN
+            # Convert to numeric, forcing non-numeric to NaN.
+            # Prefer raw 1-year 6% OTM option premiums when present; fall back to annual-yield columns.
             s_call = pd.to_numeric(df["Annual Yield Call Prem"], errors='coerce')
             s_put = pd.to_numeric(df["Annual Yield Put Prem"], errors='coerce')
+            s_call_price = (
+                pd.to_numeric(df["1-yr 6% OTM CALL Price"], errors='coerce')
+                if "1-yr 6% OTM CALL Price" in df.columns
+                else pd.Series(float('nan'), index=df.index)
+            )
+            s_put_price = (
+                pd.to_numeric(df["1-yr 6% OTM PUT Price"], errors='coerce')
+                if "1-yr 6% OTM PUT Price" in df.columns
+                else pd.Series(float('nan'), index=df.index)
+            )
 
-            # Calculate Skew (Vectorized)
-            # handle division by zero (result becomes inf, then replace with NaN)
-            skew_series = s_call / s_put
+            # Calculate skew (vectorized):
+            # 1) preferred formula: call premium / put premium
+            # 2) fallback: annual yield call / annual yield put (legacy rows)
+            skew_series = s_call_price / s_put_price
+            fallback_skew = s_call / s_put
+            skew_series = skew_series.where(skew_series.notna(), fallback_skew)
             skew_series = skew_series.replace([float('inf'), float('-inf')], float('nan'))
             
             # Insert or Update Column
@@ -881,26 +918,9 @@ class StockLiveComparison:
     def upsert_ratio_column(self, df, put_col_name="Annual Yield Put Prem", call_col_name="Annual Yield Call Prem", ratio_col_name="Call/Put Skew"):
         """Upsert the Call/Put Skew column, print errors, and continue."""
         try:
-            if ratio_col_name in df.columns:
-                logging.debug(f'Column "{ratio_col_name}" already exists. Updating values.')
-            else:
-                # Insert after call_col_name
-                if call_col_name in df.columns:
-                    call_col = df.columns.get_loc(call_col_name) + 1
-                    df.insert(call_col, ratio_col_name, None)
-                    logging.debug(f'Column "{ratio_col_name}" inserted.')
-                else:
-                    df[ratio_col_name] = None
-                    logging.debug(f'Column "{ratio_col_name}" added at end (call column not found).')
-
-            # Update values
-            df[ratio_col_name] = df.apply(
-                lambda row: (
-                    row[call_col_name] / row[put_col_name]
-                    if row[put_col_name] not in [0, None, ""] and row[call_col_name] not in [None, ""] else None
-                ),
-                axis=1
-            )
+            # Use the same logic as add_ratio_column so we consistently prefer
+            # premium-based skew and gracefully fall back to legacy annual-yield ratios.
+            df, _, _ = self.add_ratio_column(df)
             return df
         except Exception as e:
             logging.error(f"Error in upsert_ratio_column: {e}")
@@ -965,7 +985,10 @@ class StockLiveComparison:
             # Add Yahoo Finance Option Chain Hyperlinks to Yield Columns
             # Define mapping of visible column name -> record key for expiration date
             link_map = {
+                "1-yr 6% OTM PUT Strike": "_PutExpDate_365",
                 "1-yr 6% OTM PUT Price": "_PutExpDate_365",
+                "1-yr 6% OTM CALL Strike": "_CallExpDate_365",
+                "1-yr 6% OTM CALL Price": "_CallExpDate_365",
                 "1-yr Call Yield": "_CallExpDate_365",
                 "3-mo Call Yield": "_CallExpDate_90",
                 "6-mo Call Yield": "_CallExpDate_180",

@@ -163,8 +163,16 @@ def test_fetch_ticker_record(monkeypatch):
     def fake_put(chain, price, days, otm_pct=6):
         return (5, '2026-01-01')
 
+    def fake_call_contract(chain, price, days, otm_pct=6):
+        return (3, 106, '2026-01-01')
+
+    def fake_put_contract(chain, price, days, otm_pct=6):
+        return (5, 94, '2026-01-01')
+
     comp.get_otm_call_yield = fake_call
     comp.get_otm_put_price = fake_put
+    comp.get_otm_call_contract = fake_call_contract
+    comp.get_otm_put_contract = fake_put_contract
 
     info = {
         "regularMarketPrice": 100,
@@ -193,9 +201,13 @@ def test_fetch_ticker_record(monkeypatch):
     assert record["6-mo Call Yield"] == 2
     assert record["6-mo Call Strike"] == 105
     assert record["1-yr Call Yield"] == 3
+    assert record["1-yr 6% OTM CALL Price"] == 3
+    assert record["1-yr 6% OTM CALL Strike"] == 106
+    assert record["1-yr 6% OTM PUT Strike"] == 94
     assert record["1-yr 6% OTM PUT Price"] == 5
     assert record["Annual Yield Put Prem"] == 5
     assert record["Annual Yield Call Prem"] == 3
+    assert record["Call/Put Skew"] == 0.6
 
 
 def test_fetch_ticker_record_skips_news_when_disabled(monkeypatch):
@@ -209,6 +221,8 @@ def test_fetch_ticker_record_skips_news_when_disabled(monkeypatch):
 
     comp.get_otm_call_yield = fake_call
     comp.get_otm_put_price = fake_put
+    comp.get_otm_call_contract = lambda *args: (None, None, None)
+    comp.get_otm_put_contract = lambda *args: (None, None, None)
 
     class NewsExplodesChain:
         @property
@@ -262,6 +276,8 @@ def test_fetch_ticker_record_company_name_fallback(monkeypatch):
 
     comp.get_otm_call_yield = fake_call
     comp.get_otm_put_price = fake_put
+    comp.get_otm_call_contract = lambda *args: (None, None, None)
+    comp.get_otm_put_contract = lambda *args: (None, None, None)
 
     # Test shortName fallback (no longName)
     info_short = {"regularMarketPrice": 50, "shortName": "Beta Inc"}
@@ -290,6 +306,22 @@ def test_add_ratio_column():
     assert df.iloc[0]["Call/Put Skew"] == 2.0  # 10 / 5
     assert pd.isna(df.iloc[1]["Call/Put Skew"])
     assert put_col == 1 and call_col == 2
+
+
+def test_add_ratio_column_prefers_premium_based_skew_when_available():
+    comp = StockLiveComparison(["AAA"])
+    df = pd.DataFrame(
+        [
+            {
+                "1-yr 6% OTM CALL Price": 28.4,
+                "1-yr 6% OTM PUT Price": 19.79,
+                "Annual Yield Put Prem": 7.73,
+                "Annual Yield Call Prem": 3.4,
+            }
+        ]
+    )
+    df, _, _ = comp.add_ratio_column(df)
+    assert round(df.iloc[0]["Call/Put Skew"], 4) == round(28.4 / 19.79, 4)
 
 
 def test_upsert_ratio_column():
