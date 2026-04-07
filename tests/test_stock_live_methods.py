@@ -663,7 +663,8 @@ def test_upsert_to_mongo_writes_canonical_stock_data_by_ticker(monkeypatch):
     fake_price_db.upsert_stock_record.assert_called_once()
     hist_args, hist_kwargs = fake_price_db.upsert_stock_record.call_args
     persisted_hist = hist_args[0]
-    assert persisted_hist["instrument_key"] == "AAPL"
+    assert persisted_hist["instrument_key"] == "STK:AAPL"
+    assert persisted_hist["instrument_key_legacy"] == "AAPL"
     assert persisted_hist["source"] == "stock_live_comparison"
     assert hist_kwargs["key_fields"] == ("instrument_key", "timestamp", "source")
     assert fake_price_collection.create_index.call_count == 2

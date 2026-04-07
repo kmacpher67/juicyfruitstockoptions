@@ -81,6 +81,10 @@ At ~100 tracked stocks, daily snapshots are manageable, but intraday streams sti
 - Convert NaN-like artifacts to `null` or omit where appropriate.
 - Keep schema names explicit (avoid CSV artifact keys such as `Unnamed: ...`).
 
+Canonical key format in code (2026-04-07):
+- Stock: `STK:<TICKER>` (example `STK:AAPL`)
+- Option/FOP: `OPT:<TICKER>:<YYYYMMDD>:<C|P>:<STRIKE>`
+
 ## 8. Operational Pattern
 - Ingest is asynchronous background work.
 - API reads are low-latency DB-first.

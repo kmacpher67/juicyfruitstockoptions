@@ -21,6 +21,7 @@ from app.database import get_db
 from app.services.signal_service import SignalService
 from app.services.ibkr_tws_service import get_ibkr_tws_service
 from app.services.data_refresh_queue import get_data_refresh_queue
+from app.services.instrument_identity import canonical_instrument_key
 from app.utils.logging_config import log_endpoint
 
 router = APIRouter()
@@ -2384,10 +2385,11 @@ def get_ticker_price_history(
     db = client.get_default_database("stock_analysis")
     stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
     freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
+    canonical_symbol_key = canonical_instrument_key(ticker=symbol, sec_type="STK")
 
     rows = list(
         db.instrument_price_history.find(
-            {"instrument_key": symbol},
+            {"$or": [{"instrument_key": canonical_symbol_key}, {"instrument_key": symbol}]},
             {"_id": 0},
         )
         .sort([("timestamp", -1)])

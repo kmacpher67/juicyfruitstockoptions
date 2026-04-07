@@ -11,6 +11,7 @@ from openpyxl.styles import Font, Alignment
 from Ai_Stock_Database import AiStockDatabase
 from export_mongo import export_data
 from app.services.price_action_service import PriceActionService
+from app.services.instrument_identity import canonical_instrument_key
 
 class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
@@ -1177,8 +1178,10 @@ class StockLiveComparison:
         timestamp = (record or {}).get("Last Update") or (record or {}).get("_last_persisted_at") or default_ts
         if not timestamp:
             return None
+        canonical_key = canonical_instrument_key(ticker=ticker, sec_type="STK")
         return {
-            "instrument_key": ticker,
+            "instrument_key": canonical_key,
+            "instrument_key_legacy": ticker,
             "instrument_type": "STK",
             "timestamp": str(timestamp),
             "price": (record or {}).get("Current Price"),

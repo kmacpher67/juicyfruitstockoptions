@@ -206,6 +206,9 @@ def test_get_ticker_price_history_returns_db_rows_with_freshness():
     assert payload["count"] == 2
     assert payload["history"][0]["timestamp"] == "2026-04-04 10:00:00"
     assert payload["is_stale"] is False
+    query = mock_db.instrument_price_history.find.call_args.args[0]
+    assert {"instrument_key": "STK:AAPL"} in query["$or"]
+    assert {"instrument_key": "AAPL"} in query["$or"]
 
 
 def test_get_ticker_price_history_clamps_limit():
