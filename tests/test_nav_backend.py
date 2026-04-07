@@ -251,6 +251,76 @@ def test_get_nav_history_stats_keeps_eod_nav_and_exposes_rt_metrics(mock_mongo, 
 
 @patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
 @patch("app.services.portfolio_analysis.MongoClient")
+def test_get_nav_history_stats_prefers_tws_source_when_live_snapshot_is_recent(mock_mongo, mock_live_snapshot):
+    from app.services.portfolio_analysis import get_nav_history_stats
+
+    mock_db = MagicMock()
+    mock_mongo.return_value.get_default_database.return_value = mock_db
+
+    def mock_find_one(query, sort=None):
+        report_type = query.get("ibkr_report_type")
+        if report_type == NavReportType.NAV_1D.value:
+            return {"_report_date": "2026-03-30", "ibkr_report_type": NavReportType.NAV_1D.value}
+        return None
+
+    def mock_aggregate(pipeline):
+        match = pipeline[0]["$match"]
+        if match.get("ibkr_report_type") == NavReportType.NAV_1D.value:
+            return [{"total_start": 1000.0, "total_end": 1010.0}]
+        return []
+
+    mock_db.ibkr_nav_history.find_one.side_effect = mock_find_one
+    mock_db.ibkr_nav_history.aggregate.side_effect = mock_aggregate
+    now_iso = datetime.now(timezone.utc).isoformat()
+    mock_live_snapshot.return_value = {
+        "timestamp": datetime.now(timezone.utc),
+        "total_nav": 1050.0,
+        "unrealized_pnl": 25.0,
+        "realized_pnl": 10.0,
+        "accounts": ["DU123456"],
+        "source": "tws",
+        "last_tws_update": now_iso,
+    }
+
+    stats = get_nav_history_stats()
+
+    assert stats["data_source"] == "tws_live"
+    assert stats["last_updated"] == now_iso
+    assert stats["last_updated_rt"] == now_iso
+
+
+@patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
+@patch("app.services.portfolio_analysis.MongoClient")
+def test_get_nav_history_stats_falls_back_to_flex_when_no_live_snapshot(mock_mongo, mock_live_snapshot):
+    from app.services.portfolio_analysis import get_nav_history_stats
+
+    mock_db = MagicMock()
+    mock_mongo.return_value.get_default_database.return_value = mock_db
+
+    def mock_find_one(query, sort=None):
+        report_type = query.get("ibkr_report_type")
+        if report_type == NavReportType.NAV_1D.value:
+            return {"_report_date": "2026-03-30", "ibkr_report_type": NavReportType.NAV_1D.value}
+        return None
+
+    def mock_aggregate(pipeline):
+        match = pipeline[0]["$match"]
+        if match.get("ibkr_report_type") == NavReportType.NAV_1D.value:
+            return [{"total_start": 1000.0, "total_end": 1010.0}]
+        return []
+
+    mock_db.ibkr_nav_history.find_one.side_effect = mock_find_one
+    mock_db.ibkr_nav_history.aggregate.side_effect = mock_aggregate
+    mock_live_snapshot.return_value = None
+
+    stats = get_nav_history_stats()
+
+    assert stats["data_source"] == "flex_eod"
+    assert stats["last_updated"] == "2026-03-30"
+
+
+@patch("app.services.portfolio_analysis.get_latest_live_nav_snapshot")
+@patch("app.services.portfolio_analysis.MongoClient")
 def test_get_nav_history_stats_updates_non_1d_ranges_with_fresh_rt_snapshot(mock_mongo, mock_live_snapshot):
     from app.services.portfolio_analysis import get_nav_history_stats
 
