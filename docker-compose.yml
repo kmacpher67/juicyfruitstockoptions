@@ -13,6 +13,7 @@ services:
       - ./stock_live_comparison.py:/app/stock_live_comparison.py
       - ./Ai_Stock_Database.py:/app/Ai_Stock_Database.py
       - ./export_mongo.py:/app/export_mongo.py
+      - ./mongo_backup.json:/app/mongo_backup.json
       - ./tests:/app/tests # Map tests for execution
       - ./xdivs:/app/xdivs # Persist ICS files
     environment:
