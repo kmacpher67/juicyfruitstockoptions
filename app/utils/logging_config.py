@@ -47,6 +47,7 @@ def setup_logging():
     logging.getLogger("pymongo").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("ibapi").setLevel(logging.WARNING)
     
     # Root logger exists now, use it to log initialization
     logging.info(f"Logging initialized in {env} mode (Level: {logging.getLevelName(log_level)})")

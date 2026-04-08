@@ -311,7 +311,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
 - [x] **Levels:** `TRACE` for verbose logging (default in Dev), `DEBUG` (default in Prod), `INFO` for milestones, `WARNING` for non-critical issues, `ERROR` for critical issues, `CRITICAL` for system failure. 
 - [x] **Traceability:** Verify all errors provide context (e.g., "Failed to process file X due to Y").
-
+- [ ] **Logging:** Implement log rotation for log files
 ---
 
 ## 3. Algorithmic Trading Engines

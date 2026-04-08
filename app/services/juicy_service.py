@@ -263,7 +263,6 @@ def upsert_juicy_candidates(db, symbol: str, rows: list[dict], source: str = "op
             **row,
             "strategy_key": strategy_key,
             "symbol": symbol,
-            "create_date": create_date,
             "last_updated": _iso_utc(now),
             "source": source,
         }
