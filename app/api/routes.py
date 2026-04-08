@@ -33,6 +33,13 @@ from app.services.signal_service import SignalService
 from app.services.ibkr_tws_service import get_ibkr_tws_service
 from app.services.data_refresh_queue import get_data_refresh_queue
 from app.services.instrument_identity import canonical_instrument_key
+from app.services.juicy_service import (
+    build_juicy_candidates,
+    compute_latest_market_close_utc,
+    evaluate_juicy_staleness,
+    get_juicy_rows,
+    upsert_juicy_candidates,
+)
 from app.utils.logging_config import log_endpoint
 
 router = APIRouter()
@@ -283,6 +290,57 @@ def _queue_stock_refresh_if_stale(background_tasks: BackgroundTasks | None, symb
     freshness["refresh_queued"] = bool(queued)
     if not queued and not freshness.get("stale_reason"):
         freshness["stale_reason"] = "refresh_cooldown_active"
+
+
+def _refresh_single_symbol_juicy(db, symbol: str, source: str = "optimizer_refresh") -> list[dict]:
+    stock, _, symbol = _find_stock_data_by_symbol(db, symbol)
+    if not stock:
+        return []
+    candidates = build_juicy_candidates(stock, symbol)
+    if not candidates:
+        return []
+    return upsert_juicy_candidates(db, symbol=symbol, rows=candidates, source=source)
+
+
+def _queue_juicy_refresh_if_needed(
+    background_tasks: BackgroundTasks | None,
+    db,
+    symbol: str,
+    freshness: dict,
+) -> None:
+    if not background_tasks:
+        return
+    symbol = _normalize_ticker_symbol(symbol)
+    if not symbol:
+        return
+
+    now_utc = datetime.now(timezone.utc)
+    market_open = _is_us_equity_market_session(now_utc)
+    ny_tz = ZoneInfo("America/New_York")
+    market_close_utc = compute_latest_market_close_utc(
+        now_utc=now_utc,
+        ny_tz=ny_tz,
+        is_market_holiday_fn=lambda year, d: d in _us_equity_market_holidays(year),
+        is_early_close_fn=lambda year, d: d in _us_equity_early_close_dates(year),
+    )
+    latest = db.juicy_opportunities.find_one({"symbol": symbol}, {"_id": 0, "last_updated": 1}, sort=[("last_updated", -1)])
+    latest_last_updated = latest.get("last_updated") if isinstance(latest, dict) else None
+    last_updated = _parse_datetime_utc(latest_last_updated)
+    is_stale, juicy_reason = evaluate_juicy_staleness(
+        now_utc=now_utc,
+        market_open=market_open,
+        juicy_last_updated=last_updated,
+        market_close_utc=market_close_utc,
+    )
+    if not is_stale:
+        return
+
+    queue_key = f"juicy:{symbol}"
+    if not get_data_refresh_queue().should_enqueue(queue_key):
+        if not freshness.get("stale_reason"):
+            freshness["stale_reason"] = juicy_reason or "juicy_refresh_cooldown_active"
+        return
+    background_tasks.add_task(_refresh_single_symbol_juicy, db, symbol, "ticker_modal_background")
 
 
 def _persist_signal_payload(db, ticker: str, kalman: dict, markov: dict, advice: dict) -> None:
@@ -1074,6 +1132,102 @@ def get_job_status(
     job = get_job(job_id)
     if not job:
           raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _run_juicy_refresh(symbols: list[str] | None = None) -> dict:
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    symbol_list = [s for s in (symbols or []) if _normalize_ticker_symbol(s)]
+    if not symbol_list:
+        symbol_list = sorted({row.get("Ticker") for row in db.stock_data.find({}, {"_id": 0, "Ticker": 1}) if row.get("Ticker")})
+
+    if symbol_list:
+        try:
+            run_stock_live_comparison(symbol_list, "sync")
+        except Exception as exc:
+            logger.warning("juicy_refresh: stock sync failed symbols=%s err=%s", len(symbol_list), exc)
+
+    scanned = 0
+    upserted = 0
+    for sym in symbol_list:
+        rows = _refresh_single_symbol_juicy(db, sym, source="juicy_refresh_job")
+        scanned += 1
+        upserted += len(rows)
+    return {"symbols_scanned": scanned, "rows_upserted": upserted}
+
+
+@router.get("/juicys")
+@log_endpoint
+def get_juicys(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    symbol: str | None = None,
+    preset: str | None = None,
+    limit: int = 200,
+    sort_by: str = "score",
+    sort_dir: str = "desc",
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    norm_symbol = _normalize_ticker_symbol(symbol) if symbol else None
+    rows = get_juicy_rows(
+        db,
+        symbol=norm_symbol,
+        preset=preset,
+        limit=max(1, min(int(limit or 200), 500)),
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
+    if not isinstance(rows, list):
+        rows = []
+    if not rows:
+        seed_symbols = [norm_symbol] if norm_symbol else sorted(
+            {
+                row.get("Ticker")
+                for row in db.stock_data.find({}, {"_id": 0, "Ticker": 1})
+                if row.get("Ticker")
+            }
+        )
+        for sym in seed_symbols:
+            _refresh_single_symbol_juicy(db, sym, source="juicys_seed")
+        rows = get_juicy_rows(
+            db,
+            symbol=norm_symbol,
+            preset=preset,
+            limit=max(1, min(int(limit or 200), 500)),
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+        if not isinstance(rows, list):
+            rows = []
+    return {
+        "count": len(rows),
+        "rows": rows,
+    }
+
+
+@router.post("/juicys/refresh")
+@log_endpoint
+def refresh_juicys(
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    symbol: str | None = None,
+):
+    norm_symbol = _normalize_ticker_symbol(symbol) if symbol else None
+    symbols = [norm_symbol] if norm_symbol else None
+    job = create_job(job_type="juicy_refresh", name="juicys-refresh")
+    background_tasks.add_task(background_job_wrapper, job.id, lambda: _run_juicy_refresh(symbols=symbols))
+    return {"job_id": job.id, "status": "queued"}
+
+
+@router.get("/jobs/latest/juicy-refresh", response_model=Job)
+@log_endpoint
+def get_latest_juicy_refresh_job(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    job = get_latest_job(job_type="juicy_refresh")
+    if not job:
+        raise HTTPException(status_code=404, detail="No juicy-refresh jobs found")
     return job
 
 @router.post("/run/stock-live-comparison")
@@ -2542,11 +2696,37 @@ def get_opportunity_analysis(
     freshness = _evaluate_stock_data_freshness(stock, tier="price", db=db)
     _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
     
+    recommendations = []
+    if score >= 25:
+        recommendations.append({
+            "action": "SELL CALL",
+            "strategy": "Covered Call",
+            "reason": "Income capture when IV and liquidity are favorable.",
+        })
+    if (stock.get("TSMOM_60") or 0) < 0 and iv_rank >= 40:
+        recommendations.append({
+            "action": "SELL PUT",
+            "strategy": "Cash Secured Put",
+            "reason": "Down-market premium capture candidate.",
+        })
+
+    persisted_opps = list(
+        db.opportunities.find(
+            {
+                "symbol": symbol,
+                "trigger_source": {"$in": ["DividendScanner", "ExpirationScanner", "JuicyScanner"]},
+            },
+            {"_id": 0, "trigger_source": 1, "proposal": 1, "timestamp": 1},
+        ).sort("timestamp", -1).limit(5)
+    )
+
     return {
         "symbol": symbol,
         "juicy_score": score,
         "reasons": reasons,
         "risks": risks,  # New Field
+        "recommendations": recommendations,
+        "related_opportunities": persisted_opps,
         "metrics": {
              "iv_rank": iv_rank,
              "liquidity": liquidity,
@@ -2564,14 +2744,13 @@ def get_portfolio_optimizer(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)],
     include_meta: bool = False,
+    preset: str | None = None,
+    limit: int = 20,
 ):
     """
     Get optimization suggestions for a ticker (e.g. Covered Call candidates).
     """
     symbol = _normalize_ticker_symbol(symbol)
-    
-    # Reuse option_optimizer.py logic if possible
-    # For V1, we return a stub or simple suggestions based on price
     
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
@@ -2584,75 +2763,20 @@ def get_portfolio_optimizer(
         return []
 
     _queue_stock_refresh_if_stale(background_tasks, symbol, freshness)
-        
-    price = stock.get("Current Price", 0)
-    
-    # Simple heuristic suggestions
-    suggestions = []
-    
-    # 1. Covered Call (selling OTM)
-    if price > 0:
-        strike_target = price * 1.05 # 5% OTM
-        suggestions.append({
-            "strategy": "Covered Call",
-            "action": "SELL CALL",
-            "strike_target": round(strike_target, 1),
-            "reason": "Generate Income (5% OTM Target)"
-        })
-        
-        # 2. Cash Secured Put (buying dip)
-        strike_dip = price * 0.90 # 10% OTM
-        suggestions.append({
-            "strategy": "Cash Secured Put",
-            "action": "SELL PUT",
-            "strike_target": round(strike_dip, 1),
-            "reason": "Acquire at discount (-10% Target)"
-        })
 
-    # --- Smart Roll Assistant Integration ---
-    # Check if we hold options for this ticker to suggest rolls
-    holdings = list(db.ibkr_holdings.find({"symbol": symbol}, {"_id": 0}))
-    if holdings:
-        from app.services.roll_service import RollService
-        roll_service = RollService()
-        
-        for pos in holdings:
-            # We only care about options for rolling (secType usually 'OPT')
-            if pos.get("secType") == "OPT":
-                # Extract details (assuming standard IBKR fields)
-                # We need strike, exp, right. 
-                # Our schema might vary, let's try to extract safely.
-                try:
-                    current_strike = float(pos.get("strike", 0))
-                    exp_date = pos.get("expiry") # Format might be YYYYMMDD or YYYY-MM-DD
-                    if exp_date and len(exp_date) == 8:
-                        exp_date = f"{exp_date[:4]}-{exp_date[4:6]}-{exp_date[6:]}"
-                    
-                    right = pos.get("right") # 'C' or 'P'
-                    position = float(pos.get("position", 0))
-                    
-                    if position != 0:
-                        position_type = "call" if right == "C" else "put"
-                        # Use RollService
-                        rolls = roll_service.find_rolls(
-                            symbol=symbol,
-                            current_strike=current_strike,
-                            current_exp_date=exp_date,
-                            position_type=position_type
-                        )
-                        
-                        if "rolls" in rolls:
-                             # Add top 3 rolls as suggestions
-                             for r in rolls["rolls"][:3]:
-                                 suggestions.append({
-                                     "strategy": f"Roll {position_type.title()}",
-                                     "action": f"ROLL to {r['expiration']} {r['strike']} ({r['roll_type']})",
-                                     "reason": f"Net Credit: ${r['net_credit']:.2f}. {r['roll_type']} roll."
-                                 })
-                except Exception as e:
-                    # Log error but don't break generic suggestions
-                    print(f"Error calculating rolls for {symbol}: {e}")
-    
+    limit = max(1, min(int(limit or 20), 500))
+    suggestions = get_juicy_rows(db, symbol=symbol, preset=preset, limit=limit, sort_by="score", sort_dir="desc")
+    if not isinstance(suggestions, list):
+        suggestions = []
+    if not suggestions:
+        generated = build_juicy_candidates(stock, symbol)
+        suggestions = upsert_juicy_candidates(db, symbol=symbol, rows=generated, source="optimizer_api")
+        if preset:
+            suggestions = [row for row in suggestions if preset in (row.get("preset_tags") or [])]
+        suggestions = suggestions[:limit]
+
+    _queue_juicy_refresh_if_needed(background_tasks, db, symbol, freshness)
+
     if include_meta:
         return {"symbol": symbol, "suggestions": suggestions, **freshness}
     return suggestions

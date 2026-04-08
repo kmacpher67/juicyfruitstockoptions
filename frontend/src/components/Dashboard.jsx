@@ -11,6 +11,7 @@ import NAVStats from './NAVStats';
 import PortfolioGrid from './PortfolioGrid';
 import TradeHistory from './TradeHistory';
 import OrdersGrid from './OrdersGrid';
+import JuicysGrid from './JuicysGrid';
 import TickerModal from './TickerModal';
 import RollAnalysisModal from './RollAnalysisModal';
 // import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -55,6 +56,7 @@ const Dashboard = () => {
         if (v === 'PORTFOLIO') return 'PORTFOLIO';
         if (v === 'TRADES') return 'TRADES';
         if (v === 'ORDERS') return 'ORDERS';
+        if (v === 'JUICYS') return 'JUICYS';
         return 'ANALYSIS';
     });
     const [selectedReport, setSelectedReport] = useState(searchParams.get('report') || '');
@@ -72,6 +74,7 @@ const Dashboard = () => {
         if (viewMode === 'PORTFOLIO') params.view = 'PORTFOLIO';
         if (viewMode === 'TRADES') params.view = 'TRADES';
         if (viewMode === 'ORDERS') params.view = 'ORDERS';
+        if (viewMode === 'JUICYS') params.view = 'JUICYS';
         if (selectedReport) params.report = selectedReport;
         setSearchParams(params, { replace: true });
     }, [viewMode, selectedReport, setSearchParams]);
@@ -322,6 +325,10 @@ const Dashboard = () => {
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
     const [selectedPortfolioAccount, setSelectedPortfolioAccount] = useState('all');
     const [openOrders, setOpenOrders] = useState([]);
+    const [juicyRows, setJuicyRows] = useState([]);
+    const [juicyPreset, setJuicyPreset] = useState('juicy');
+    const [juicyLimit, setJuicyLimit] = useState(500);
+    const [juicyRefreshing, setJuicyRefreshing] = useState(false);
     const [filterTicker, setFilterTicker] = useState(null);
     const [liveStatus, setLiveStatus] = useState(null);
     const [toast, setToast] = useState(null);
@@ -374,6 +381,49 @@ const Dashboard = () => {
             setOpenOrders([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadJuicysData = async ({ preset = juicyPreset, limit = juicyLimit } = {}) => {
+        setLoading(true);
+        try {
+            const res = await api.get('/juicys', { params: { preset, limit } });
+            setJuicyRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
+        } catch (error) {
+            console.error('Failed to load juicys:', error);
+            setJuicyRows([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const refreshJuicys = async (symbol = null) => {
+        setJuicyRefreshing(true);
+        try {
+            const res = await api.post('/juicys/refresh', null, { params: symbol ? { symbol } : undefined });
+            const jobId = res.data?.job_id;
+            if (!jobId) {
+                await loadJuicysData();
+                setJuicyRefreshing(false);
+                return;
+            }
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await api.get(`/jobs/${jobId}`);
+                    const job = statusRes.data;
+                    if (job.status === 'completed' || job.status === 'failed') {
+                        clearInterval(pollInterval);
+                        await loadJuicysData();
+                        setJuicyRefreshing(false);
+                    }
+                } catch (err) {
+                    clearInterval(pollInterval);
+                    setJuicyRefreshing(false);
+                }
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to refresh juicys:', error);
+            setJuicyRefreshing(false);
         }
     };
 
@@ -478,6 +528,8 @@ const Dashboard = () => {
             triggerAutoSync();
         } else if (viewMode === 'ORDERS') {
             loadOrdersData();
+        } else if (viewMode === 'JUICYS') {
+            loadJuicysData();
         } else {
             // If in analysis mode, we still might want the holdings for the indicator
             if (user?.role === 'admin' || user?.role === 'portfolio') {
@@ -485,7 +537,7 @@ const Dashboard = () => {
                 api.get('/portfolio/holdings').then(res => setPortfolioHoldings(res.data)).catch(e => console.error("Silent portfolio fetch failed", e));
             }
         }
-    }, [viewMode, user, selectedPortfolioAccount]);
+    }, [viewMode, user, selectedPortfolioAccount, juicyPreset, juicyLimit]);
 
     // Derived Portfolio Tickers set
     const portfolioTickers = React.useMemo(() => {
@@ -706,6 +758,12 @@ const Dashboard = () => {
                             >
                                 Orders
                             </button>
+                            <button
+                                onClick={() => setViewMode('JUICYS')}
+                                className={`px-3 py-1 text-sm rounded ${viewMode === 'JUICYS' ? 'bg-red-100 text-red-600 shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Juicys
+                            </button>
                         </div>
                     )}
                 </div>
@@ -784,6 +842,57 @@ const Dashboard = () => {
                             data={openOrders}
                             onTickerClick={(ticker) => setSelectedTicker(ticker)}
                         />
+                    </div>
+                </div>
+            ) : viewMode === 'JUICYS' ? (
+                <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={() => setJuicyPreset('juicy')}
+                                className={`px-3 py-1.5 rounded text-sm transition-colors ${juicyPreset === 'juicy' ? 'bg-green-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                            >
+                                Juicy Fruit Options
+                            </button>
+                            <button
+                                onClick={() => setJuicyPreset('hot_puts')}
+                                className={`px-3 py-1.5 rounded text-sm transition-colors ${juicyPreset === 'hot_puts' ? 'bg-red-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                            >
+                                Hot PUTS
+                            </button>
+                            <label className="text-xs text-gray-400 ml-2">Rows</label>
+                            <select
+                                className="bg-gray-700 text-white p-1.5 rounded border border-gray-600 text-sm"
+                                value={juicyLimit}
+                                onChange={(e) => setJuicyLimit(Number(e.target.value))}
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={500}>ALL</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => loadJuicysData()}
+                                disabled={loading}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm disabled:opacity-50 transition-colors"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                                Reload
+                            </button>
+                            <button
+                                onClick={() => refreshJuicys(null)}
+                                disabled={juicyRefreshing}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 rounded text-sm disabled:opacity-50 transition-colors"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${juicyRefreshing ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[700px]">
+                        <JuicysGrid rows={juicyRows} onTickerClick={(ticker) => setSelectedTicker(ticker)} />
                     </div>
                 </div>
             ) : (
@@ -884,6 +993,12 @@ const Dashboard = () => {
                 ticker={selectedTicker}
                 isOpen={!!selectedTicker}
                 onClose={() => setSelectedTicker(null)}
+                onJuicyRefreshRequested={(symbol) => {
+                    refreshJuicys(symbol);
+                    if (viewMode === 'JUICYS') {
+                        loadJuicysData();
+                    }
+                }}
             />
 
             <RollAnalysisModal

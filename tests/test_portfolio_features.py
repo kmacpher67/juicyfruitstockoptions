@@ -4,6 +4,7 @@ from app.api import routes, trades
 from unittest.mock import MagicMock, patch
 import pytest
 from datetime import datetime, timedelta, timezone
+from fastapi import BackgroundTasks
 
 from app.models import User
 
@@ -139,21 +140,65 @@ def test_get_ticker_analysis_queues_background_refresh_when_stale(client):
         assert data["refresh_queued"] is True
         mock_refresh.assert_called_once_with(["AAPL"], "sync")
 
-def test_get_portfolio_optimizer(client):
+def test_get_portfolio_optimizer():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
     with patch("app.api.routes.MongoClient") as mock_client:
         mock_db = mock_client.return_value.get_default_database.return_value
         mock_db.stock_data.find_one.return_value = {
             "Ticker": "TSLA",
-            "Current Price": 100.0
+            "Current Price": 100.0,
+            "_last_persisted_at": datetime.now(timezone.utc).isoformat(),
         }
-        
-        response = client.get("/api/portfolio/optimizer/TSLA")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) >= 1
-        assert data[0]["strategy"] == "Covered Call"
+        mock_db.juicy_opportunities.find.return_value.sort.return_value.limit.return_value = []
+        mock_db.juicy_opportunities.find_one.return_value = {
+            "last_updated": datetime.now(timezone.utc).isoformat()
+        }
+        payload = routes.get_portfolio_optimizer("TSLA", bt, include_meta=False, current_user=admin)
+
+        assert len(payload) >= 1
+        assert payload[0]["strategy"] == "Covered Call"
         # 100 * 1.05 = 105
-        assert data[0]["strike_target"] == 105.0
+        assert payload[0]["strike_target"] == 105.0
+        assert payload[0]["type"] == "CALL"
+        assert "create_date" in payload[0]
+        assert "last_updated" in payload[0]
+
+
+def test_get_juicys_workspace_rows():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.juicy_opportunities.find.return_value.sort.return_value.limit.return_value = [
+            {
+                "symbol": "TSLA",
+                "as_of": datetime.now(timezone.utc).isoformat(),
+                "strategy": "Covered Call",
+                "type": "CALL",
+                "action": "SELL",
+                "dte": 30,
+                "strike": 105.0,
+                "premium": 5.0,
+                "yield_pct": 12.5,
+                "score": 88,
+                "reason_summary": "Covered Call | yield 12.5%",
+                "create_date": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+            }
+        ]
+
+        payload = routes.get_juicys(admin, preset="juicy", limit=20)
+        assert payload["count"] == 1
+        assert payload["rows"][0]["symbol"] == "TSLA"
+
+
+def test_refresh_juicys_enqueues_job():
+    bt = BackgroundTasks()
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient"), patch("app.api.routes.background_job_wrapper", return_value=None):
+        payload = routes.refresh_juicys(bt, admin, symbol="TSLA")
+    assert payload["status"] == "queued"
+    assert payload["job_id"]
 
 def test_trade_analysis_date_filter(client):
     mock_cursor = [

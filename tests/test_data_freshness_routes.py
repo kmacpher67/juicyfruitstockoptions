@@ -203,7 +203,8 @@ def test_get_portfolio_optimizer_stale_record_queues_refresh():
 
     assert payload["is_stale"] is True
     assert payload["refresh_queued"] is True
-    assert len(bt.tasks) == 1
+    assert len(bt.tasks) >= 1
+    assert bt.tasks[0].func is routes.run_stock_live_comparison
 
 
 def test_get_ticker_price_history_returns_db_rows_with_freshness():

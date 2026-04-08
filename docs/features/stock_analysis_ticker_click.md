@@ -72,7 +72,15 @@ The ticker click works from **two grids**:
 
 ### 4. Optimizer
 **API:** `GET /api/portfolio/optimizer/{symbol}`  
-**Shows:** Ranked strategy suggestions (strategy name, action, reason, target strike) with "Analyze" buttons.
+**Shows (current):** Ranked strategy suggestions (strategy name, action, reason, target strike) with "Analyze" buttons.
+
+**Planned Contract (Juicy Fruits table):**
+- Replace card/list rendering with a dense table in the Optimizer tab.
+- One row per strategy candidate.
+- Default view shows top `20` rows by score with selector `20/50/100/ALL`.
+- Required sortable/filterable columns: `as_of`, `strategy`, `type` (`CALL`/`PUT`), `action` (`BUY`/`SELL`/`ROLL`/`HOLD`), `dte`, `strike`, `premium`, `yield_pct`, `score`, `reason_summary`.
+- Preset filters: `Juicy Fruit Options` and `Hot PUTS` (down-market bias).
+- Add `Refresh` action that schedules background refresh work and rehydrates from Mongo persistence when new/better-scored rows land (DB-first; no blocking live call required for first paint).
 
 ### 5. Price Action
 **API:** `GET /api/ticker/{symbol}` (uses `Price Action` nested object)  
@@ -129,6 +137,7 @@ The ticker click works from **two grids**:
 ### Feature Docs
 - [Stock Analysis Feature Recap](stock_analysis_feature_recap.md) — Bug investigation & data flow architecture
 - [SMA/EMA/HMA/TSMOM Strategy Guide](SMA-EMA-HMA-TSMON.md) — Technical indicator strategy
+- [Juicys Navigation + Optimizer Workspace](juicys_navigation_optimizer_workspace.md) — New top-nav workspace and optimizer table contract
 
 ### Walkthroughs
 - [Greeks Integration Walkthrough](../plans/walkthrough-20260202-greeks_integration.md)
@@ -146,7 +155,7 @@ These items from `features-requirements.md` remain incomplete:
 3. **Stock Analysis — Analytics Sub-tab**: Deeper drill into technical analysis (IV surface, Greeks heatmap, historical metrics).
 4. **Stock Analysis — Signals Sub-tab**: Expand with news sentiment signals and macro impact scoring.
 5. **Stock Analysis — Opportunities Sub-tab**: Surface Buy/Sell recommendations, dividend capture, and covered call candidates.
-6. **Stock Analysis — Optimizer Sub-tab**: Multi-leg strategy optimizer with risk/reward visualization.
+6. **Stock Analysis — Optimizer Sub-tab**: Multi-leg strategy optimizer with risk/reward visualization and spreadsheet-style Juicy table workflows.
 7. **Stock Analysis — Price Action Sub-tab**: Add interactive charting with ZigZag overlay, supply/demand zone visualization.
 
 ---
@@ -189,3 +198,4 @@ When a tab endpoint fails (timeout, network error, HTTP 4xx/5xx) or the browser 
 | 2026-04-02 | **UPDATED** | Header enrichment completed in `TickerModal`: ticker/descriptive link targets, `%` formatting fix, and last-update normalization with utility tests |
 | 2026-04-03 | **UPDATED** | Detail-loading reliability hardening: canonical ticker routing from Portfolio/Trades and backend relaxed ticker lookup fallback for local DB resolution |
 | 2026-04-07 | **UPDATED** | resilience-004/005: per-tab degraded reason badges (`TabErrorBadge`, `tickerModalResilience.js`) and regression tests (`tickerModalResilience.test.js`) |
+| 2026-04-07 | **UPDATED** | Added planned Optimizer `Juicy Fruits` table contract: sortable/filterable rows, top-N selector, preset filters, and refresh-job DB-first behavior |

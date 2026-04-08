@@ -23,7 +23,7 @@ const TAB_LABELS = {
     analytics: 'Analytics',
     signals: 'Signals',
     opportunity: 'Opportunity',
-    optimizer: 'Optimizer',
+    optimizer: 'Juicy Fruits',
     price_action: 'Price Action',
     smart_rolls: 'Smart Rolls',
     profile: 'Profile',
@@ -55,7 +55,7 @@ const copyViaFallback = (text) => {
     return copied;
 };
 
-const TickerModal = ({ ticker, isOpen, onClose }) => {
+const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
     const [activeTab, setActiveTab] = useState('analytics');
     const [loading, setLoading] = useState(false);
     const [tickerData, setTickerData] = useState(null);
@@ -68,6 +68,9 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
     const [tabLoadState, setTabLoadState] = useState(TAB_DEFAULT_STATE);
     const [tabErrorReasons, setTabErrorReasons] = useState(TAB_ERROR_REASON_DEFAULT);
     const [copyStatus, setCopyStatus] = useState('idle');
+    const [optimizerPreset, setOptimizerPreset] = useState('juicy');
+    const [optimizerLimit, setOptimizerLimit] = useState(20);
+    const [optimizerRefreshing, setOptimizerRefreshing] = useState(false);
     const requestSeq = useRef(0);
     const copyResetTimer = useRef(null);
 
@@ -86,6 +89,9 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             setTabErrorReasons(TAB_ERROR_REASON_DEFAULT);
             setActiveTab('analytics');
             setCopyStatus('idle');
+            setOptimizerPreset('juicy');
+            setOptimizerLimit(20);
+            setOptimizerRefreshing(false);
             fetchData();
         }
     }, [isOpen, ticker]);
@@ -140,14 +146,20 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                     setOpportunityData({ symbol: ticker, juicy_score: 0, reasons: [], risks: [], metrics: {} });
                 });
 
-            api.get(`/portfolio/optimizer/${ticker}`, { timeout: timeoutMs })
+            api.get(`/portfolio/optimizer/${ticker}`, {
+                timeout: timeoutMs,
+                params: { include_meta: true, preset: optimizerPreset, limit: optimizerLimit },
+            })
                 .then((res) => {
                     if (requestSeq.current !== seq) return;
-                    setOptimizerData(res.data);
+                    const payload = res.data;
+                    setOptimizerData(Array.isArray(payload) ? payload : (payload?.suggestions || []));
+                    setOptimizerMeta(Array.isArray(payload) ? null : payload);
                 })
                 .catch(() => {
                     if (requestSeq.current !== seq) return;
                     setOptimizerData([]);
+                    setOptimizerMeta(null);
                 });
 
             api.get(`/analysis/rolls/${ticker}`, { timeout: timeoutMs })
@@ -200,7 +212,14 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                 return;
             }
             if (tab === 'optimizer') {
-                const res = await api.get(`/portfolio/optimizer/${ticker}?include_meta=true`, { timeout: timeoutMs });
+                const res = await api.get(`/portfolio/optimizer/${ticker}`, {
+                    timeout: timeoutMs,
+                    params: {
+                        include_meta: true,
+                        preset: optimizerPreset,
+                        limit: optimizerLimit,
+                    },
+                });
                 if (requestSeq.current !== seq) return;
                 const payload = res.data;
                 setOptimizerData(Array.isArray(payload) ? payload : (payload?.suggestions || []));
@@ -239,6 +258,13 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             fetchTabData(activeTab);
         }
     }, [activeTab, isOpen, ticker]);
+
+    useEffect(() => {
+        if (!isOpen || !ticker) return;
+        if (activeTab !== 'optimizer') return;
+        setTabLoadState((current) => ({ ...current, optimizer: 'idle' }));
+        fetchTabData('optimizer');
+    }, [optimizerPreset, optimizerLimit]);
 
     const activeFreshness = (() => {
         if (activeTab === 'analytics' || activeTab === 'price_action' || activeTab === 'profile') return tickerData;
@@ -353,6 +379,13 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             Object.entries(opportunityData.metrics || {}).forEach(([metric, value]) => {
                 lines.push(`${metric}: ${formatCopyValue(value)}`);
             });
+            if (Array.isArray(opportunityData.recommendations) && opportunityData.recommendations.length > 0) {
+                lines.push('');
+                lines.push('[Recommendations]');
+                opportunityData.recommendations.forEach((rec) => {
+                    lines.push(`${formatCopyValue(rec?.action)} | ${formatCopyValue(rec?.strategy)} | ${formatCopyValue(rec?.reason)}`);
+                });
+            }
             return lines.join('\n');
         }
 
@@ -364,9 +397,16 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
             optimizerData.forEach((strat, index) => {
                 lines.push(`[Strategy ${index + 1}]`);
                 lines.push(`Strategy: ${formatCopyValue(strat?.strategy)}`);
+                lines.push(`Type: ${formatCopyValue(strat?.type)}`);
                 lines.push(`Action: ${formatCopyValue(strat?.action)}`);
-                lines.push(`Reason: ${formatCopyValue(strat?.reason)}`);
-                lines.push(`Strike Target: ${formatCopyValue(strat?.strike_target)}`);
+                lines.push(`DTE: ${formatCopyValue(strat?.dte)}`);
+                lines.push(`Strike: ${formatCopyValue(strat?.strike)}`);
+                lines.push(`Premium: ${formatCopyValue(strat?.premium)}`);
+                lines.push(`Yield %: ${formatCopyValue(strat?.yield_pct)}`);
+                lines.push(`Score: ${formatCopyValue(strat?.score)}`);
+                lines.push(`Reason: ${formatCopyValue(strat?.reason_summary)}`);
+                lines.push(`Create Date: ${formatCopyValue(strat?.create_date)}`);
+                lines.push(`Last Updated: ${formatCopyValue(strat?.last_updated)}`);
                 lines.push('');
             });
             return lines.join('\n');
@@ -466,6 +506,23 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
         copyResetTimer.current = setTimeout(() => setCopyStatus('idle'), 1800);
     };
 
+    const handleOptimizerRefresh = async () => {
+        if (!ticker) return;
+        setOptimizerRefreshing(true);
+        try {
+            await api.post('/juicys/refresh', null, { params: { symbol: ticker } });
+            if (onJuicyRefreshRequested) {
+                onJuicyRefreshRequested(ticker);
+            }
+            setTabLoadState((current) => ({ ...current, optimizer: 'idle' }));
+            await fetchTabData('optimizer');
+        } catch (err) {
+            console.error('Failed to refresh optimizer juicy rows', err);
+        } finally {
+            setOptimizerRefreshing(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-gray-700">
@@ -553,7 +610,7 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                         onClick={() => setActiveTab('optimizer')}
                         className={`flex-1 py-4 text-sm font-medium uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'optimizer' ? 'bg-gray-700 text-green-400 border-b-2 border-green-400' : 'text-gray-400 hover:text-white hover:bg-gray-750'}`}
                     >
-                        <AlertTriangle className="w-4 h-4" /> Optimizer
+                        <AlertTriangle className="w-4 h-4" /> Juicy Fruits
                     </button>
                     <button
                         onClick={() => setActiveTab('price_action')}
@@ -592,7 +649,18 @@ const TickerModal = ({ ticker, isOpen, onClose }) => {
                             {activeTab === 'analytics' && <AnalyticsView data={tickerData} />}
                             {activeTab === 'signals' && renderTabPanel('signals', <SignalView data={signalData} />)}
                             {activeTab === 'opportunity' && renderTabPanel('opportunity', <OpportunityView data={opportunityData} />)}
-                            {activeTab === 'optimizer' && renderTabPanel('optimizer', <OptimizerView data={optimizerData} />)}
+                            {activeTab === 'optimizer' && renderTabPanel(
+                                'optimizer',
+                                <OptimizerView
+                                    data={optimizerData}
+                                    preset={optimizerPreset}
+                                    onPresetChange={setOptimizerPreset}
+                                    rowLimit={optimizerLimit}
+                                    onLimitChange={setOptimizerLimit}
+                                    onRefresh={handleOptimizerRefresh}
+                                    refreshing={optimizerRefreshing}
+                                />
+                            )}
                             {activeTab === 'price_action' && <PriceActionView data={tickerData} />}
                             {activeTab === 'smart_rolls' && renderTabPanel('smart_rolls', <SmartRollView data={smartRollsData} />)}
                             {activeTab === 'profile' && <ProfileView data={tickerData} ticker={ticker} />}
@@ -691,6 +759,34 @@ const OpportunityView = ({ data }) => {
                     )}
                 </ul>
             </div>
+
+            {Array.isArray(data.recommendations) && data.recommendations.length > 0 && (
+                <div>
+                    <h3 className="text-lg font-bold text-white mb-2">Actionable Buy/Sell Recommendations</h3>
+                    <div className="space-y-2">
+                        {data.recommendations.map((rec, idx) => (
+                            <div key={`${rec.action}-${idx}`} className="bg-gray-800 border border-gray-700 rounded px-3 py-2">
+                                <div className="text-sm text-green-300 font-semibold">{rec.action} · {rec.strategy}</div>
+                                <div className="text-xs text-gray-300">{rec.reason}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {Array.isArray(data.related_opportunities) && data.related_opportunities.length > 0 && (
+                <div>
+                    <h3 className="text-lg font-bold text-white mb-2">Related Scanner Opportunities</h3>
+                    <div className="space-y-1">
+                        {data.related_opportunities.map((item, idx) => (
+                            <div key={`${item.trigger_source || 'opp'}-${idx}`} className="text-xs text-gray-300 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+                                <span className="font-semibold text-yellow-300 mr-2">{item.trigger_source || 'Scanner'}</span>
+                                <span>{item.proposal?.reason || item.proposal?.summary || item.proposal?.strategy || 'Persisted opportunity snapshot'}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Risk Warnings */}
             {data.risks && data.risks.length > 0 && (
@@ -804,32 +900,153 @@ const SignalView = ({ data }) => {
     );
 };
 
-const OptimizerView = ({ data }) => {
+const OptimizerView = ({
+    data,
+    preset,
+    onPresetChange,
+    rowLimit,
+    onLimitChange,
+    onRefresh,
+    refreshing,
+}) => {
+    const [sortColumn, setSortColumn] = useState('score');
+    const [sortDir, setSortDir] = useState('desc');
+    const [filterText, setFilterText] = useState('');
+
     if (!data || data.length === 0) return <div className="text-center text-gray-400 py-12">No optimization strategies found.</div>;
 
+    const normalizedText = filterText.trim().toLowerCase();
+    const filtered = data.filter((row) => {
+        if (!normalizedText) return true;
+        const hay = [
+            row?.strategy,
+            row?.type,
+            row?.action,
+            row?.reason_summary,
+            row?.symbol,
+        ].map((v) => (v === null || v === undefined ? '' : String(v).toLowerCase())).join(' ');
+        return hay.includes(normalizedText);
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+        const av = a?.[sortColumn];
+        const bv = b?.[sortColumn];
+        if (av === bv) return 0;
+        if (av === null || av === undefined) return 1;
+        if (bv === null || bv === undefined) return -1;
+        const factor = sortDir === 'asc' ? 1 : -1;
+        if (typeof av === 'number' && typeof bv === 'number') {
+            return (av - bv) * factor;
+        }
+        return String(av).localeCompare(String(bv)) * factor;
+    });
+
+    const handleSort = (column) => {
+        if (sortColumn === column) {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+        setSortColumn(column);
+        setSortDir('desc');
+    };
+
+    const headerClass = (column) => `px-2 py-2 text-left text-xs uppercase tracking-wider cursor-pointer select-none ${sortColumn === column ? 'text-green-300' : 'text-gray-300'}`;
+    const renderSort = (column) => (sortColumn === column ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+    const fmt = (value, digits = 2) => {
+        if (value === null || value === undefined || value === '') return '-';
+        const n = Number(value);
+        if (!Number.isFinite(n)) return String(value);
+        return n.toFixed(digits);
+    };
+
     return (
-        <div className="grid grid-cols-1 gap-4">
-            {data.map((strat, i) => (
-                <div key={i} className="bg-gray-800 border-l-4 border-green-500 p-4 rounded shadow hover:bg-gray-750 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                        <h4 className="text-lg font-bold text-white">{strat.strategy}</h4>
-                        <span className="px-2 py-1 bg-green-900 text-green-300 text-xs rounded uppercase font-bold tracking-wider">
-                            {strat.action}
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <p className="text-gray-300 text-sm mb-1">{strat.reason}</p>
-                            {strat.strike_target && (
-                                <p className="text-xs text-gray-500">Target Strike: <span className="text-white font-mono">${strat.strike_target}</span></p>
-                            )}
-                        </div>
-                        <button className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded">
-                            Analyze
-                        </button>
-                    </div>
+        <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => onPresetChange('juicy')}
+                        className={`px-2 py-1 rounded text-xs ${preset === 'juicy' ? 'bg-green-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                        Juicy Fruit Options
+                    </button>
+                    <button
+                        onClick={() => onPresetChange('hot_puts')}
+                        className={`px-2 py-1 rounded text-xs ${preset === 'hot_puts' ? 'bg-red-700 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                        Hot PUTS
+                    </button>
+                    <select
+                        className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"
+                        value={rowLimit}
+                        onChange={(e) => onLimitChange(Number(e.target.value))}
+                    >
+                        <option value={20}>Top 20</option>
+                        <option value={50}>Top 50</option>
+                        <option value={100}>Top 100</option>
+                        <option value={500}>All</option>
+                    </select>
                 </div>
-            ))}
+                <div className="flex items-center gap-2">
+                    <input
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        placeholder="Filter columns..."
+                        className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white w-44"
+                    />
+                    <button
+                        onClick={onRefresh}
+                        disabled={refreshing}
+                        className="px-2 py-1 rounded text-xs bg-green-700 text-white hover:bg-green-600 disabled:opacity-50"
+                    >
+                        {refreshing ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                </div>
+            </div>
+
+            <div className="overflow-auto border border-gray-700 rounded-lg">
+                <table className="w-full text-xs">
+                    <thead className="bg-gray-800 border-b border-gray-700">
+                        <tr>
+                            <th className={headerClass('as_of')} onClick={() => handleSort('as_of')}>As Of{renderSort('as_of')}</th>
+                            <th className={headerClass('strategy')} onClick={() => handleSort('strategy')}>Strategy{renderSort('strategy')}</th>
+                            <th className={headerClass('type')} onClick={() => handleSort('type')}>Type{renderSort('type')}</th>
+                            <th className={headerClass('action')} onClick={() => handleSort('action')}>Action{renderSort('action')}</th>
+                            <th className={headerClass('dte')} onClick={() => handleSort('dte')}>DTE{renderSort('dte')}</th>
+                            <th className={headerClass('strike')} onClick={() => handleSort('strike')}>Strike{renderSort('strike')}</th>
+                            <th className={headerClass('premium')} onClick={() => handleSort('premium')}>Premium{renderSort('premium')}</th>
+                            <th className={headerClass('yield_pct')} onClick={() => handleSort('yield_pct')}>Yield %{renderSort('yield_pct')}</th>
+                            <th className={headerClass('score')} onClick={() => handleSort('score')}>Score{renderSort('score')}</th>
+                            <th className={headerClass('reason_summary')} onClick={() => handleSort('reason_summary')}>Reason{renderSort('reason_summary')}</th>
+                            <th className={headerClass('create_date')} onClick={() => handleSort('create_date')}>Create Date{renderSort('create_date')}</th>
+                            <th className={headerClass('last_updated')} onClick={() => handleSort('last_updated')}>Last Updated{renderSort('last_updated')}</th>
+                            <th className="px-2 py-2 text-left text-xs uppercase tracking-wider text-gray-300">Analyze</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map((row, i) => (
+                            <tr key={`${row.strategy_key || row.strategy || 'row'}-${i}`} className="border-b border-gray-800 hover:bg-gray-800/60">
+                                <td className="px-2 py-2 text-gray-300">{row.as_of ? new Date(row.as_of).toLocaleString() : '-'}</td>
+                                <td className="px-2 py-2 text-white">{row.strategy || '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.type || '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.action || '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.dte ?? '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{fmt(row.strike, 2)}</td>
+                                <td className="px-2 py-2 text-gray-200">{fmt(row.premium, 2)}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.yield_pct === null || row.yield_pct === undefined ? '-' : `${fmt(row.yield_pct, 2)}%`}</td>
+                                <td className="px-2 py-2 font-semibold text-green-300">{row.score ?? '-'}</td>
+                                <td className="px-2 py-2 text-gray-300">{row.reason_summary || '-'}</td>
+                                <td className="px-2 py-2 text-gray-400">{row.create_date ? new Date(row.create_date).toLocaleString() : '-'}</td>
+                                <td className="px-2 py-2 text-gray-400">{row.last_updated ? new Date(row.last_updated).toLocaleString() : '-'}</td>
+                                <td className="px-2 py-2">
+                                    <button className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px]">
+                                        Analyze
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };
