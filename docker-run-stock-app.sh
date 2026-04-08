@@ -26,7 +26,7 @@ set -euo pipefail
 #   AUTO_RESTORE_JSON_ON_START=true AUTO_RESTORE_ONLY_IF_EMPTY=false ./docker-run-stock-app.sh
 #   AUTO_RESTORE_JSON_ON_START=true AUTO_RESTORE_COLLECTION=stock_data ./docker-run-stock-app.sh
 
-pip install -r requirements.txt
+# pip install -r requirements.txt
 docker-compose up --build -d
 
 sleep 5
