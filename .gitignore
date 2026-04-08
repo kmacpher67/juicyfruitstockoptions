@@ -28,3 +28,6 @@ mongo_data/
 
 # Allow legacy data csvs
 !ibkr-legacy-data/*.csv
+
+# Claude AI agent worktrees
+.claude/worktrees/

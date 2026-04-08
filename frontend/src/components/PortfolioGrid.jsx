@@ -11,7 +11,7 @@ import { getDetailTicker, getDisplaySymbol, getVisibleRowCounterLabel, resolveSe
 const getPendingEffectUi = (effect) => {
     switch (effect) {
         case 'covering_uncovered':
-            return { label: 'Pending Cover', tone: 'text-emerald-300 border-emerald-500/50 bg-emerald-500/10' };
+            return { label: 'Pending Cover', tone: 'text-[#2e7d32] border-[#2e7d32]/50 bg-[#2e7d32]/10' };
         case 'buying_to_close':
             return { label: 'Pending BTC', tone: 'text-amber-200 border-amber-500/50 bg-amber-500/10' };
         case 'rolling':
@@ -63,20 +63,20 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 return (
                     <div className="flex items-center gap-2">
                         <span
-                            className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                            className="font-bold cursor-pointer hover:text-[#1976d2] group flex items-center"
                             onClick={() => params.context.onTickerClick && params.context.onTickerClick(cleanSym)}
                             title={detailLabel}
                             aria-label={detailLabel}
                         >
                             {sym}
                             <ExternalLink
-                                className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
+                                className="w-3 h-3 ml-1 text-slate-300 opacity-90 group-hover:opacity-100 group-hover:text-[#1976d2] transition-all"
                                 aria-hidden="true"
                             />
                         </span>
-                        <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+                        <div className="flex gap-1 text-xs opacity-100">
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
                         </div>
                     </div>
                 );
@@ -91,9 +91,9 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 const status = params.value || '';
                 const pendingUi = getPendingEffectUi(params.data?.pending_order_effect);
                 const statusClass = status === 'Covered'
-                    ? 'text-green-400 font-bold'
+                    ? 'text-[#2e7d32] font-bold'
                     : (status === 'Uncovered' || status === 'Naked')
-                        ? 'text-red-400 font-bold'
+                        ? 'text-[#d32f2f] font-bold'
                         : 'text-slate-300';
 
                 return (
@@ -114,7 +114,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             width: 70,
             sortable: true,
             type: 'numericColumn',
-            cellClass: params => (params.data.is_expiring_soon) ? 'bg-red-900/30 text-red-400 font-bold' : '',
+            cellClass: params => (params.data.is_expiring_soon) ? 'bg-red-900/30 text-[#d32f2f] font-bold' : '',
             valueFormatter: p => getNumericValue(p.value) ?? '-'
         },
         {
@@ -140,7 +140,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             cellClass: params => {
                 const numeric = getNumericValue(params.value);
                 if (numeric === null) return '';
-                return numeric >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+                return numeric >= 0 ? 'text-[#2e7d32] font-bold' : 'text-[#d32f2f] font-bold';
             },
             valueFormatter: p => formatCurrency(p.value, { maximumFractionDigits: 0 })
         },
@@ -149,7 +149,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             headerName: "Divs",
             sortable: true,
             width: 80,
-            cellClass: params => getNumericValue(params.value) > 0 ? 'text-green-400 font-bold' : '',
+            cellClass: params => getNumericValue(params.value) > 0 ? 'text-[#2e7d32] font-bold' : '',
             valueFormatter: p => formatCurrency(p.value, { maximumFractionDigits: 0 })
         },
         {
@@ -160,7 +160,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             cellClass: params => {
                 const numeric = getNumericValue(params.value);
                 if (numeric === null) return '';
-                return numeric >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+                return numeric >= 0 ? 'text-[#2e7d32] font-bold' : 'text-[#d32f2f] font-bold';
             },
             valueFormatter: p => formatCurrency(p.value, { maximumFractionDigits: 0 })
         },
@@ -169,7 +169,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             headerName: "True Yield",
             sortable: true,
             width: 90,
-            cellClass: params => getNumericValue(params.value) > 0 ? 'text-green-400 font-bold' : '',
+            cellClass: params => getNumericValue(params.value) > 0 ? 'text-[#2e7d32] font-bold' : '',
             valueFormatter: p => formatPercent(p.value, 2)
         },
         {
@@ -206,7 +206,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                             href={agentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="opacity-0 group-hover:opacity-100 text-green-400 hover:text-green-300 transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 text-[#1976d2] hover:text-[#1565c0] transition-opacity"
                             title="Ask Trading Agent"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

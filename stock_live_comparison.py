@@ -17,6 +17,51 @@ class StockLiveComparison:
     """Collect stock metrics and export them to an Excel sheet."""
     _price_history_indexes_ensured = False
     _instrument_snapshot_indexes_ensured = False
+    CANONICAL_REPORT_COLUMNS = [
+        "Ticker",
+        "Company Name",
+        "Current Price",
+        "1D % Change",
+        "Market Cap (T$)",
+        "P/E",
+        "YoY Price %",
+        "EMA_20",
+        "HMA_20",
+        "TSMOM_60",
+        "RSI_14",
+        "ATR_14",
+        "MA_30",
+        "MA_60",
+        "MA_120",
+        "MA_200",
+        "EMA_20_highlight",
+        "HMA_20_highlight",
+        "TSMOM_60_highlight",
+        "Ex-Div Date",
+        "Div Yield",
+        "Analyst 1-yr Target",
+        "1-yr 6% OTM PUT Strike",
+        "1-yr 6% OTM PUT Price",
+        "1-yr 6% OTM CALL Strike",
+        "1-yr 6% OTM CALL Price",
+        "Annual Yield Put Prem",
+        "3-mo Call Yield",
+        "6-mo Call Yield",
+        "1-yr Call Yield",
+        "Annual Yield Call Prem",
+        "Call/Put Skew",
+        "6-mo Call Strike",
+        "Error",
+        "Last Update",
+        "_PutExpDate_365",
+        "_CallExpDate_365",
+        "_CallExpDate_90",
+        "_CallExpDate_180",
+        "MA_30_highlight",
+        "MA_60_highlight",
+        "MA_120_highlight",
+        "MA_200_highlight",
+    ]
 
     def __init__(
         self,
@@ -93,6 +138,21 @@ class StockLiveComparison:
             return None
         delta = (current_price - avg) / avg
         return round(delta, 4)  # Return as float, e.g. 0.0521 for 5.21%
+
+    @staticmethod
+    def normalize_percent_value(value):
+        """Normalize decimal-yield style values (0.043) into percent values (4.3)."""
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if numeric != numeric:  # NaN
+            return None
+        if -1.0 <= numeric <= 1.0:
+            numeric *= 100.0
+        return round(numeric, 2)
 
     @staticmethod
     def generate_yf_option_url(ticker, date_str):
@@ -401,7 +461,7 @@ class StockLiveComparison:
             "HMA_20_highlight": hma_20_highlight,
             "TSMOM_60_highlight": tsmom_60_highlight,
             "Ex-Div Date": ex_div_date,
-            "Div Yield": info.get("dividendYield"),
+            "Div Yield": self.normalize_percent_value(info.get("dividendYield")),
             "Analyst 1-yr Target": analyst_target,
             "1-yr 6% OTM PUT Strike": put_strike_12,
             "1-yr 6% OTM PUT Price": put_price,
@@ -932,31 +992,15 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def save_to_excel(self, df, put_col, call_col):
-        # Ensure all MA and new columns exist in DataFrame before saving
         ma_windows = [30, 60, 120, 200]
-        new_cols = ["EMA_20", "HMA_20", "TSMOM_60", "RSI_14", "ATR_14"]
-        all_cols = new_cols + [f"MA_{w}" for w in ma_windows]
-        
-        for col in all_cols:
+        # Ensure canonical report columns exist before reorder.
+        for col in self.CANONICAL_REPORT_COLUMNS:
             if col not in df.columns:
                 df[col] = None
 
-        # Reorder columns: Place new columns before MA_30
-        initial_cols = [c for c in df.columns if c not in all_cols]
-        # Find insertion point after "YoY Price %"
-        ordered_cols = []
-        if "YoY Price %" in initial_cols:
-             idx = initial_cols.index("YoY Price %") + 1
-             ordered_cols = initial_cols[:idx] + new_cols + [f"MA_{w}" for w in ma_windows] + initial_cols[idx:]
-        else:
-             ordered_cols = initial_cols + new_cols + [f"MA_{w}" for w in ma_windows]
-             
-        # Filter and fill
-        ordered_cols = [c for c in ordered_cols if c in df.columns]
+        ordered_cols = [c for c in self.CANONICAL_REPORT_COLUMNS if c in df.columns]
         remaining = [c for c in df.columns if c not in ordered_cols]
-        ordered_cols.extend(remaining)
-        
-        df = df[ordered_cols]
+        df = df[ordered_cols + remaining]
 
         df = self.sort_dataframe_for_excel(df)
         df.to_excel(self.filename, index=False)

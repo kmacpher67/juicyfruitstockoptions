@@ -53,10 +53,10 @@ Dashboard.jsx polls /api/jobs/{id} until complete
         │
         ▼
 Dashboard.jsx → GET /api/reports (lists Excel files)
-Dashboard.jsx → GET /api/reports/{filename}/data (reads Excel → JSON)
+Dashboard.jsx → GET /api/reports/{filename}/data (reads Excel → JSON; NaN/Inf sanitized to null)
         │
         ▼
-StockGrid.jsx renders data in ag-Grid with ~10 column definitions
+StockGrid.jsx renders the calculated-analysis grid contract (pricing, momentum, RSI, MA short→long, options-yield fields)
 ```
 
 ---
@@ -160,6 +160,22 @@ The `AVAILABLE_COLUMNS` array in `Dashboard.jsx` (L16-27) mirrors the same limit
 
 ---
 
+## 2026-04-08 Calculated-Field Contract Fix
+
+- Canonicalized spreadsheet column order in `StockLiveComparison.save_to_excel()` with a fixed `CANONICAL_REPORT_COLUMNS` list so both manual and scheduled runs keep the same export contract.
+- Added dividend-yield normalization so decimal feeds (`0.0437`) persist as percent (`4.37`) consistently for UI + XLSX usage.
+- Hardened `/api/reports/{filename}/data` conversion to coerce `NaN/Inf` to `null` reliably before JSON serialization.
+- Expanded `StockGrid.jsx` calculated columns to match F-R expectations:
+  - Added `RSI_14`
+  - Added `MA_30`, `MA_60`, `MA_120`
+  - Reordered moving averages short→long with `EMA_20`, `HMA_20`, `MA_30`, `MA_60`, `MA_120`, `MA_200`
+  - Added options premium/yield columns (`Annual Yield Put Prem`, `3-mo Call Yield`, `6-mo Call Yield`, `1-yr Call Yield`)
+- Improved analysis-grid legibility by increasing contrast on ticker quick links and health/color text tones.
+- Added regression coverage:
+  - Backend: `tests/test_stock_analysis_report_contract.py`
+  - Frontend unit: `frontend/src/components/StockGrid.test.js`
+  - Playwright: refreshed `frontend/tests/specs/*.spec.js` to current API contracts (`/api/token`, `/api/reports/...`).
+
 ---
 
 ## Stuck-Button Recovery (run-obs-004)
@@ -197,3 +213,4 @@ The `AVAILABLE_COLUMNS` array in `Dashboard.jsx` (L16-27) mirrors the same limit
 | 2026-03-28 | **CREATED** | Initial feature recap documenting Stock Analysis breakage root cause |
 | 2026-04-03 | **UPDATED** | Documented yfinance 429 retry-loop fix and added regression test coverage |
 | 2026-04-07 | **UPDATED** | Documented stuck-button recovery behavior (run-obs-004) |
+| 2026-04-08 | **UPDATED** | Documented calculated-field parity fix across UI + XLSX contracts, NaN-safe report API conversion, and expanded regression suite coverage |

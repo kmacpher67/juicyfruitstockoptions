@@ -27,7 +27,7 @@ const TickerCell = (params) => {
     return (
         <button
             type="button"
-            className="text-blue-300 hover:text-blue-200 hover:underline font-semibold"
+            className="text-[#1976d2] hover:text-[#1565c0] hover:underline font-semibold"
             onClick={() => onTickerClick && onTickerClick(ticker)}
             title={`Open ${ticker} details`}
         >

@@ -39,10 +39,18 @@ const AVAILABLE_COLUMNS = [
     { field: "1D % Change", headerName: "Change" },
     { field: "YoY Price %", headerName: "YoY %" },
     { field: "TSMOM_60", headerName: "TSMOM 60" },
+    { field: "RSI_14", headerName: "RSI 14" },
     { field: "Ticker Health", headerName: "Ticker Health" },
-    { field: "MA_200", headerName: "200 MA" },
     { field: "EMA_20", headerName: "EMA 20" },
     { field: "HMA_20", headerName: "HMA 20" },
+    { field: "MA_30", headerName: "MA 30" },
+    { field: "MA_60", headerName: "MA 60" },
+    { field: "MA_120", headerName: "MA 120" },
+    { field: "MA_200", headerName: "MA 200" },
+    { field: "Annual Yield Put Prem", headerName: "1Y Put Prem %" },
+    { field: "3-mo Call Yield", headerName: "3M Call %" },
+    { field: "6-mo Call Yield", headerName: "6M Call %" },
+    { field: "1-yr Call Yield", headerName: "1Y Call %" },
     { field: "Div Yield", headerName: "Div Yield" }
 ];
 

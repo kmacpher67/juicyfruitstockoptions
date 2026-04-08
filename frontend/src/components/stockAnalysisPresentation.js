@@ -126,10 +126,10 @@ export const computeTickerHealthScore = (row) => {
 };
 
 export const getTickerHealthTone = (score) => {
-    if (score === null || score === undefined) return 'text-slate-400';
-    if (score >= scoreBands.positive.min) return 'text-green-400';
-    if (score >= scoreBands.neutral.min) return 'text-yellow-400';
-    return 'text-red-400';
+    if (score === null || score === undefined) return 'text-slate-300';
+    if (score > 50) return 'text-[#2e7d32]';
+    if (score < 50) return 'text-[#d32f2f]';
+    return 'text-slate-300';
 };
 
 export const getTickerHealthLabel = (score) => {

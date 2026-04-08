@@ -1624,10 +1624,12 @@ async def get_report_data(
         # Read Excel using pandas
         # Ensure we read the correct engine
         df = pd.read_excel(report_path, engine='openpyxl')
-        
-        # Handle NaN/Inf for JSON compliance
-        df = df.replace({float('nan'): None, float('inf'): None, float('-inf'): None})
-        
+
+        # Handle NaN/Inf for JSON compliance.
+        # `replace({float('nan'): ...})` is unreliable for NaN comparisons.
+        df = df.replace([float("inf"), float("-inf")], pd.NA)
+        df = df.astype(object).where(pd.notna(df), None)
+
         # Convert to list of dicts
         return df.to_dict(orient="records")
     except Exception as e:

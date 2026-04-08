@@ -1,17 +1,49 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { AgGridReact } from 'ag-grid-react'; // React Data Grid Component
+import React, { useState, useEffect, useMemo } from 'react';
+import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS
-import "ag-grid-community/styles/ag-theme-quartz.css"; // Optional Theme applied to the grid
-
-// Register all Community features
-ModuleRegistry.registerModules([AllCommunityModule]);
-
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { Trash2, ExternalLink, CheckCircle } from 'lucide-react';
 import { computeTickerHealthScore, getTickerHealthLabel, getTickerHealthTone } from './stockAnalysisPresentation';
+import { STOCK_GRID_AVERAGE_FIELDS_ORDER } from './stockGridConfig';
 
-// Register all Community features
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+const toFiniteNumber = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const normalized = String(value).replace('%', '').trim();
+    if (!normalized || normalized.toLowerCase() === 'nan') return null;
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatNumber = (value, digits = 2) => {
+    const parsed = toFiniteNumber(value);
+    if (parsed === null) return '-';
+    return parsed.toFixed(digits);
+};
+
+const formatPercent = (value, digits = 2) => {
+    const parsed = toFiniteNumber(value);
+    if (parsed === null) return '-';
+    return `${parsed.toFixed(digits)}%`;
+};
+
+const formatMaybePercent = (value, digits = 2) => {
+    if (typeof value === 'string' && value.includes('%')) {
+        return formatPercent(value, digits);
+    }
+    const parsed = toFiniteNumber(value);
+    if (parsed === null) return '-';
+    return `${parsed.toFixed(digits)}%`;
+};
+
+const formatCurrency = (value) => {
+    const parsed = toFiniteNumber(value);
+    if (parsed === null) return '-';
+    return `$${parsed.toFixed(2)}`;
+};
 
 const LinkRenderer = (params) => {
     if (!params.value) return null;
@@ -23,28 +55,29 @@ const LinkRenderer = (params) => {
     return (
         <div className="flex items-center gap-2">
             <span
-                className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                className="font-bold cursor-pointer hover:text-[#1976d2] group flex items-center"
                 onClick={() => onTickerClick && onTickerClick(ticker)}
                 title={`Open stock analysis detail for ${ticker}`}
             >
                 {ticker}
-                <ExternalLink className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all" />
+                <ExternalLink className="w-3 h-3 ml-1 text-slate-200 opacity-90 group-hover:opacity-100 group-hover:text-[#1976d2] transition-all" />
             </span>
-            <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
-                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
-                <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+            <div className="flex gap-1 text-xs opacity-100">
+                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
+                <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
             </div>
         </div>
     );
 };
 
 const OptionsLinkRenderer = (params) => {
-    if (params.value === null || params.value === undefined) return null;
+    const parsed = toFiniteNumber(params.value);
+    if (parsed === null) return '-';
     const ticker = params.data.Ticker;
     const url = `https://finance.yahoo.com/quote/${ticker}/options`;
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center hover:text-blue-400 underline decoration-dotted">
-            {parseFloat(params.value).toFixed(2)}
+        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center text-[#1976d2] hover:text-[#1565c0] underline decoration-dotted">
+            {parsed.toFixed(2)}
         </a>
     );
 };
@@ -55,17 +88,8 @@ const TickerHealthRenderer = (params) => {
     const label = getTickerHealthLabel(score);
     return (
         <div className={`flex items-center gap-2 font-mono ${tone}`}>
-            <span>{score ?? '-'}</span>
-            <span className="text-xs uppercase opacity-80">{label}</span>
-        </div>
-    );
-};
-
-const PortfolioRenderer = (params) => {
-    if (!params.value) return null;
-    return (
-        <div className="flex items-center justify-center h-full">
-            <CheckCircle className="w-4 h-4 text-green-500" />
+            <span className="font-semibold">{score ?? '-'}</span>
+            <span className="text-xs uppercase opacity-90">{label}</span>
         </div>
     );
 };
@@ -96,80 +120,108 @@ const ActionsRenderer = (params) => {
     );
 };
 
+const buildStockGridColumnDefs = ({ onDelete }) => {
+    const averageHeaderByField = {
+        EMA_20: 'EMA 20',
+        HMA_20: 'HMA 20',
+        MA_30: 'MA 30',
+        MA_60: 'MA 60',
+        MA_120: 'MA 120',
+        MA_200: 'MA 200',
+    };
+    const averageColumns = STOCK_GRID_AVERAGE_FIELDS_ORDER.map((field) => ({
+        field,
+        headerName: averageHeaderByField[field] || field,
+        filter: 'agNumberColumnFilter',
+        sortable: true,
+        valueFormatter: (p) => formatNumber(p.value, 2),
+        width: field === 'MA_120' || field === 'MA_200' ? 95 : 90,
+    }));
+
+    const baseDefs = [
+        {
+            field: 'Ticker',
+            filter: true,
+            sortable: true,
+            checkboxSelection: true,
+            pinned: 'left',
+            width: 220,
+            cellRenderer: LinkRenderer,
+        },
+        { field: 'Current Price', headerName: 'Price', filter: 'agNumberColumnFilter', sortable: true, valueFormatter: (p) => formatCurrency(p.value), width: 110 },
+        { field: 'Call/Put Skew', headerName: 'Options Skew', filter: 'agNumberColumnFilter', sortable: true, cellRenderer: OptionsLinkRenderer, width: 120 },
+        {
+            field: '1D % Change',
+            headerName: 'Change',
+            sortable: true,
+            valueFormatter: (p) => formatMaybePercent(p.value, 2),
+            cellClassRules: {
+                'text-[#2e7d32] font-semibold': (p) => (toFiniteNumber(p.value) ?? 0) > 0,
+                'text-[#d32f2f] font-semibold': (p) => (toFiniteNumber(p.value) ?? 0) < 0,
+            },
+            width: 100,
+        },
+        { field: 'YoY Price %', headerName: 'YoY %', sortable: true, valueFormatter: (p) => formatMaybePercent(p.value, 1), width: 90 },
+        {
+            field: 'TSMOM_60',
+            headerName: 'TSMOM 60',
+            filter: 'agNumberColumnFilter',
+            sortable: true,
+            valueFormatter: (p) => formatPercent(p.value, 2),
+            cellClassRules: {
+                'text-[#2e7d32] font-semibold': (p) => (toFiniteNumber(p.value) ?? 0) > 0,
+                'text-[#d32f2f] font-semibold': (p) => (toFiniteNumber(p.value) ?? 0) < 0,
+            },
+            width: 100,
+        },
+        {
+            field: 'Ticker Health',
+            headerName: 'Ticker Health',
+            filter: 'agNumberColumnFilter',
+            sortable: true,
+            valueGetter: (params) => computeTickerHealthScore(params.data),
+            cellRenderer: TickerHealthRenderer,
+            width: 160,
+        },
+        {
+            field: 'RSI_14',
+            headerName: 'RSI 14',
+            filter: 'agNumberColumnFilter',
+            sortable: true,
+            valueFormatter: (p) => formatNumber(p.value, 2),
+            cellClassRules: {
+                'text-[#2e7d32] font-semibold': (p) => (toFiniteNumber(p.value) ?? 0) > 50,
+                'text-[#d32f2f] font-semibold': (p) => {
+                    const val = toFiniteNumber(p.value);
+                    return val !== null && val < 50;
+                },
+            },
+            width: 90,
+        },
+        ...averageColumns,
+        { field: 'Annual Yield Put Prem', headerName: '1Y Put Prem %', filter: 'agNumberColumnFilter', sortable: true, valueFormatter: (p) => formatPercent(p.value, 2), width: 120 },
+        { field: '3-mo Call Yield', headerName: '3M Call %', filter: 'agNumberColumnFilter', sortable: true, valueFormatter: (p) => formatPercent(p.value, 2), width: 105 },
+        { field: '6-mo Call Yield', headerName: '6M Call %', filter: 'agNumberColumnFilter', sortable: true, valueFormatter: (p) => formatPercent(p.value, 2), width: 105 },
+        { field: '1-yr Call Yield', headerName: '1Y Call %', filter: 'agNumberColumnFilter', sortable: true, valueFormatter: (p) => formatPercent(p.value, 2), width: 105 },
+        { field: 'Div Yield', headerName: 'Div Yield', sortable: true, valueFormatter: (p) => formatPercent(p.value, 2), width: 100 },
+    ];
+
+    if (onDelete) {
+        baseDefs.push({
+            headerName: '',
+            field: 'actions',
+            maxWidth: 60,
+            pinned: 'right',
+            cellRenderer: ActionsRenderer,
+            sortable: false,
+            filter: false,
+        });
+    }
+    return baseDefs;
+};
+
 const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolioTickers, hasPortfolioAccess, onTickerClick }) => {
-
-    // Inject custom data into Row Data so we can filter/sort on it? 
-    // Or just use ValueGetter. ValueGetter is better.
-
-    // Column Definitions
-    const [colDefs, setColDefs] = useState([]);
-
-    useEffect(() => {
-        const baseDefs = [
-            {
-                field: "Ticker",
-                filter: true,
-                sortable: true,
-                checkboxSelection: true,
-                pinned: 'left',
-                width: 200,
-                cellRenderer: LinkRenderer
-            },
-            { field: "Current Price", headerName: "Price", filter: "agNumberColumnFilter", sortable: true, valueFormatter: p => p.value ? `$${parseFloat(p.value).toFixed(2)}` : '' },
-            {
-                field: "Call/Put Skew",
-                headerName: "Options Skew",
-                filter: "agNumberColumnFilter",
-                cellRenderer: OptionsLinkRenderer
-            },
-            {
-                field: "1D % Change", headerName: "Change", cellClassRules: {
-                    'text-green-400': p => p.value && p.value.includes('+'),
-                    'text-red-400': p => p.value && p.value.includes('-')
-                }
-            },
-            { field: "YoY Price %", headerName: "YoY %" },
-            {
-                field: "TSMOM_60", headerName: "TSMOM 60", filter: "agNumberColumnFilter", cellClassRules: {
-                    'text-green-400': p => p.value > 0,
-                    'text-red-400': p => p.value < 0
-                }
-            },
-            {
-                field: "Ticker Health",
-                headerName: "Ticker Health",
-                filter: "agNumberColumnFilter",
-                sortable: true,
-                valueGetter: (params) => computeTickerHealthScore(params.data),
-                cellRenderer: TickerHealthRenderer,
-                width: 160,
-            },
-            { field: "MA_200", headerName: "200 MA", filter: "agNumberColumnFilter" },
-            { field: "EMA_20", headerName: "EMA 20" },
-            { field: "HMA_20", headerName: "HMA 20" },
-            { field: "Div Yield", headerName: "Div Yield", valueFormatter: p => p.value ? `${p.value}%` : '' },
-            // { field: "Last Update" } 
-        ];
-
-        // Conditional Columns
-        // User requested removing "In Port" column and using Checkbox selection instead.
-        // if (hasPortfolioAccess) { ... }
-
-        if (onDelete) {
-            baseDefs.push({
-                headerName: "",
-                field: "actions",
-                maxWidth: 60,
-                pinned: 'right',
-                cellRenderer: ActionsRenderer,
-                sortable: false,
-                filter: false
-            });
-        }
-
-        setColDefs(baseDefs);
-
-    }, [hasPortfolioAccess, portfolioTickers, onDelete]);
+    const colDefs = useMemo(() => buildStockGridColumnDefs({ onDelete }), [onDelete]);
 
     const [gridApi, setGridApi] = useState(null);
 
@@ -177,12 +229,8 @@ const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolio
         setGridApi(params.api);
     };
 
-    // Pre-Select rows that are in Portfolio
     useEffect(() => {
         if (gridApi && hasPortfolioAccess && portfolioTickers) {
-            // We need to wait for data to be loaded in the grid? 
-            // setRowData happens via prop.
-            // ag-grid fires 'rowDataUpdated' event, or we can just iterate whenever props change.
             gridApi.forEachNode((node) => {
                 if (node.data && portfolioTickers.has(node.data.Ticker)) {
                     node.setSelected(true);
@@ -193,37 +241,31 @@ const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolio
         }
     }, [gridApi, hasPortfolioAccess, portfolioTickers, data]);
 
-    // Apply sort when defaultSort or gridApi changes
     useEffect(() => {
         if (gridApi && defaultSort && defaultSort.colId) {
             gridApi.applyColumnState({
-                state: [
-                    { colId: defaultSort.colId, sort: defaultSort.sortOrder }
-                ],
-                defaultState: { sort: null }
+                state: [{ colId: defaultSort.colId, sort: defaultSort.sortOrder }],
+                defaultState: { sort: null },
             });
         }
     }, [defaultSort, gridApi]);
 
     return (
-        <div
-            className="ag-theme-quartz-dark h-[600px] w-full"
-            style={{}}
-        >
+        <div className="ag-theme-quartz-dark h-[600px] w-full">
             <AgGridReact
                 rowData={data}
                 columnDefs={colDefs}
-                pagination={true}
+                pagination
                 paginationPageSize={pageSize}
                 defaultColDef={{
-                    flex: 1,
-                    minWidth: 100,
+                    minWidth: 95,
                     filter: true,
+                    resizable: true,
                 }}
-                rowSelection="multiple" // Enable multiple selection for the checkboxes
-                enableCellTextSelection={true}
+                rowSelection="multiple"
+                enableCellTextSelection
                 onGridReady={onGridReady}
-                context={{ onDelete, portfolioTickers, onTickerClick }} // Pass context to access inside Renderer
+                context={{ onDelete, portfolioTickers, onTickerClick }}
             />
         </div>
     );

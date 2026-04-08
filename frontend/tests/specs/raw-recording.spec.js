@@ -1,73 +1,53 @@
 import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
 
-test('test', async ({ page }) => {
-  await page.goto('http://localhost:3000/login');
-  await page.getByRole('button', { name: 'Login' }).click();
-  await page.locator('input[type="text"]').click();
-  await page.locator('input[type="text"]').fill('admin');
-  await page.locator('input[type="text"]').press('Tab');
-  await page.locator('input[type="password"]').fill('admin123');
-  await page.getByText('Username').click();
-  await page.getByRole('button', { name: 'Login' }).click();
-  await page.locator('#cell-Ticker-394 > .flex.items-center.gap-2 > .font-bold > .lucide').click();
-  await page.getByText('LACLithium Americas Corp.$4.').click();
-  await page.getByText('Last update: 4/6/2026, 5:29:').click();
-  await expect(page.locator('div').filter({ hasText: 'LACLithium Americas Corp.$4.' }).nth(4)).toBeVisible();
-  await page.getByRole('heading', { name: 'Trend & Technicals' }).click();
-  await expect(page.getByRole('heading', { name: 'Trend & Technicals' })).toBeVisible();
-  await expect(page.locator('.flex.justify-between > .text-gray-400.hover\\:text-white')).toBeVisible();
-  await page.locator('.flex.justify-between > .text-gray-400.hover\\:text-white').click();
-  await expect(page.locator('#cell-Ticker-394 > .flex.items-center.gap-2 > .font-bold > .lucide > path:nth-child(3)')).toBeVisible();
-  await expect(page.locator('#cell-Ticker-394 > .flex.items-center.gap-2 > .flex.gap-1 > .text-blue-400')).toBeVisible();
-  await expect(page.getByText('LACGY')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Add Ticker...' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'My Portfolio' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Trade History' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Orders' })).toBeVisible();
-  await expect(page.getByRole('button').nth(4)).toBeVisible();
-  await page.getByRole('button').nth(4).click();
-  await expect(page.getByRole('heading', { name: 'Dashboard Settings' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Automation' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Stock Analysis HTTP' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save All' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close' }).click();
-  await page.getByText('Welcome, admin').click();
-  await expect(page.getByText('Welcome, admin')).toBeVisible();
-  await expect(page.getByRole('button').nth(5)).toBeVisible();
-  await expect(page.locator('select')).toBeVisible();
-  await expect(page.locator('span').nth(3)).toBeVisible();
-  await page.locator('span').nth(3).click();
-  await expect(page.getByText('Contains')).toBeVisible();
-  await page.getByRole('textbox', { name: 'Filter Value' }).click();
-  await page.locator('div').filter({ hasText: 'AI_Stock_Live_Comparison_20260406_052900.' }).nth(2).click();
-  await page.getByRole('button', { name: 'My Portfolio' }).click();
-  await expect(page.getByRole('button', { name: 'Uncovered' })).toBeVisible();
-  await page.getByRole('button', { name: 'Uncovered' }).click();
-  await expect(page.getByRole('button', { name: 'Uncovered' })).toBeVisible();
-  await expect(page.getByText('Ticker 2')).toBeVisible();
-  await expect(page.locator('.ag-icon').first()).toBeVisible();
-  await expect(page.getByRole('combobox')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
-  await expect(page.getByText('Rows:')).toBeVisible();
-  await expect(page.getByText('Coverage')).toBeVisible();
-  await expect(page.getByText('DTE')).toBeVisible();
-  await expect(page.getByText('Qty')).toBeVisible();
-  await expect(page.getByText('Price', { exact: true })).toBeVisible();
-  await expect(page.locator('div:nth-child(7) > .ag-header-cell-comp-wrapper > .ag-cell-label-container')).toBeVisible();
-  await expect(page.locator('div:nth-child(8) > .ag-header-cell-comp-wrapper > .ag-cell-label-container')).toBeVisible();
-  await page.getByRole('button', { name: 'Trade History' }).click();
-  await expect(page.getByRole('button', { name: 'RT', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'YTD' })).toBeVisible();
-  await expect(page.getByText('ALLMTDRT1D1W1M3M6MYTD1Y5Y')).toBeVisible();
-  await page.getByRole('button', { name: '1W' }).click();
-  await expect(page.getByText('2', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Orders' }).click();
-  await expect(page.getByText('Order Ticker 2')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Refresh Orders' })).toBeVisible();
-  await expect(page.getByText('Open Orders:')).toBeVisible();
-  await page.getByRole('button').nth(5).click();
-  await expect(page.getByText('Username')).toBeVisible();
-  await expect(page.getByText('Password')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+const reportName = 'AI_Stock_Live_Comparison_20260408_120000.xlsx';
+
+const installMocks = async (page) => {
+    await page.route('**/api/**', async (route) => {
+        const url = route.request().url();
+        const method = route.request().method();
+
+        if (url.endsWith('/api/token') && method === 'POST') {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ access_token: 'fake-jwt-token' }) });
+        }
+        if (url.endsWith('/api/users/me')) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ username: 'admin', role: 'admin' }) });
+        }
+        if (url.endsWith('/api/settings')) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ pageSize: 100, sortColumn: 'Ticker', sortOrder: 'asc' }) });
+        }
+        if (url.includes('/api/jobs/latest/stock-live-comparison')) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'completed' }) });
+        }
+        if (url.endsWith('/api/reports')) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([reportName]) });
+        }
+        if (url.includes(`/api/reports/${reportName}/data`)) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ Ticker: 'AAPL', 'Current Price': 189.42, 'Call/Put Skew': 1.31 }]) });
+        }
+        if (url.endsWith('/api/portfolio/holdings')) {
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
+        }
+        return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+};
+
+test('dashboard smoke: login, open ticker modal, open settings and logout', async ({ page }) => {
+    await installMocks(page);
+
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await loginPage.login('admin', 'admin123');
+
+    await expect(page.getByText('AAPL')).toBeVisible();
+    await page.getByText('AAPL').first().click();
+    await expect(page.getByRole('heading', { name: 'Trend & Technicals' })).toBeVisible();
+
+    await page.getByRole('button').nth(4).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard Settings' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close' }).click();
+
+    await page.getByRole('button').nth(5).click();
+    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
 });

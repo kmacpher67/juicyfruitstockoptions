@@ -196,20 +196,20 @@ const TradeHistory = ({ onTickerClick }) => {
                 return (
                     <div className="flex items-center gap-2">
                         <span
-                            className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                            className="font-bold cursor-pointer hover:text-[#1976d2] group flex items-center"
                             onClick={() => onTickerClick && onTickerClick(cleanSym)}
                             title={detailLabel}
                             aria-label={detailLabel}
                         >
                             {symbol}
                             <ExternalLink
-                                className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
+                                className="w-3 h-3 ml-1 text-slate-300 opacity-90 group-hover:opacity-100 group-hover:text-[#1976d2] transition-all"
                                 aria-hidden="true"
                             />
                         </span>
-                        <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+                        <div className="flex gap-1 text-xs opacity-100">
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
                         </div>
                     </div>
                 );
@@ -238,8 +238,8 @@ const TradeHistory = ({ onTickerClick }) => {
                 return qty > 0 ? "BUY" : "SELL";
             },
             cellClassRules: {
-                'text-green-400 font-bold': p => p.value === 'BUY' || p.value === 'DIVIDEND',
-                'text-red-400 font-bold': p => p.value === 'SELL'
+                'text-[#2e7d32] font-bold': p => p.value === 'BUY' || p.value === 'DIVIDEND',
+                'text-[#d32f2f] font-bold': p => p.value === 'SELL'
             }
         },
         {
@@ -280,8 +280,8 @@ const TradeHistory = ({ onTickerClick }) => {
             type: "numericColumn",
             valueFormatter: p => p.value !== undefined && p.value !== null ? `$${parseFloat(p.value).toFixed(2)}` : '-',
             cellClassRules: {
-                'text-green-400': p => p.value > 0,
-                'text-red-400': p => p.value < 0,
+                'text-[#2e7d32]': p => p.value > 0,
+                'text-[#d32f2f]': p => p.value < 0,
                 'text-gray-500': p => p.value === 0
             }
         },
@@ -444,7 +444,7 @@ const TradeHistory = ({ onTickerClick }) => {
                             </div>
                         }
                         icon={DollarSign}
-                        colorClass={displayMetrics.total_pl >= 0 ? "text-green-400" : "text-red-400"}
+                        colorClass={displayMetrics.total_pl >= 0 ? "text-[#2e7d32]" : "text-[#d32f2f]"}
                     />
                     <MetricCard
                         title="Unrealized P&L"
@@ -458,7 +458,7 @@ const TradeHistory = ({ onTickerClick }) => {
                             </div>
                         }
                         icon={Activity}
-                        colorClass={(displayMetrics.unrealized_profit - displayMetrics.unrealized_loss) >= 0 ? "text-green-400" : "text-red-400"}
+                        colorClass={(displayMetrics.unrealized_profit - displayMetrics.unrealized_loss) >= 0 ? "text-[#2e7d32]" : "text-[#d32f2f]"}
                     />
                     <MetricCard
                         title="Win Rate"
@@ -471,7 +471,7 @@ const TradeHistory = ({ onTickerClick }) => {
                             </div>
                         }
                         icon={Activity}
-                        colorClass="text-blue-400"
+                        colorClass="text-[#1976d2]"
                     />
                     <MetricCard
                         title="Profit Factor"
@@ -497,7 +497,7 @@ const TradeHistory = ({ onTickerClick }) => {
                             </div>
                         }
                         icon={TrendingDown}
-                        colorClass="text-purple-400"
+                        colorClass="text-[#1976d2]"
                     />
                 </div>
             )}

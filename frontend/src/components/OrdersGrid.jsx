@@ -174,7 +174,7 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                                 aria-label={isExpanded ? 'Collapse legs' : 'Expand legs'}
                                 data-testid={`bag-expand-${orderKey}`}
                                 onClick={() => toggleExpand(orderKey)}
-                                className="text-gray-400 hover:text-blue-300 transition-colors flex-shrink-0"
+                                className="text-gray-400 hover:text-[#1976d2] transition-colors flex-shrink-0"
                             >
                                 {isExpanded
                                     ? <ChevronDown className="w-3.5 h-3.5" />
@@ -183,30 +183,30 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                             </button>
                         )}
                         <span
-                            className="font-bold cursor-pointer hover:text-blue-400 group flex items-center"
+                            className="font-bold cursor-pointer hover:text-[#1976d2] group flex items-center"
                             onClick={() => ticker && params.context.onTickerClick && params.context.onTickerClick(ticker)}
                             title={detailLabel}
                             aria-label={detailLabel}
                         >
                             {label}
                             {isBag && (
-                                <span className="ml-1 text-[10px] text-blue-400/70 font-normal">[COMBO]</span>
+                                <span className="ml-1 text-[10px] text-[#1976d2] font-normal">[COMBO]</span>
                             )}
                             <ExternalLink
-                                className="w-3 h-3 ml-1 text-slate-300 opacity-70 group-hover:opacity-100 group-hover:text-sky-300 transition-all"
+                                className="w-3 h-3 ml-1 text-slate-300 opacity-90 group-hover:opacity-100 group-hover:text-[#1976d2] transition-all"
                                 aria-hidden="true"
                             />
                         </span>
-                        <div className="flex gap-1 text-xs opacity-50 hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 text-xs opacity-100">
                             <button
                                 onClick={() => ticker && params.context.onTickerClick && params.context.onTickerClick(ticker)}
-                                className="text-emerald-400 hover:text-emerald-300"
+                                className="text-[#1976d2] hover:text-[#1565c0] font-semibold"
                                 title="Detail"
                             >
                                 D
                             </button>
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">Y</a>
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
                         </div>
                     </div>
                 );
@@ -245,15 +245,15 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                     return (
                         <span className={
                             row.action === 'BUY'
-                                ? 'text-green-400 font-bold text-xs'
-                                : 'text-red-400 font-bold text-xs'
+                                ? 'text-[#2e7d32] font-bold text-xs'
+                                : 'text-[#d32f2f] font-bold text-xs'
                         }>
                             {row.action_label || row.action}
                         </span>
                     );
                 }
                 return (
-                    <span className={params.value === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                    <span className={params.value === 'BUY' ? 'text-[#2e7d32] font-bold' : 'text-[#d32f2f] font-bold'}>
                         {params.value}
                     </span>
                 );
@@ -339,7 +339,7 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             },
             cellClass: (params) => {
                 if ((params.data || {})._rowType === 'bag_leg') return '';
-                return (getNumericValue(params.value) || 0) >= 0 ? 'text-green-400' : 'text-red-400';
+                return (getNumericValue(params.value) || 0) >= 0 ? 'text-[#2e7d32]' : 'text-[#d32f2f]';
             },
         },
         {

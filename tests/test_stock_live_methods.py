@@ -348,11 +348,10 @@ def test_save_to_excel(tmp_path):
     wb = openpyxl.load_workbook(comp.filename)
     ws = wb.active
     assert ws.freeze_panes == "A2"
-    ratio_cell = ws.cell(row=2, column=call_col + 1)
-    put_letter = openpyxl.utils.get_column_letter(put_col)
-    call_letter = openpyxl.utils.get_column_letter(call_col)
-    # Check for correct inverted formula: call / put
-    assert ratio_cell.value == 2.0 or ratio_cell.value == f"=IFERROR({call_letter}2/{put_letter}2,\"\")"
+    headers = [c.value for c in ws[1]]
+    ratio_col_idx = headers.index("Call/Put Skew") + 1
+    ratio_cell = ws.cell(row=2, column=ratio_col_idx)
+    assert ratio_cell.value == 2.0
     assert ws["A1"].font.bold
     
     # Verify Hyperlink

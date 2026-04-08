@@ -69,7 +69,7 @@ test('composite health score yields strong/weak classifications', () => {
     });
     assert.ok(strong >= 70);
     assert.equal(getTickerHealthLabel(strong), 'Strong');
-    assert.equal(getTickerHealthTone(strong), 'text-green-400');
+    assert.equal(getTickerHealthTone(strong), 'text-[#2e7d32]');
 
     const weak = computeTickerHealthScore({
         'TSMOM_60': -0.9,
@@ -80,7 +80,7 @@ test('composite health score yields strong/weak classifications', () => {
     });
     assert.ok(weak <= 44);
     assert.equal(getTickerHealthLabel(weak), 'Weak');
-    assert.equal(getTickerHealthTone(weak), 'text-red-400');
+    assert.equal(getTickerHealthTone(weak), 'text-[#d32f2f]');
 });
 
 test('composite score incorporates sentiment and macro inputs when present', () => {
