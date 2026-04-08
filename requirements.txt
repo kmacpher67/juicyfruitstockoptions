@@ -15,6 +15,7 @@ httpx
 py_vollib_vectorized>=0.1.0
 nltk
 ics
+tatsu==5.16.0
 pydantic-settings
 markovify
 pykalman
