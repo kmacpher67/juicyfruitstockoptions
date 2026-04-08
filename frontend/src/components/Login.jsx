@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 
 const Login = () => {
@@ -9,13 +9,35 @@ const Login = () => {
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         try {
-            await login(username, password);
-            navigate('/');
+            const loggedInUser = await login(username, password);
+            
+            let redirectUrl = '/';
+            
+            const routerFrom = location.state?.from;
+            const routerStateUrl = routerFrom ? routerFrom.pathname + (routerFrom.search || '') : null;
+            
+            const storedContextStr = localStorage.getItem('redirect_context');
+            if (storedContextStr) {
+                try {
+                    const storedContext = JSON.parse(storedContextStr);
+                    if (storedContext.username === loggedInUser.username) {
+                        redirectUrl = storedContext.url;
+                    }
+                } catch (err) {
+                    console.error("Invalid redirect context");
+                }
+                localStorage.removeItem('redirect_context');
+            } else if (routerStateUrl) {
+                redirectUrl = routerStateUrl;
+            }
+
+            navigate(redirectUrl, { replace: true });
         } catch (err) {
             setError('Invalid credentials');
         }

@@ -22,12 +22,13 @@ export const AuthProvider = ({ children }) => {
         const handleAuthLogout = () => logout();
         window.addEventListener('auth:logout', handleAuthLogout);
         return () => window.removeEventListener('auth:logout', handleAuthLogout);
-    }, []);
+    }, [user]);
 
     const fetchUser = async () => {
         try {
             const response = await api.get('/users/me');
             setUser(response.data);
+            return response.data;
         } catch (error) {
             console.error("Failed to fetch user", error);
             logout();
@@ -45,11 +46,18 @@ export const AuthProvider = ({ children }) => {
         const { access_token } = response.data;
 
         localStorage.setItem('token', access_token);
-        await fetchUser();
-        return true;
+        const fetchedUser = await fetchUser();
+        return fetchedUser;
     };
 
     const logout = () => {
+        // Save current location for deep link hijack protection, if a user was logged in
+        if (user?.username) {
+            localStorage.setItem('redirect_context', JSON.stringify({
+                url: window.location.pathname + window.location.search,
+                username: user.username
+            }));
+        }
         localStorage.removeItem('token');
         setUser(null);
     };
