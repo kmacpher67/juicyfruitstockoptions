@@ -150,9 +150,10 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                             <span className="text-blue-300 text-[10px] font-semibold uppercase mr-1">
                                 {row.action_label || row.action}
                             </span>
-                            <span className="text-gray-400 text-xs">
-                                {row.conid ? `conid:${row.conid}` : '-'}
+                            <span className="text-gray-300 text-xs">
+                                {row.display_symbol || '-'}
                             </span>
+                            {row.conid && <span className="text-gray-500 text-[10px]">conid:{row.conid}</span>}
                             {row.ratio && row.ratio !== 1 && (
                                 <span className="text-gray-500 text-[10px] ml-1">x{row.ratio}</span>
                             )}
@@ -219,6 +220,17 @@ const OrdersGrid = ({ data, onTickerClick }) => {
             cellRenderer: (params) => {
                 const row = params.data || {};
                 if (row._rowType === 'bag_leg') return null;
+                return params.value || '-';
+            },
+        },
+        {
+            field: "order_sub_type",
+            headerName: "Sub Type",
+            width: 95,
+            sortable: true,
+            cellRenderer: (params) => {
+                const row = params.data || {};
+                if (row._rowType === 'bag_leg') return params.value || '-';
                 return params.value || '-';
             },
         },

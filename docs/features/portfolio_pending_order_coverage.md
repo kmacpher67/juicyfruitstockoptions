@@ -229,8 +229,9 @@ In `?view=ORDERS`:
 Current behavior:
 
 - BAG rows are shown as top-level combo parents when present in `ibkr_orders`.
-- Juicy Fruit currently does **not** provide leg drill-down from BAG rows in the Orders table.
-- Practically, this can look like "orphans" when users expect to click and see the exact roll legs.
+- BAG parent rows support chevron expand/collapse to show decomposed child legs.
+- Toolbar toggles support parent-only view vs decomposed-legs-only view.
+- Remaining gap: when Flex order-history rows are the only source, parent/leg semantics still depend on parser fidelity for account-specific report columns.
 
 Target behavior:
 
@@ -355,7 +356,7 @@ Required follow-ups:
 2. Add/update the Query ID in **Settings -> IBKR Integration -> Orders Query ID**.
 3. Implement/verify parser mapping from that report into `ibkr_orders` with `source: flex_order_history`.
 4. Add parser regression tests with representative Flex order rows.
-5. Implement BAG leg decomposition and BAG-parent visibility controls (see F-R `ibkr-orders-012`, `ibkr-orders-013`).
+5. Validate production Flex Orders parser mappings against account-specific live Flex exports (F-R `ibkr-orders-009`) and preserve TWS-first active-order precedence.
 
 ---
 
@@ -371,3 +372,4 @@ Required follow-ups:
 | 2026-04-02 | **UPDATED** | Captured BAG/combo current limitation (no leg drill-down yet), target decomposition UX, and follow-up F-R links for BAG handling. |
 | 2026-04-02 | **UPDATED** | Implemented Portfolio focus controls and visual badges for `Pending Cover`, `Pending BTC`, and `Pending Roll` on `?view=PORTFOLIO`. |
 | 2026-04-07 | **UPDATED** | Implemented BAG leg decomposition UX (ibkr-orders-012): TWS service captures `comboLegs`, API passes them through, OrdersGrid shows expandable leg child rows with BUY-to-close/SELL-to-open labels and net debit/credit on limit price. Added BAG-parent visibility toggles (ibkr-orders-013): `Show BAG parents` and `Show decomposed legs only` checkboxes in Orders toolbar. Pure-function logic in `ordersViewUtils.js`; tested by `OrdersView.bag.test.js`. |
+| 2026-04-08 | **UPDATED** | Added orders contract-clarity improvements (ibkr-orders-014): backend now emits `order_sub_type` (`CALL`/`PUT`) and BAG display symbol falls back to `combo_legs_descrip` so combo parent rows keep option context. Orders grid now shows explicit `Sub Type` column and BAG leg rows display contract symbols when available instead of only `conid`. |

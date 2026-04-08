@@ -449,8 +449,10 @@ def _extract_option_underlying(row: dict) -> str | None:
     local_symbol = str(row.get("local_symbol") or row.get("localSymbol") or "").strip()
     if local_symbol:
         root = local_symbol[:6].strip()
-        if root:
+        if re.search(r"^\s*[A-Z]{1,6}\s+\d{6}[CP]\d+", local_symbol) and root:
             return root
+        if re.fullmatch(r"[A-Z.\-]{1,10}", local_symbol):
+            return local_symbol
 
     symbol = str(row.get("symbol") or "").strip()
     if symbol:
@@ -478,6 +480,13 @@ def _format_option_expiry(expiry: str | None) -> str | None:
 def _build_display_symbol(row: dict, security_type: str) -> str:
     symbol = str(row.get("symbol") or "").strip()
     underlying = str(_extract_option_underlying(row) or symbol).strip()
+
+    if security_type == "BAG":
+        combo_desc = str(row.get("combo_legs_descrip") or row.get("comboLegsDescrip") or "").strip()
+        combo_desc = re.sub(r"\s+", " ", combo_desc)
+        if combo_desc:
+            return f"{underlying or symbol} | {combo_desc}"
+        return underlying or symbol
 
     if security_type not in {"OPT", "FOP"}:
         return symbol or underlying
@@ -581,6 +590,44 @@ def _is_call_order(row: dict) -> bool:
     return str(parsed_right or "").strip().upper() == "C"
 
 
+def _infer_order_sub_type(row: dict, security_type: str) -> str | None:
+    if security_type in {"OPT", "FOP"}:
+        right = str(row.get("right") or "").strip().upper()
+        if right == "C":
+            return "CALL"
+        if right == "P":
+            return "PUT"
+        _, parsed_right, _ = _extract_option_fields(row)
+        parsed = str(parsed_right or "").strip().upper()
+        if parsed == "C":
+            return "CALL"
+        if parsed == "P":
+            return "PUT"
+        return None
+
+    if security_type == "BAG":
+        contract_hint = " ".join(
+            str(part or "")
+            for part in [
+                row.get("combo_legs_descrip"),
+                row.get("comboLegsDescrip"),
+                row.get("local_symbol"),
+                row.get("localSymbol"),
+                row.get("symbol"),
+            ]
+        ).upper()
+        has_call = bool(re.search(r"(\bCALL\b|\d{6}C\d+|\b\d+(?:\.\d+)?C\b)", contract_hint))
+        has_put = bool(re.search(r"(\bPUT\b|\d{6}P\d+|\b\d+(?:\.\d+)?P\b)", contract_hint))
+        if has_call and has_put:
+            return "CALL/PUT"
+        if has_call:
+            return "CALL"
+        if has_put:
+            return "PUT"
+
+    return None
+
+
 def _normalize_order_row(order: dict) -> dict:
     normalized = dict(order)
     security_type = _canonical_security_type(normalized)
@@ -613,6 +660,7 @@ def _normalize_order_row(order: dict) -> dict:
             "secType": security_type,
             "underlying_symbol": underlying_symbol,
             "display_symbol": _build_display_symbol(normalized, security_type),
+            "order_sub_type": _infer_order_sub_type(normalized, security_type),
             "action": action,
             "status": status,
             "total_quantity": total_quantity,
@@ -1190,7 +1238,10 @@ def get_juicys(
             }
         )
         for sym in seed_symbols:
-            _refresh_single_symbol_juicy(db, sym, source="juicys_seed")
+            try:
+                _refresh_single_symbol_juicy(db, sym, source="juicys_seed")
+            except Exception as exc:
+                logger.warning("get_juicys seed refresh failed symbol=%s err=%s", sym, exc)
         rows = get_juicy_rows(
             db,
             symbol=norm_symbol,

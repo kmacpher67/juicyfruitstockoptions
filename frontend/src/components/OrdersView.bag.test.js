@@ -110,8 +110,8 @@ test('ibkr-orders-012: buildLegRows returns 2 child rows for a 2-leg BAG order',
         source: 'tws_open_order',
         status: 'Submitted',
         comboLegs: [
-            { action: 'BUY', ratio: 1, conid: 111, exchange: 'CBOE' },
-            { action: 'SELL', ratio: 1, conid: 222, exchange: 'CBOE' },
+            { action: 'BUY', ratio: 1, conid: 111, exchange: 'CBOE', local_symbol: 'AMD   260418C00115000', right: 'C' },
+            { action: 'SELL', ratio: 1, conid: 222, exchange: 'CBOE', local_symbol: 'AMD   260516C00120000', right: 'C' },
         ],
     };
 
@@ -122,6 +122,8 @@ test('ibkr-orders-012: buildLegRows returns 2 child rows for a 2-leg BAG order',
         assert.equal(row._parentKey, 'perm:9001');
         assert.ok(['BUY', 'SELL'].includes(row.action), `action should be BUY or SELL, got ${row.action}`);
         assert.ok(row.action_label, 'action_label should be set');
+        assert.equal(row.order_sub_type, 'CALL');
+        assert.ok(String(row.display_symbol).includes('AMD'));
     }
 });
 

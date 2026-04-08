@@ -212,6 +212,21 @@ def test_get_juicys_workspace_rows_sanitizes_non_finite_values():
         assert payload["rows"][0]["yield_pct"] is None
 
 
+def test_get_juicys_seed_refresh_tolerates_single_symbol_failure():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client, patch(
+        "app.api.routes._refresh_single_symbol_juicy",
+        side_effect=[RuntimeError("bad symbol"), []],
+    ):
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.juicy_opportunities.find.return_value.sort.return_value.limit.return_value = []
+        mock_db.stock_data.find.return_value = [{"Ticker": "BAD"}, {"Ticker": "GOOD"}]
+
+        payload = routes.get_juicys(admin, preset="juicy", limit=20)
+        assert payload["count"] == 0
+        assert payload["rows"] == []
+
+
 def test_refresh_juicys_enqueues_job():
     bt = BackgroundTasks()
     admin = User(username="u", role="admin", disabled=False)

@@ -224,6 +224,7 @@ def test_normalize_order_row_infers_option_contract_fields_from_occ_symbol():
     )
 
     assert normalized["security_type"] == "OPT"
+    assert normalized["order_sub_type"] == "CALL"
     assert normalized["underlying_symbol"] == "AMD"
     assert normalized["display_symbol"].startswith("AMD ")
     assert normalized["display_symbol"].endswith("120 Call")
@@ -247,6 +248,7 @@ def test_normalize_order_row_handles_stock_orders_and_remaining_qty_fallback():
     )
 
     assert normalized["security_type"] == "STK"
+    assert normalized["order_sub_type"] is None
     assert normalized["display_symbol"] == "AAPL"
     assert normalized["action"] == "BUY"
     assert normalized["remaining_quantity"] == 6.0
@@ -312,11 +314,13 @@ def test_normalize_order_row_handles_bag_combo_parent_shape():
                 {"action": "BUY", "ratio": 1, "conId": 111},
                 {"action": "SELL", "ratio": 1, "conId": 222},
             ],
+            "combo_legs_descrip": "BUY 1 GOOG 18APR26 145C / SELL 1 GOOG 16MAY26 150C",
         }
     )
 
     assert normalized["security_type"] == "BAG"
-    assert normalized["display_symbol"] == "AAPL"
+    assert normalized["display_symbol"].startswith("AAPL | ")
+    assert normalized["order_sub_type"] == "CALL"
     assert normalized["action"] == "SELL"
     assert normalized["remaining_quantity"] == 1.0
     assert normalized["is_active"] is True
@@ -422,6 +426,7 @@ def test_get_open_orders_bag_rows_include_combo_legs_in_api_response():
                     {"action": "BUY", "ratio": 1, "conid": 555},
                     {"action": "SELL", "ratio": 1, "conid": 666},
                 ],
+                "combo_legs_descrip": "BUY 1 AMD 18APR26 115C / SELL 1 AMD 16MAY26 120C",
             },
         ]
         mock_db.stock_data.find_one.return_value = {
@@ -440,6 +445,8 @@ def test_get_open_orders_bag_rows_include_combo_legs_in_api_response():
     assert row["is_bag"] is True
     assert isinstance(row["comboLegs"], list)
     assert len(row["comboLegs"]) == 2
+    assert row["order_sub_type"] == "CALL"
+    assert row["display_symbol"].startswith("AMD | ")
     leg_actions = {leg["action"] for leg in row["comboLegs"]}
     assert "BUY" in leg_actions
     assert "SELL" in leg_actions

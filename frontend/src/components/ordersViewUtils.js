@@ -30,6 +30,17 @@ export function legActionLabel(leg, allLegs) {
     return action;
 }
 
+function legSubType(leg) {
+    const right = String(leg.right || '').toUpperCase();
+    if (right === 'C') return 'CALL';
+    if (right === 'P') return 'PUT';
+
+    const hint = `${leg.local_symbol || ''} ${leg.symbol || ''} ${leg.description || ''}`.toUpperCase();
+    if (/\d{6}C\d+|\bCALL\b/.test(hint)) return 'CALL';
+    if (/\d{6}P\d+|\bPUT\b/.test(hint)) return 'PUT';
+    return null;
+}
+
 /**
  * Return true if the given order is a 2-leg roll: secType BAG with exactly
  * two legs where one is BUY and one is SELL.
@@ -82,7 +93,9 @@ export function buildLegRows(parentOrder, index = 0) {
         _parentKey: parentOrder.order_key || String(index),
         _legIndex: i,
         account_id: parentOrder.account_id,
-        display_symbol: leg.conid ? `conid:${leg.conid}` : '-',
+        display_symbol: leg.local_symbol || leg.symbol || leg.description || (leg.conid ? `conid:${leg.conid}` : '-'),
+        security_type: leg.secType || leg.sec_type || parentOrder.security_type,
+        order_sub_type: legSubType(leg),
         action: leg.action || '-',
         action_label: legActionLabel(leg, legs),
         ratio: leg.ratio ?? 1,
