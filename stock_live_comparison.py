@@ -266,6 +266,8 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def get_otm_call_contract(self, chain, current_price, target_days, otm_pct=6):
+        if chain is None or not hasattr(chain, "options"):
+            return None, None, None
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
             return None, None, None
@@ -284,6 +286,8 @@ class StockLiveComparison:
 
     # ------------------------------------------------------------------
     def get_otm_put_contract(self, chain, current_price, target_days, otm_pct=6):
+        if chain is None or not hasattr(chain, "options"):
+            return None, None, None
         exp_date = self.closest_expiration(chain.options, target_days)
         if not exp_date:
             return None, None, None

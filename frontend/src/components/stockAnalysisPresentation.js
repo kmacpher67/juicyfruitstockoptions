@@ -10,6 +10,9 @@ export const ANALYTICS_FIELD_GROUPS = [
             ['P/E', 'P/E'],
             ['Last Update', 'Last Update'],
             ['Error', 'Error'],
+            ['Ex-Div Date', 'Ex-Div Date'],
+            ['Div Yield', 'Div Yield'],
+            ['Analyst 1-yr Target', 'Analyst 1-yr Target'],
         ],
     },
     {
@@ -31,14 +34,6 @@ export const ANALYTICS_FIELD_GROUPS = [
             ['MA_60_highlight', 'MA_60_highlight'],
             ['MA_120_highlight', 'MA_120_highlight'],
             ['MA_200_highlight', 'MA_200_highlight'],
-        ],
-    },
-    {
-        title: 'Dividends & Fundamentals',
-        fields: [
-            ['Ex-Div Date', 'Ex-Div Date'],
-            ['Div Yield', 'Div Yield'],
-            ['Analyst 1-yr Target', 'Analyst 1-yr Target'],
         ],
     },
     {

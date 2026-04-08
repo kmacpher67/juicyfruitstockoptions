@@ -192,6 +192,26 @@ def test_get_juicys_workspace_rows():
         assert payload["rows"][0]["symbol"] == "TSLA"
 
 
+def test_get_juicys_workspace_rows_sanitizes_non_finite_values():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.juicy_opportunities.find.return_value.sort.return_value.limit.return_value = [
+            {
+                "symbol": "TSLA",
+                "score": float("nan"),
+                "yield_pct": float("inf"),
+                "premium": 1.25,
+            }
+        ]
+
+        payload = routes.get_juicys(admin, preset="juicy", limit=20)
+        assert payload["count"] == 1
+        assert payload["rows"][0]["symbol"] == "TSLA"
+        assert payload["rows"][0]["score"] is None
+        assert payload["rows"][0]["yield_pct"] is None
+
+
 def test_refresh_juicys_enqueues_job():
     bt = BackgroundTasks()
     admin = User(username="u", role="admin", disabled=False)

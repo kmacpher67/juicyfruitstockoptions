@@ -212,7 +212,8 @@ def _get_freshness_threshold_minutes(db=None) -> dict:
         "mixed_open_min": 30,
         "mixed_closed_min": 24 * 60,
         "profile_open_min": 24 * 60,
-        "profile_closed_min": 24 * 60 * 7,
+        # Keep profile/news freshness on a daily cadence for DB-first stale checks.
+        "profile_closed_min": 24 * 60,
     }
     if db is None:
         return defaults
@@ -1200,6 +1201,7 @@ def get_juicys(
         )
         if not isinstance(rows, list):
             rows = []
+    rows = _sanitize_for_json(rows)
     return {
         "count": len(rows),
         "rows": rows,
@@ -2776,6 +2778,7 @@ def get_portfolio_optimizer(
         suggestions = suggestions[:limit]
 
     _queue_juicy_refresh_if_needed(background_tasks, db, symbol, freshness)
+    suggestions = _sanitize_for_json(suggestions)
 
     if include_meta:
         return {"symbol": symbol, "suggestions": suggestions, **freshness}
