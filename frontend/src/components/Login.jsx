@@ -26,7 +26,7 @@ const Login = () => {
             if (storedContextStr) {
                 try {
                     const storedContext = JSON.parse(storedContextStr);
-                    if (storedContext.username === loggedInUser.username) {
+                    if (loggedInUser && storedContext.username === loggedInUser.username) {
                         redirectUrl = storedContext.url;
                     }
                 } catch (err) {
@@ -39,7 +39,16 @@ const Login = () => {
 
             navigate(redirectUrl, { replace: true });
         } catch (err) {
-            setError('Invalid credentials');
+            console.error('[Login] handleSubmit error:', err);
+            if (err?.response?.status === 401) {
+                setError('Invalid username or password');
+            } else if (err?.response?.status >= 500) {
+                setError(`Server error (${err.response.status}). Check backend logs.`);
+            } else if (err?.message) {
+                setError(err.message);
+            } else {
+                setError('Login failed — check console for details');
+            }
         }
     };
 

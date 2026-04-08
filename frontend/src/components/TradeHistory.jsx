@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -117,11 +118,25 @@ const SourceBadge = ({ source }) => {
 };
 
 const TradeHistory = ({ onTickerClick }) => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [rowData, setRowData] = useState([]);
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [timeRange, setTimeRange] = useState('YTD');
+    const [timeRange, setTimeRange] = useState(() => searchParams.get('tf') || 'YTD');
     const [liveStatus, setLiveStatus] = useState(null);
+
+    // Sync timeRange safely to URL
+    useEffect(() => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            if (timeRange && timeRange !== 'YTD') {
+                next.set('tf', timeRange);
+            } else {
+                next.delete('tf');
+            }
+            return next;
+        }, { replace: true });
+    }, [timeRange, setSearchParams]);
 
     const calculateDateRange = (range) => {
         const now = new Date();

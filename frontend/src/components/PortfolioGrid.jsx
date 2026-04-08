@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -27,11 +28,67 @@ const toCsvCell = (value) => {
 };
 
 const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'all', onSelectedAccountChange }) => {
-    const [filters, setFilters] = useState({ ...DEFAULT_PORTFOLIO_FILTERS, account: selectedAccount || 'all' });
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const [filters, setFilters] = useState(() => {
+        const init = { ...DEFAULT_PORTFOLIO_FILTERS, account: selectedAccount || 'all' };
+        
+        const cov = searchParams.get('coverage');
+        if (cov) init.coverage = cov;
+        
+        const pe = searchParams.get('pendingEffect');
+        if (pe) init.pendingEffect = pe;
+        
+        if (searchParams.get('expiringOnly') === 'true') init.expiringOnly = true;
+        if (searchParams.get('nearMoneyOnly') === 'true') init.nearMoneyOnly = true;
+        if (searchParams.get('showStocks') === 'true') init.showStocks = true;
+        
+        const dteLimit = searchParams.get('dteLimit');
+        if (dteLimit) init.dteLimit = Number(dteLimit);
+        
+        const nmPct = searchParams.get('nearMoneyPercent');
+        if (nmPct) init.nearMoneyPercent = Number(nmPct);
+        
+        return init;
+    });
 
     useEffect(() => {
         setFilters((current) => ({ ...current, account: selectedAccount || 'all' }));
     }, [selectedAccount]);
+
+    // Sync filters to URL
+    useEffect(() => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            
+            if (filters.coverage !== 'all') next.set('coverage', filters.coverage);
+            else next.delete('coverage');
+            
+            if (filters.pendingEffect !== 'all') next.set('pendingEffect', filters.pendingEffect);
+            else next.delete('pendingEffect');
+            
+            if (filters.expiringOnly) next.set('expiringOnly', 'true');
+            else next.delete('expiringOnly');
+            
+            if (filters.nearMoneyOnly) next.set('nearMoneyOnly', 'true');
+            else next.delete('nearMoneyOnly');
+            
+            if (filters.showStocks) next.set('showStocks', 'true');
+            else next.delete('showStocks');
+            
+            if (filters.dteLimit !== DEFAULT_PORTFOLIO_FILTERS.dteLimit) next.set('dteLimit', filters.dteLimit);
+            else next.delete('dteLimit');
+            
+            if (filters.nearMoneyPercent !== DEFAULT_PORTFOLIO_FILTERS.nearMoneyPercent) next.set('nearMoneyPercent', filters.nearMoneyPercent);
+            else next.delete('nearMoneyPercent');
+            
+            return next;
+        }, { replace: true });
+    }, [
+        filters.coverage, filters.pendingEffect, filters.expiringOnly, 
+        filters.nearMoneyOnly, filters.showStocks, filters.dteLimit, 
+        filters.nearMoneyPercent, setSearchParams
+    ]);
 
     const colDefs = useMemo(() => [
         {

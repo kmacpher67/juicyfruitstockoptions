@@ -76,16 +76,25 @@ const Dashboard = () => {
     const [data, setData] = useState([]);
     const [reports, setReports] = useState([]);
 
+    // State initialized from URL (Portfolio Account)
+    const [selectedPortfolioAccount, setSelectedPortfolioAccount] = useState(() => searchParams.get('account') || 'all');
+
     // Sync URL when state changes
     useEffect(() => {
-        const params = {};
-        if (viewMode === 'PORTFOLIO') params.view = 'PORTFOLIO';
-        if (viewMode === 'TRADES') params.view = 'TRADES';
-        if (viewMode === 'ORDERS') params.view = 'ORDERS';
-        if (viewMode === 'JUICYS') params.view = 'JUICYS';
-        if (selectedReport) params.report = selectedReport;
-        setSearchParams(params, { replace: true });
-    }, [viewMode, selectedReport, setSearchParams]);
+        setSearchParams(prevParams => {
+            const next = new URLSearchParams(prevParams);
+            if (viewMode) next.set('view', viewMode);
+            if (selectedReport) next.set('report', selectedReport);
+            else next.delete('report');
+            
+            if (selectedPortfolioAccount && selectedPortfolioAccount !== 'all') {
+                next.set('account', selectedPortfolioAccount);
+            } else {
+                next.delete('account');
+            }
+            return next;
+        }, { replace: true });
+    }, [viewMode, selectedReport, selectedPortfolioAccount, setSearchParams]);
     const [loading, setLoading] = useState(false);
     const [running, setRunning] = useState(false);
     const [runStatusLabel, setRunStatusLabel] = useState(null);
@@ -331,7 +340,6 @@ const Dashboard = () => {
     // viewMode state moved to top for Deep Linking
     const [portfolioStats, setPortfolioStats] = useState(null);
     const [portfolioHoldings, setPortfolioHoldings] = useState([]);
-    const [selectedPortfolioAccount, setSelectedPortfolioAccount] = useState('all');
     const [openOrders, setOpenOrders] = useState([]);
     const [juicyRows, setJuicyRows] = useState([]);
     const [juicyPreset, setJuicyPreset] = useState('juicy');

@@ -104,6 +104,9 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [ ] **Authentication**:
     - [x] Auto-logout in UI if backend token expires, returns view control to login.
     - [ ] Deep link URL memory: Build a mechanism that traces the current activity in the URL. On log out/timeout, remember this context and return the operator to the page upon re-login. Prevent session hijacking by validating user changes (if a different user logs in, drop the deep link if permissions do not allow it).
+        - [ ] Sync Dashboard `Account` drop-down selection to URL (`?account=...`).
+        - [ ] Sync `PortfolioGrid` focus filters (`Covered`, `Expiring`, etc.) to URL.
+        - [ ] Sync `TradeHistory` timeframe filters (`RT`, `MTD`, etc.) to URL.
     - [ ] Synced session state between generic React usage and Python backend.
     - [ ] Implement "Remember Me" vs "High Security" modes.
 - [ ] **Settings Management**:
@@ -315,6 +318,11 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 - [x] **Structured Logging:** Use the standard `logging` library.
 - [x] **Levels:** `DEBUG` (internal state), `INFO` (milestones), `ERROR` (exceptions with `exc_info=True`).
 - [x] **Levels:** `TRACE` for verbose logging (default in Dev), `DEBUG` (default in Prod), `INFO` for milestones, `WARNING` for non-critical issues, `ERROR` for critical issues, `CRITICAL` for system failure. 
+- [ ] **logging-verbosity-policy-20260408**: Update logging policy defaults and overrides for higher operational visibility.
+    - [ ] Default application/root log level should be `DEBUG` unless explicitly overridden by configuration.
+    - [ ] Keep third-party/noisy components at reduced verbosity by default (for example `ibapi` at `INFO`; tune others as needed).
+    - [ ] Force maximum verbosity for login/authentication and other critical control-path diagnostics (use `TRACE` or equivalent where available), while continuing to avoid sensitive data in logs.
+    - [ ] This policy supersedes the older "Dev default = TRACE / Prod default = DEBUG" statement once implemented.
 - [x] **Traceability:** Verify all errors provide context (e.g., "Failed to process file X due to Y").
 - [ ] **Logging:** Implement daily log rotation for log files. *(Evaluated: see [Log Rotation Evaluation](features/log_rotation_evaluation.md) for strategy.)*
 ---
@@ -834,3 +842,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-08 | **FIXED** | Restored stock-analysis calculated-field contract parity across UI + XLSX: added missing Analysis grid calculated columns (RSI/MA short→long/options yields), hardened report-data `NaN/Inf` null coercion, canonicalized XLSX export column order, and expanded regression coverage including Playwright analysis/nav/modal/portfolio/smoke specs. |
 | 2026-04-08 | **UPDATED** | Added and implemented UI contrast/visibility standard for actionable ticker links and gain/loss semantics across Analysis/Portfolio/Trades/Orders/Juicys grids (solid `D/G/Y` link contrast + high-contrast success/error tones). |
 | 2026-04-08 | **UPDATED** | Added a local Docker CI-parity Playwright execution path (`docker-compose.e2e.yml`, `scripts/run-playwright-docker.sh`, `PLAYWRIGHT_IN_DOCKER=1 ./test-all.sh`) to avoid host Node-version drift and keep local e2e behavior aligned with CI expectations. |
+| 2026-04-08 | **UPDATED** | Implemented deep link URL memory with hijack protection: `ProtectedRoute` captures current URL into React Router state on redirect, `AuthContext.logout()` persists `redirect_context` in `localStorage` with username guard, `Login.jsx` validates username match on re-login before restoring the deep link (mismatched users bounce to `/`). Synced `Dashboard.jsx` account selection, `PortfolioGrid.jsx` focus filters, and `TradeHistory.jsx` timeframe to URL search params for full reload persistence. Fixed login flow regression where `fetchUser` failure during login triggered `logout()` which removed the just-stored token; login now handles profile-fetch inline with proper cleanup. Added `[AuthContext]` and `[Login]` console.debug/error instrumentation for login diagnostics. |
