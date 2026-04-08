@@ -31,8 +31,24 @@ We use Playwright (Microsoft) because it communicates directly with the browser 
 * **Feature Updates:** When a feature is "refined" (e.g., changing "Sell" to "Close Position"), the agent is responsible for updating the **Label** in the Page Object, not the logic in the Spec.
 * **Failure Protocol:** A failing test is either a **Regression** (the code broke) or an **Evolution** (the UI changed). Agents must identify which it is before applying a fix.
 
+## 5. Local CI-Parity Docker Run (Node-Version Safe)
+When host Node versions drift (for example Node 21 while Vite requires Node 20/22), run Integration Specs in Docker so local and CI behavior stay aligned.
+
+* **One command (recommended):**
+  * `./scripts/run-playwright-docker.sh`
+* **What it does:**
+  * Uses `docker-compose.yml` + `docker-compose.e2e.yml`.
+  * Starts frontend/backend dependencies in containers.
+  * Runs Playwright inside pinned image `mcr.microsoft.com/playwright:v1.59.1-jammy`.
+  * Exits with Playwright's status code for CI-friendly pass/fail behavior.
+* **Via test umbrella script:**
+  * `PLAYWRIGHT_IN_DOCKER=1 ./test-all.sh`
+* **Config contract used by Docker run:**
+  * `PLAYWRIGHT_BASE_URL=http://frontend:5173`
+  * `PLAYWRIGHT_SKIP_WEBSERVER=true`
+  * `CI=true`
+
 ---
 
 ### Why this works for you:
 By putting this in `docs/learning/`, you can point your coding agent to it and say: *"Read the strategy in `/docs/learning/testing-strategy-playwright.md` and then refactor the 'Juicy Fruit' watchlist tests to follow the POM pattern."* It stops them (various Agent Code monkeys) from hallucinating their own way of doing things.
-

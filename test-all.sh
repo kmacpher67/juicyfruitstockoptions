@@ -34,7 +34,9 @@ else
 fi
 
 echo "Integration Specs E2E tests (using Playwright)..."
-if [ -d "frontend" ] && [ -f "frontend/playwright.config.js" ]; then
+if [ "${PLAYWRIGHT_IN_DOCKER:-0}" = "1" ]; then
+  ./scripts/run-playwright-docker.sh
+elif [ -d "frontend" ] && [ -f "frontend/playwright.config.js" ]; then
   cd frontend
   npx playwright test
   cd ..
