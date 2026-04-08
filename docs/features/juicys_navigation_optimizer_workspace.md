@@ -1,7 +1,7 @@
 # Juicys Navigation + Optimizer Workspace
 
 > **Date:** 2026-04-07  
-> **Status:** Proposed  
+> **Status:** Implemented (Phase 1 complete)  
 > **Parent Requirements:** `docs/features-requirements.md` (`juicys-nav-*`, `stock-analysis-optimizer-juicy-table-*`, `juicy-opportunity-refresh-job-*`)
 
 ---
@@ -52,6 +52,31 @@ Minimum fields:
 - `yield_pct`
 - `score`
 - `reason_summary`
+
+### Chain-Level Candidate Expansion (Implemented)
+- For each ticker, generation evaluates option-chain calls across the next `4` expiries.
+- Per expiry, selection scope is:
+  - `1` nearest ITM call
+  - `4` nearest OTM calls
+- This yields up to `20` chain-level rows per ticker before adding heuristic rows.
+- Persisted chain-level fields include:
+  - `premium`
+  - `yield_pct`
+  - `annualized_yield_pct`
+  - `dte`
+  - `strike_distance_pct`
+  - `timeframe_bucket` (`daily`/`weekly`/`monthly`)
+  - `volume`, `open_interest`
+  - `bid_ask_spread`, `spread_pct_mid`
+  - `liquidity_grade` (`A/B/C/D`)
+
+### Short-DTE + Liquidity Scoring (Implemented)
+- Ranking now includes:
+  - annualized yield contribution
+  - explicit short-DTE boost
+  - liquidity-grade contribution
+  - spread-cost penalties when spread is large relative to mid
+- Outcome: short-duration rows can rank high, but weak liquidity/spread quality suppresses score.
 
 ### Interaction Contract
 - Default to top `20` rows by score.
@@ -120,6 +145,14 @@ Existing endpoint integration:
 - Completed refresh updates rows when newer/better opportunities exist.
 - Opportunity snapshots are persisted for downstream grading analytics.
 
+### Phase 1 Completion Notes
+- Chain-level candidate generation and scoring is active in backend `juicy_service`.
+- Optimizer modal and Juicys workspace now surface chain qualifiers (`Bucket`, `Ann %`, `Vol`, `OI`, `Liq`).
+- Regression coverage added in `tests/test_juicy_service.py` for:
+  - 20-row chain generation envelope (4 DTE x 5 rows)
+  - combined chain + heuristic candidate set
+  - liquidity-grade threshold behavior
+
 ---
 
 ## Changelog
@@ -127,3 +160,4 @@ Existing endpoint integration:
 | Date | Action | Reason |
 |:---|:---|:---|
 | 2026-04-07 | **CREATED** | Captured requirements and contracts for new `Juicys` top nav, Optimizer-table redesign, and refresh-job DB-first workflow |
+| 2026-04-07 | **UPDATED** | Implemented chain-depth/liquidity/short-DTE scoring contract (`stock-analysis-optimizer-juicy-table-009..011`) and documented delivered fields + UI exposure |

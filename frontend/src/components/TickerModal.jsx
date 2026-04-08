@@ -403,6 +403,11 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                 lines.push(`Strike: ${formatCopyValue(strat?.strike)}`);
                 lines.push(`Premium: ${formatCopyValue(strat?.premium)}`);
                 lines.push(`Yield %: ${formatCopyValue(strat?.yield_pct)}`);
+                lines.push(`Annualized Yield %: ${formatCopyValue(strat?.annualized_yield_pct)}`);
+                lines.push(`Bucket: ${formatCopyValue(strat?.timeframe_bucket)}`);
+                lines.push(`Volume: ${formatCopyValue(strat?.volume)}`);
+                lines.push(`Open Interest: ${formatCopyValue(strat?.open_interest)}`);
+                lines.push(`Liquidity Grade: ${formatCopyValue(strat?.liquidity_grade)}`);
                 lines.push(`Score: ${formatCopyValue(strat?.score)}`);
                 lines.push(`Reason: ${formatCopyValue(strat?.reason_summary)}`);
                 lines.push(`Create Date: ${formatCopyValue(strat?.create_date)}`);
@@ -1011,10 +1016,15 @@ const OptimizerView = ({
                             <th className={headerClass('strategy')} onClick={() => handleSort('strategy')}>Strategy{renderSort('strategy')}</th>
                             <th className={headerClass('type')} onClick={() => handleSort('type')}>Type{renderSort('type')}</th>
                             <th className={headerClass('action')} onClick={() => handleSort('action')}>Action{renderSort('action')}</th>
+                            <th className={headerClass('timeframe_bucket')} onClick={() => handleSort('timeframe_bucket')}>Bucket{renderSort('timeframe_bucket')}</th>
                             <th className={headerClass('dte')} onClick={() => handleSort('dte')}>DTE{renderSort('dte')}</th>
                             <th className={headerClass('strike')} onClick={() => handleSort('strike')}>Strike{renderSort('strike')}</th>
                             <th className={headerClass('premium')} onClick={() => handleSort('premium')}>Premium{renderSort('premium')}</th>
                             <th className={headerClass('yield_pct')} onClick={() => handleSort('yield_pct')}>Yield %{renderSort('yield_pct')}</th>
+                            <th className={headerClass('annualized_yield_pct')} onClick={() => handleSort('annualized_yield_pct')}>Ann %{renderSort('annualized_yield_pct')}</th>
+                            <th className={headerClass('volume')} onClick={() => handleSort('volume')}>Vol{renderSort('volume')}</th>
+                            <th className={headerClass('open_interest')} onClick={() => handleSort('open_interest')}>OI{renderSort('open_interest')}</th>
+                            <th className={headerClass('liquidity_grade')} onClick={() => handleSort('liquidity_grade')}>Liq{renderSort('liquidity_grade')}</th>
                             <th className={headerClass('score')} onClick={() => handleSort('score')}>Score{renderSort('score')}</th>
                             <th className={headerClass('reason_summary')} onClick={() => handleSort('reason_summary')}>Reason{renderSort('reason_summary')}</th>
                             <th className={headerClass('create_date')} onClick={() => handleSort('create_date')}>Create Date{renderSort('create_date')}</th>
@@ -1029,10 +1039,15 @@ const OptimizerView = ({
                                 <td className="px-2 py-2 text-white">{row.strategy || '-'}</td>
                                 <td className="px-2 py-2 text-gray-200">{row.type || '-'}</td>
                                 <td className="px-2 py-2 text-gray-200">{row.action || '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.timeframe_bucket || '-'}</td>
                                 <td className="px-2 py-2 text-gray-200">{row.dte ?? '-'}</td>
                                 <td className="px-2 py-2 text-gray-200">{fmt(row.strike, 2)}</td>
                                 <td className="px-2 py-2 text-gray-200">{fmt(row.premium, 2)}</td>
                                 <td className="px-2 py-2 text-gray-200">{row.yield_pct === null || row.yield_pct === undefined ? '-' : `${fmt(row.yield_pct, 2)}%`}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.annualized_yield_pct === null || row.annualized_yield_pct === undefined ? '-' : `${fmt(row.annualized_yield_pct, 2)}%`}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.volume ?? '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.open_interest ?? '-'}</td>
+                                <td className="px-2 py-2 text-gray-200">{row.liquidity_grade || '-'}</td>
                                 <td className="px-2 py-2 font-semibold text-green-300">{row.score ?? '-'}</td>
                                 <td className="px-2 py-2 text-gray-300">{row.reason_summary || '-'}</td>
                                 <td className="px-2 py-2 text-gray-400">{row.create_date ? new Date(row.create_date).toLocaleString() : '-'}</td>
