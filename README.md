@@ -3,12 +3,43 @@
 
 Utilities for analysing equity call options, covered call positions, and stock price trends versus moving averages.
 
-## Setup
+## How to Setup the local Dev env
 
-Install dependencies with:
+This repo now includes a bootstrap script that follows the local runtimes implied by the Dockerfiles and installs both backend and frontend test dependencies in one pass.
+
+Docker-aligned runtime targets:
+
+- Backend: `python:3.12-slim` in [Dockerfile](/mnt/d/code/juicyfruitstockoptions/Dockerfile)
+- Frontend: `node:20-alpine` in [frontend/Dockerfile](/mnt/d/code/juicyfruitstockoptions/frontend/Dockerfile)
+- Local helpers: `.python-version` tracks `3.12` and `.nvmrc` tracks `20`
+- Package manager: `pip` for backend deps and `npm` for frontend deps
+
+Recommended flow:
 
 ```bash
-pip install -r requirements.txt
+./scripts/setup_local_dev.sh
+source .venv/bin/activate
+```
+
+What the setup script does:
+
+- Creates or refreshes `.venv`
+- Upgrades `pip`, `setuptools`, and `wheel`
+- Installs backend dependencies from `requirements.txt`
+- Runs `npm ci` in `frontend/`
+- Installs Playwright browsers for local E2E runs
+
+If your active `python3` or `node` version does not match the Docker-aligned versions, the script prints a warning and continues. That keeps a normal `venv` workflow working while still flagging version drift that could affect `pytest`, frontend tests, or Playwright specs.
+
+Common test commands after setup:
+
+```bash
+source .venv/bin/activate
+python -m pytest
+
+cd frontend
+npm test
+npm run test:e2e
 ```
 
 ## Directory Layout
