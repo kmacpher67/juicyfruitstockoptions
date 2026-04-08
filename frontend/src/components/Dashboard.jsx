@@ -798,7 +798,7 @@ const Dashboard = () => {
                             <button onClick={() => setFilterTicker(null)} className="text-xs text-blue-400 hover:underline">Clear</button>
                         </div>
                     )}
-                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[650px]">
+                    <div className="bg-gray-800 rounded-lg p-1 shadow-lg overflow-hidden border border-gray-700 h-[calc(100vh-220px)] min-h-[700px]">
                         <PortfolioGrid
                             data={portfolioHoldings}
                             filterTicker={filterTicker}

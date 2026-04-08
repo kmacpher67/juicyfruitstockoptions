@@ -4,6 +4,13 @@ import { X, TrendingUp, AlertTriangle, Lightbulb, Activity, RotateCcw, Building2
 import { buildTickerHeaderModel } from './tickerModalHeader';
 import { ANALYTICS_FIELD_GROUPS } from './stockAnalysisPresentation';
 import { classifyTabError, getBadgeText, getFreshnessBannerModel } from './tickerModalResilience';
+import {
+    buildSectionLines,
+    buildTickerNotFoundLogPayload,
+    formatDisplayValue,
+    getAnalyticsSummaryCards,
+} from './tickerModalPresentation';
+import { logFrontendError } from './errorLogging';
 
 const TAB_DEFAULT_STATE = {
     signals: 'idle',
@@ -27,18 +34,6 @@ const TAB_LABELS = {
     price_action: 'Price Action',
     smart_rolls: 'Smart Rolls',
     profile: 'Profile',
-};
-
-const formatCopyValue = (value) => {
-    if (value === undefined || value === null || value === '') return '-';
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    if (typeof value === 'string') return value;
-    if (Array.isArray(value)) return value.map((item) => formatCopyValue(item)).join(', ');
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return String(value);
-    }
 };
 
 const copyViaFallback = (text) => {
@@ -73,6 +68,7 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
     const [optimizerRefreshing, setOptimizerRefreshing] = useState(false);
     const requestSeq = useRef(0);
     const copyResetTimer = useRef(null);
+    const notFoundLoggedKey = useRef(null);
 
     // Reset state when ticker changes
     useEffect(() => {
@@ -92,6 +88,7 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             setOptimizerPreset('juicy');
             setOptimizerLimit(20);
             setOptimizerRefreshing(false);
+            notFoundLoggedKey.current = null;
             fetchData();
         }
     }, [isOpen, ticker]);
@@ -266,6 +263,14 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
         fetchTabData('optimizer');
     }, [optimizerPreset, optimizerLimit]);
 
+    useEffect(() => {
+        if (!isOpen || loading || !tickerData || tickerData?.found !== false) return;
+        const key = `${ticker || 'unknown'}:${tickerData?.symbol || 'unknown'}`;
+        if (notFoundLoggedKey.current === key) return;
+        notFoundLoggedKey.current = key;
+        logFrontendError(buildTickerNotFoundLogPayload({ ticker, activeTab }));
+    }, [isOpen, loading, tickerData, ticker, activeTab]);
+
     const activeFreshness = (() => {
         if (activeTab === 'analytics' || activeTab === 'price_action' || activeTab === 'profile') return tickerData;
         if (activeTab === 'signals') return signalData;
@@ -298,17 +303,20 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
     const headerModel = buildTickerHeaderModel({ ticker, tickerData });
     const buildCopyText = () => {
         const lines = [
-            'Ticker Detail Snapshot',
-            `Captured At: ${new Date().toLocaleString()}`,
-            `Tab: ${TAB_LABELS[activeTab] || activeTab}`,
-            `Ticker: ${headerModel.ticker}`,
-            `Descriptor: ${headerModel.descriptor || '-'}`,
-            `Price: ${headerModel.priceText || '-'}`,
-            `Change: ${headerModel.changeText || '-'}`,
-            `Last Update: ${headerModel.lastUpdateText || '-'}`,
+            '# Ticker Detail Snapshot',
+            `Captured At: ${formatDisplayValue('Captured At', new Date().toISOString())}`,
             '',
-            `${TAB_LABELS[activeTab] || activeTab} Details`,
         ];
+        lines.push(...buildSectionLines('[Header]', [
+            ['Tab', TAB_LABELS[activeTab] || activeTab],
+            ['Ticker', headerModel.ticker],
+            ['Descriptor', headerModel.descriptor || '-'],
+            ['Price', headerModel.priceText || '-'],
+            ['Change', headerModel.changeText || '-'],
+            ['Last Update', headerModel.lastUpdateText || '-'],
+        ]));
+        lines.push(`${TAB_LABELS[activeTab] || activeTab} Details`);
+        lines.push('');
 
         if (activeTab === 'analytics') {
             if (!tickerData?.found || !tickerData?.data) {
@@ -317,11 +325,10 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             }
             const stock = tickerData.data;
             ANALYTICS_FIELD_GROUPS.forEach((group) => {
-                lines.push(`[${group.title}]`);
-                group.fields.forEach(([label, field]) => {
-                    lines.push(`${label}: ${formatCopyValue(stock?.[field])}`);
-                });
-                lines.push('');
+                lines.push(...buildSectionLines(
+                    `[${group.title}]`,
+                    group.fields.map(([label, field]) => [label, stock?.[field]])
+                ));
             });
             lines.push('[Price Action Snapshot]');
             lines.push(JSON.stringify(stock?.['Price Action'] || {}, null, 2));
@@ -334,19 +341,19 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                 return lines.join('\n');
             }
             const { advice, kalman, markov } = signalData;
-            lines.push(`Recommendation: ${formatCopyValue(advice?.recommendation)}`);
-            lines.push(`Reason: ${formatCopyValue(advice?.reason)}`);
-            lines.push(`Confidence: ${formatCopyValue(advice?.confidence)}`);
+            lines.push(`Recommendation: ${formatDisplayValue('Recommendation', advice?.recommendation)}`);
+            lines.push(`Reason: ${formatDisplayValue('Reason', advice?.reason)}`);
+            lines.push(`Confidence: ${formatDisplayValue('Confidence', advice?.confidence)}`);
             lines.push('');
             lines.push('[Kalman]');
-            lines.push(`Signal: ${formatCopyValue(kalman?.signal)}`);
-            lines.push(`Trend Mean: ${formatCopyValue(kalman?.kalman_mean)}`);
+            lines.push(`Signal: ${formatDisplayValue('Signal', kalman?.signal)}`);
+            lines.push(`Trend Mean: ${formatDisplayValue('Trend Mean', kalman?.kalman_mean)}`);
             lines.push('');
             lines.push('[Markov]');
-            lines.push(`Current State: ${formatCopyValue(markov?.current_state)}`);
+            lines.push(`Current State: ${formatDisplayValue('Current State', markov?.current_state)}`);
             if (markov?.transitions && typeof markov.transitions === 'object') {
                 Object.entries(markov.transitions).forEach(([state, prob]) => {
-                    lines.push(`${state}: ${formatCopyValue(prob)}`);
+                    lines.push(`${state}: ${formatDisplayValue(state, prob)}`);
                 });
             }
             return lines.join('\n');
@@ -357,11 +364,11 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                 lines.push('No opportunity data available.');
                 return lines.join('\n');
             }
-            lines.push(`Juicy Score: ${formatCopyValue(opportunityData.juicy_score)}`);
+            lines.push(`Juicy Score: ${formatDisplayValue('Juicy Score', opportunityData.juicy_score)}`);
             lines.push('');
             lines.push('[Drivers]');
             if (Array.isArray(opportunityData.reasons) && opportunityData.reasons.length > 0) {
-                opportunityData.reasons.forEach((reason) => lines.push(`- ${formatCopyValue(reason)}`));
+                opportunityData.reasons.forEach((reason) => lines.push(`- ${formatDisplayValue('Driver', reason)}`));
             } else {
                 lines.push('- None');
             }
@@ -369,7 +376,7 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             lines.push('[Risks]');
             if (Array.isArray(opportunityData.risks) && opportunityData.risks.length > 0) {
                 opportunityData.risks.forEach((risk) => {
-                    lines.push(`- ${formatCopyValue(risk?.type)} (${formatCopyValue(risk?.level)}): ${formatCopyValue(risk?.message)}`);
+                    lines.push(`- ${formatDisplayValue('Risk Type', risk?.type)} (${formatDisplayValue('Risk Level', risk?.level)}): ${formatDisplayValue('Risk Message', risk?.message)}`);
                 });
             } else {
                 lines.push('- None');
@@ -377,13 +384,13 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             lines.push('');
             lines.push('[Metrics]');
             Object.entries(opportunityData.metrics || {}).forEach(([metric, value]) => {
-                lines.push(`${metric}: ${formatCopyValue(value)}`);
+                lines.push(`${metric}: ${formatDisplayValue(metric, value)}`);
             });
             if (Array.isArray(opportunityData.recommendations) && opportunityData.recommendations.length > 0) {
                 lines.push('');
                 lines.push('[Recommendations]');
                 opportunityData.recommendations.forEach((rec) => {
-                    lines.push(`${formatCopyValue(rec?.action)} | ${formatCopyValue(rec?.strategy)} | ${formatCopyValue(rec?.reason)}`);
+                    lines.push(`${formatDisplayValue('Action', rec?.action)} | ${formatDisplayValue('Strategy', rec?.strategy)} | ${formatDisplayValue('Reason', rec?.reason)}`);
                 });
             }
             return lines.join('\n');
@@ -396,22 +403,22 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             }
             optimizerData.forEach((strat, index) => {
                 lines.push(`[Strategy ${index + 1}]`);
-                lines.push(`Strategy: ${formatCopyValue(strat?.strategy)}`);
-                lines.push(`Type: ${formatCopyValue(strat?.type)}`);
-                lines.push(`Action: ${formatCopyValue(strat?.action)}`);
-                lines.push(`DTE: ${formatCopyValue(strat?.dte)}`);
-                lines.push(`Strike: ${formatCopyValue(strat?.strike)}`);
-                lines.push(`Premium: ${formatCopyValue(strat?.premium)}`);
-                lines.push(`Yield %: ${formatCopyValue(strat?.yield_pct)}`);
-                lines.push(`Annualized Yield %: ${formatCopyValue(strat?.annualized_yield_pct)}`);
-                lines.push(`Bucket: ${formatCopyValue(strat?.timeframe_bucket)}`);
-                lines.push(`Volume: ${formatCopyValue(strat?.volume)}`);
-                lines.push(`Open Interest: ${formatCopyValue(strat?.open_interest)}`);
-                lines.push(`Liquidity Grade: ${formatCopyValue(strat?.liquidity_grade)}`);
-                lines.push(`Score: ${formatCopyValue(strat?.score)}`);
-                lines.push(`Reason: ${formatCopyValue(strat?.reason_summary)}`);
-                lines.push(`Create Date: ${formatCopyValue(strat?.create_date)}`);
-                lines.push(`Last Updated: ${formatCopyValue(strat?.last_updated)}`);
+                lines.push(`Strategy: ${formatDisplayValue('Strategy', strat?.strategy)}`);
+                lines.push(`Type: ${formatDisplayValue('Type', strat?.type)}`);
+                lines.push(`Action: ${formatDisplayValue('Action', strat?.action)}`);
+                lines.push(`DTE: ${formatDisplayValue('DTE', strat?.dte)}`);
+                lines.push(`Strike: ${formatDisplayValue('Strike', strat?.strike)}`);
+                lines.push(`Premium: ${formatDisplayValue('Premium', strat?.premium)}`);
+                lines.push(`Yield %: ${formatDisplayValue('Yield %', strat?.yield_pct)}`);
+                lines.push(`Annualized Yield %: ${formatDisplayValue('Annualized Yield %', strat?.annualized_yield_pct)}`);
+                lines.push(`Bucket: ${formatDisplayValue('Bucket', strat?.timeframe_bucket)}`);
+                lines.push(`Volume: ${formatDisplayValue('Volume', strat?.volume)}`);
+                lines.push(`Open Interest: ${formatDisplayValue('Open Interest', strat?.open_interest)}`);
+                lines.push(`Liquidity Grade: ${formatDisplayValue('Liquidity Grade', strat?.liquidity_grade)}`);
+                lines.push(`Score: ${formatDisplayValue('Score', strat?.score)}`);
+                lines.push(`Reason: ${formatDisplayValue('Reason', strat?.reason_summary)}`);
+                lines.push(`Create Date: ${formatDisplayValue('Create Date', strat?.create_date)}`);
+                lines.push(`Last Updated: ${formatDisplayValue('Last Updated', strat?.last_updated)}`);
                 lines.push('');
             });
             return lines.join('\n');
@@ -423,21 +430,21 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                 lines.push('No Price Action data available.');
                 return lines.join('\n');
             }
-            lines.push(`Trend: ${formatCopyValue(priceAction.trend)}`);
+            lines.push(`Trend: ${formatDisplayValue('Trend', priceAction.trend)}`);
             lines.push('');
             lines.push('[Recent Market Structure]');
             (priceAction.structure || []).slice(-4).reverse().forEach((point) => {
-                lines.push(`${formatCopyValue(point?.label)} | value=${formatCopyValue(point?.value)} | date=${formatCopyValue(point?.date)}`);
+                lines.push(`${formatDisplayValue('Label', point?.label)} | value=${formatDisplayValue('Value', point?.value)} | date=${formatDisplayValue('Date', point?.date)}`);
             });
             lines.push('');
             lines.push('[Order Blocks]');
             (priceAction.order_blocks || []).slice(-3).reverse().forEach((orderBlock) => {
-                lines.push(`${formatCopyValue(orderBlock?.type)} | ${formatCopyValue(orderBlock?.bottom)}-${formatCopyValue(orderBlock?.top)} | bos_index=${formatCopyValue(orderBlock?.associated_bos_index)}`);
+                lines.push(`${formatDisplayValue('Type', orderBlock?.type)} | ${formatDisplayValue('Bottom', orderBlock?.bottom)}-${formatDisplayValue('Top', orderBlock?.top)} | bos_index=${formatDisplayValue('BOS Index', orderBlock?.associated_bos_index)}`);
             });
             lines.push('');
             lines.push('[Fair Value Gaps]');
             (priceAction.fvgs || []).slice(-3).reverse().forEach((fvg) => {
-                lines.push(`${formatCopyValue(fvg?.type)} | ${formatCopyValue(fvg?.bottom)}-${formatCopyValue(fvg?.top)} | date=${formatCopyValue(fvg?.date)}`);
+                lines.push(`${formatDisplayValue('Type', fvg?.type)} | ${formatDisplayValue('Bottom', fvg?.bottom)}-${formatDisplayValue('Top', fvg?.top)} | date=${formatDisplayValue('Date', fvg?.date)}`);
             });
             return lines.join('\n');
         }
@@ -449,14 +456,14 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
             }
             smartRollsData.forEach((roll, index) => {
                 lines.push(`[Roll ${index + 1}]`);
-                lines.push(`Roll Type: ${formatCopyValue(roll?.roll_type)}`);
-                lines.push(`Type: ${formatCopyValue(roll?.type)}`);
-                lines.push(`Strike: ${formatCopyValue(roll?.strike)}`);
-                lines.push(`Expiration: ${formatCopyValue(roll?.expiration)}`);
-                lines.push(`Net Credit: ${formatCopyValue(roll?.net_credit)}`);
-                lines.push(`Cost To Close: ${formatCopyValue(roll?.cost_to_close)}`);
-                lines.push(`Score: ${formatCopyValue(roll?.score)}`);
-                lines.push(`Reasons: ${formatCopyValue(roll?.reasons)}`);
+                lines.push(`Roll Type: ${formatDisplayValue('Roll Type', roll?.roll_type)}`);
+                lines.push(`Type: ${formatDisplayValue('Type', roll?.type)}`);
+                lines.push(`Strike: ${formatDisplayValue('Strike', roll?.strike)}`);
+                lines.push(`Expiration: ${formatDisplayValue('Expiration', roll?.expiration)}`);
+                lines.push(`Net Credit: ${formatDisplayValue('Net Credit', roll?.net_credit)}`);
+                lines.push(`Cost To Close: ${formatDisplayValue('Cost To Close', roll?.cost_to_close)}`);
+                lines.push(`Score: ${formatDisplayValue('Score', roll?.score)}`);
+                lines.push(`Reasons: ${formatDisplayValue('Reasons', roll?.reasons)}`);
                 lines.push('');
             });
             return lines.join('\n');
@@ -468,21 +475,21 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                 lines.push('Profile data unavailable. Run Live Comparison to populate.');
                 return lines.join('\n');
             }
-            lines.push(`Sector: ${formatCopyValue(profile.sector)}`);
-            lines.push(`Industry: ${formatCopyValue(profile.industry)}`);
-            lines.push(`Style: ${formatCopyValue(profile.style)}`);
-            lines.push(`Category: ${formatCopyValue(profile.category)}`);
-            lines.push(`Exchange: ${formatCopyValue(profile.exchange)}`);
-            lines.push(`Country: ${formatCopyValue(profile.country)}`);
-            lines.push(`Employees: ${formatCopyValue(profile.employees)}`);
-            lines.push(`Recommendation: ${formatCopyValue(profile.recommendation)}`);
-            lines.push(`Analyst Opinions: ${formatCopyValue(profile.analyst_opinions)}`);
-            lines.push(`Description: ${formatCopyValue(profile.description)}`);
+            lines.push(`Sector: ${formatDisplayValue('Sector', profile.sector)}`);
+            lines.push(`Industry: ${formatDisplayValue('Industry', profile.industry)}`);
+            lines.push(`Style: ${formatDisplayValue('Style', profile.style)}`);
+            lines.push(`Category: ${formatDisplayValue('Category', profile.category)}`);
+            lines.push(`Exchange: ${formatDisplayValue('Exchange', profile.exchange)}`);
+            lines.push(`Country: ${formatDisplayValue('Country', profile.country)}`);
+            lines.push(`Employees: ${formatDisplayValue('Employees', profile.employees)}`);
+            lines.push(`Recommendation: ${formatDisplayValue('Recommendation', profile.recommendation)}`);
+            lines.push(`Analyst Opinions: ${formatDisplayValue('Analyst Opinions', profile.analyst_opinions)}`);
+            lines.push(`Description: ${formatDisplayValue('Description', profile.description)}`);
             if (Array.isArray(profile.news) && profile.news.length > 0) {
                 lines.push('');
                 lines.push('[Recent News]');
                 profile.news.forEach((item, index) => {
-                    lines.push(`${index + 1}. ${formatCopyValue(item?.title)} | ${formatCopyValue(item?.publisher)} | ${formatCopyValue(item?.published_at)} | ${formatCopyValue(item?.link)}`);
+                    lines.push(`${index + 1}. ${formatDisplayValue('Title', item?.title)} | ${formatDisplayValue('Publisher', item?.publisher)} | ${formatDisplayValue('Published At', item?.published_at)} | ${formatDisplayValue('Link', item?.link)}`);
                 });
             }
             return lines.join('\n');
@@ -644,6 +651,12 @@ const TickerModal = ({ ticker, isOpen, onClose, onJuicyRefreshRequested }) => {
                             {freshnessBanner.text}
                         </div>
                     )}
+                    {!loading && tickerData?.found === false && (
+                        <div className="mb-4 rounded border border-amber-700 bg-amber-950/40 px-3 py-2 text-xs text-amber-200 flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Ticker detail lookup returned no row (`found=false`). Symbol has been logged for diagnostics.</span>
+                        </div>
+                    )}
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-64 gap-4">
                             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -698,31 +711,46 @@ const AnalyticsView = ({ data }) => {
     if (!data?.found) return <div className="text-center text-gray-400 py-12">No data found for this ticker.</div>;
     const s = data.data; // stock data object
 
-    // Helper for rows
+    const summaryCards = getAnalyticsSummaryCards(s);
+
     const Row = ({ label, value }) => (
-        <div className="flex justify-between py-2 border-b border-gray-800 last:border-0 hover:bg-gray-800 px-2 rounded transition-colors">
-            <span className="text-gray-400">{label}</span>
-            <span className="text-white font-mono">{value?.toString() || '-'}</span>
+        <div className="grid grid-cols-[minmax(10rem,14rem)_1fr] items-center gap-4 py-2.5 border-b border-gray-800 last:border-0 hover:bg-gray-800/60 px-2 rounded transition-colors">
+            <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
+            <span className="text-sm text-white font-mono text-right">{formatDisplayValue(label, value)}</span>
         </div>
     );
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {ANALYTICS_FIELD_GROUPS.map((group) => (
-                <div key={group.title}>
-                    <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">{group.title}</h3>
-                    {group.fields.map(([label, field]) => {
-                        const raw = s?.[field];
-                        const value = raw === undefined || raw === null || raw === '' ? '-' : raw;
-                        return <Row key={field} label={label} value={value} />;
-                    })}
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {summaryCards.map((card) => (
+                    <div key={card.label} className="rounded border border-gray-700 bg-gray-800/60 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-gray-400">{card.label}</div>
+                        <div className={`text-lg font-semibold ${card.tone}`}>{card.value}</div>
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {ANALYTICS_FIELD_GROUPS.map((group) => (
+                    <div key={group.title} className="rounded border border-gray-700 bg-gray-850/40 p-3">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-200 mb-2 border-b border-gray-700 pb-2">{group.title}</h3>
+                        <div className="space-y-0.5">
+                            {group.fields.map(([label, field]) => {
+                                const raw = s?.[field];
+                                return <Row key={field} label={label} value={raw} />;
+                            })}
+                        </div>
+                    </div>
+                ))}
+                <div className="lg:col-span-2 rounded border border-gray-700 bg-gray-850/40 p-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-200 mb-2 border-b border-gray-700 pb-2">Price Action Snapshot</h3>
+                    <pre className="bg-gray-800/80 rounded p-3 text-xs text-gray-200 overflow-auto max-h-52">
+                        {JSON.stringify(s?.['Price Action'] || {}, null, 2)}
+                    </pre>
                 </div>
-            ))}
-            <div className="md:col-span-2">
-                <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Price Action Snapshot</h3>
-                <pre className="bg-gray-800 rounded p-3 text-xs text-gray-200 overflow-auto max-h-40">
-                    {JSON.stringify(s?.['Price Action'] || {}, null, 2)}
-                </pre>
+            </div>
+            <div className="text-[11px] text-gray-500">
+                Layout note: summary cards emphasize high-priority scan metrics; full grouped rows remain below for complete audit context.
             </div>
         </div>
     );
