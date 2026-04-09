@@ -23,3 +23,19 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+/* Portfolio table tooltip cleanup:
+   - Higher contrast to avoid white-on-white confusion
+   - Lift tooltip above header/data boundary so it doesn't visually clash with rows */
+.portfolio-grid-theme .ag-tooltip {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.55);
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 320px;
+  padding: 8px 10px;
+  z-index: 50;
+}

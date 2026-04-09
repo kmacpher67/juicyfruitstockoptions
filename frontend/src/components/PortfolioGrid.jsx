@@ -524,12 +524,13 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                     {getVisibleRowCounterLabel(rowData.length)}
                 </span>
             </div>
-            <div className="ag-theme-alpine-dark flex-grow w-full">
+            <div className="ag-theme-alpine-dark portfolio-grid-theme flex-grow w-full">
                 <AgGridReact
                     rowData={rowData}
                     columnDefs={colDefs}
                     defaultColDef={defaultColDef}
                     animateRows={true}
+                    tooltipMouseTrack={false}
                     context={{ onTickerClick }}
                 />
             </div>
