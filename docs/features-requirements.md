@@ -32,6 +32,7 @@
 - **Portfolio Positions**: Opportunities and analysis should be able to be filtered or display by account and position VZ (U280132:100 STK, -1 CALL OPT) condensed version with a float over and/or popup (or Detail Drawer) to see other information cost basis, fundementals, and time term status, overall realized and unrealized gains/losses inclusive of any dividends.
 - **Comparison View**: Ability to sort, search, and filter tables by any column.
 - **No Floating Modals for Core Data**: Use an expandable "Detail Drawer" on the right side of the screen to maintain context of the portfolio list.
+- **Universal Micro-Help**: Every actionable button/link and every data table header should expose concise plain-English hover help (`title`/header tooltip) so operators can decode abbreviations quickly (`DTE`, `NtM %`, `P.BTC`, etc.).
 
 ## 0. Bugs, Fixes, & Maintenance
 - [x] **stock-analysis-broken-202603**: Stock Analysis "Run Live Analysis" feature broken after 2026-03-27 changes. AI_Stock_Live_Comparison XLSX and onscreen grid no longer populate. Investigate `stock_live_comparison.py` and `app/services/stock_live_comparison.py` for root cause. *(Completed 2026-04-03: viable-source-file guard + suspicious low-record save protection + sync-mode viable-base skip behavior.)*
@@ -145,6 +146,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] Limit hardcoded selectors in `*.spec.js` files; mandate POM usage.
 - [x] **Mocked Network Reliability**:
     - [x] Tests must use `page.route('**/api/portfolio/**', ...)` to intercept and provide static JSON responses for UI validation, ensuring tests do not fail due to IBKR rate limits or offline states.
+- [x] **UX Tooltip Contract (Headers + Actions)**:
+    - [x] **ui-help-tooltips-universal-20260409**: Add concise hover-help tooltips for existing data-grid headers and primary action controls/quick links (Portfolio, Analysis, Trades, Orders, Juicys). Include simple definitions for abbreviations (`DTE`, `NtM %`, `P.BTC`, `OI`, `Liq`, etc.).
+    - [x] Centralize tooltip text in shared frontend helper so future UI work reuses one source of truth.
+    - [x] Add regression tests for tooltip helper mappings and dynamic control labels.
+    - [x] If host Playwright is blocked (Node mismatch/host drift), run tooltip E2E assertions through existing Docker parity path: `PLAYWRIGHT_IN_DOCKER=1 ./test-all.sh` or `./scripts/run-playwright-docker.sh`.
+    - [x] Policy for future FR items: any new button/link/header introduced in frontend scope must include a tooltip/help string and corresponding test assertion in unit or Playwright coverage before item is marked done.
 - [x] **Session-Focused Test Suites** (Ready for Agent Action):
     - [x] **Auth & Navigation (`tests/specs/nav.spec.js`)**: Test login view, token expiration handling, and sidebar routing.
     - [x] **Stock Analysis Flow (`tests/specs/analysis.spec.js`)**: Test the "Run Live Analysis" button states, row sorting, and spreadsheet download hook.

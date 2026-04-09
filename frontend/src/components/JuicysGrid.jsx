@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
+import { withHeaderTooltips } from './uiHelpTooltips';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -37,7 +38,7 @@ const TickerCell = (params) => {
 };
 
 const JuicysGrid = ({ rows, onTickerClick }) => {
-    const colDefs = useMemo(() => [
+    const colDefs = useMemo(() => withHeaderTooltips([
         { field: 'symbol', headerName: 'Ticker', pinned: 'left', width: 110, sortable: true, filter: true, cellRenderer: TickerCell },
         { field: 'as_of', headerName: 'As Of', width: 180, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
         { field: 'strategy', headerName: 'Strategy', width: 180, sortable: true, filter: true },
@@ -56,7 +57,7 @@ const JuicysGrid = ({ rows, onTickerClick }) => {
         { field: 'reason_summary', headerName: 'Reason', minWidth: 220, flex: 1, sortable: true, filter: true },
         { field: 'create_date', headerName: 'Create Date', width: 170, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
         { field: 'last_updated', headerName: 'Last Updated', width: 170, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
-    ], []);
+    ]), []);
 
     return (
         <div className="ag-theme-quartz-dark h-[650px] w-full">

@@ -6,6 +6,7 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { Trash2, ExternalLink, CheckCircle } from 'lucide-react';
 import { computeTickerHealthScore, getTickerHealthLabel, getTickerHealthTone } from './stockAnalysisPresentation';
 import { STOCK_GRID_AVERAGE_FIELDS_ORDER } from './stockGridConfig';
+import { resolveQuickLinkTooltip, withHeaderTooltips } from './uiHelpTooltips';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -63,8 +64,8 @@ const LinkRenderer = (params) => {
                 <ExternalLink className="w-3 h-3 ml-1 text-slate-200 opacity-90 group-hover:opacity-100 group-hover:text-[#1976d2] transition-all" />
             </span>
             <div className="flex gap-1 text-xs opacity-100">
-                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
-                <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
+                <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('google', ticker)} aria-label={resolveQuickLinkTooltip('google', ticker)}>G</a>
+                <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('yahoo', ticker)} aria-label={resolveQuickLinkTooltip('yahoo', ticker)}>Y</a>
             </div>
         </div>
     );
@@ -76,7 +77,7 @@ const OptionsLinkRenderer = (params) => {
     const ticker = params.data.Ticker;
     const url = `https://finance.yahoo.com/quote/${ticker}/options`;
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center text-[#1976d2] hover:text-[#1565c0] underline decoration-dotted">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center text-[#1976d2] hover:text-[#1565c0] underline decoration-dotted" title={resolveQuickLinkTooltip('yahoo', ticker)} aria-label={resolveQuickLinkTooltip('yahoo', ticker)}>
             {parsed.toFixed(2)}
         </a>
     );
@@ -217,7 +218,7 @@ const buildStockGridColumnDefs = ({ onDelete }) => {
             filter: false,
         });
     }
-    return baseDefs;
+    return withHeaderTooltips(baseDefs);
 };
 
 const StockGrid = ({ data, pageSize = 100, defaultSort = {}, onDelete, portfolioTickers, hasPortfolioAccess, onTickerClick }) => {

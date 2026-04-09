@@ -73,9 +73,11 @@ test.describe('Portfolio Filters', () => {
 
         await page.getByRole('button', { name: 'My Portfolio' }).click();
         await expect(page.getByRole('button', { name: 'Uncovered' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Uncovered' })).toHaveAttribute('title', /uncovered shares/i);
 
         await page.getByRole('button', { name: 'Uncovered' }).click();
         await expect(page.getByText('Rows:')).toBeVisible();
         await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Export CSV' })).toHaveAttribute('title', /download/i);
     });
 });

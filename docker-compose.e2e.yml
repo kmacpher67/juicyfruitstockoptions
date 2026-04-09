@@ -21,8 +21,8 @@ services:
       - playwright_browser_cache:/ms-playwright
     command: >
       bash -lc "
-      npm ci &&
-      until curl -sf http://frontend:5173 >/dev/null; do
+      (npm ci || npm install) &&
+      until curl -s http://frontend:5173 >/dev/null; do
         echo 'Waiting for frontend container...';
         sleep 2;
       done &&

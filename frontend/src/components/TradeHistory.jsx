@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, DollarSign, Activity, Calendar, Radio } from 
 import { ExternalLink } from 'lucide-react';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
+import { resolveControlTooltip, resolveQuickLinkTooltip, withHeaderTooltips } from './uiHelpTooltips';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -182,7 +183,7 @@ const TradeHistory = ({ onTickerClick }) => {
     };
 
 
-    const [colDefs] = useState([
+    const [colDefs] = useState(withHeaderTooltips([
         {
             field: "date_time",
             headerName: "Date/Time",
@@ -223,8 +224,8 @@ const TradeHistory = ({ onTickerClick }) => {
                             />
                         </span>
                         <div className="flex gap-1 text-xs opacity-100">
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('google', cleanSym)} aria-label={resolveQuickLinkTooltip('google', cleanSym)}>G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('yahoo', cleanSym)} aria-label={resolveQuickLinkTooltip('yahoo', cleanSym)}>Y</a>
                         </div>
                     </div>
                 );
@@ -329,7 +330,7 @@ const TradeHistory = ({ onTickerClick }) => {
             valueGetter: p => p.data.source || 'flex_history',
             cellRenderer: p => <SourceBadge source={p.value} />
         }
-    ]);
+    ]));
 
     useEffect(() => {
         loadData();
@@ -423,7 +424,8 @@ const TradeHistory = ({ onTickerClick }) => {
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
-                            title={range === 'RT' ? 'Current-day TWS live executions only' : undefined}
+                            title={range === 'RT' ? 'Current-day TWS live executions only' : (resolveControlTooltip(range) || `Set trade history range to ${range}`)}
+                            aria-label={range === 'RT' ? 'Show real-time executions only' : `Set trade history range to ${range}`}
                             className={`px-3 py-1 text-sm rounded transition-colors inline-flex items-center gap-1.5 ${timeRange === range ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
                         >
                             {range === 'RT' && <Radio className="w-3.5 h-3.5" />}

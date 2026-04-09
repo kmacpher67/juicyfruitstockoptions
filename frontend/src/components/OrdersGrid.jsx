@@ -4,6 +4,7 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { ExternalLink, ChevronRight, ChevronDown } from 'lucide-react';
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { applyBagVisibility, buildLegRows, netDebitCreditLabel } from './ordersViewUtils.js';
+import { resolveQuickLinkTooltip, withHeaderTooltips } from './uiHelpTooltips';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -57,6 +58,8 @@ const BagToggle = ({ id, label, checked, onChange }) => (
             type="checkbox"
             checked={checked}
             onChange={e => onChange(e.target.checked)}
+            title={label}
+            aria-label={label}
             className="accent-blue-500 cursor-pointer"
             data-testid={id}
         />
@@ -118,7 +121,7 @@ const OrdersGrid = ({ data, onTickerClick }) => {
         [data]
     );
 
-    const colDefs = useMemo(() => [
+    const colDefs = useMemo(() => withHeaderTooltips([
         {
             field: "account_id",
             headerName: "Account",
@@ -175,6 +178,7 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                                 data-testid={`bag-expand-${orderKey}`}
                                 onClick={() => toggleExpand(orderKey)}
                                 className="text-gray-400 hover:text-[#1976d2] transition-colors flex-shrink-0"
+                                title={isExpanded ? 'Collapse combo leg rows' : 'Expand combo leg rows'}
                             >
                                 {isExpanded
                                     ? <ChevronDown className="w-3.5 h-3.5" />
@@ -201,12 +205,13 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                             <button
                                 onClick={() => ticker && params.context.onTickerClick && params.context.onTickerClick(ticker)}
                                 className="text-[#1976d2] hover:text-[#1565c0] font-semibold"
-                                title="Detail"
+                                title={resolveQuickLinkTooltip('detail', ticker)}
+                                aria-label={resolveQuickLinkTooltip('detail', ticker)}
                             >
                                 D
                             </button>
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
+                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('google', ticker)} aria-label={resolveQuickLinkTooltip('google', ticker)}>G</a>
+                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold" title={resolveQuickLinkTooltip('yahoo', ticker)} aria-label={resolveQuickLinkTooltip('yahoo', ticker)}>Y</a>
                         </div>
                     </div>
                 );
@@ -413,7 +418,7 @@ const OrdersGrid = ({ data, onTickerClick }) => {
                 return p.value || '-';
             },
         },
-    ], [expandedBagKeys, toggleExpand]);
+    ]), [expandedBagKeys, toggleExpand]);
 
     const defaultColDef = {
         minWidth: 70,

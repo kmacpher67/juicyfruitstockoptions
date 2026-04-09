@@ -8,6 +8,7 @@ import { ExternalLink } from 'lucide-react';
 import { applyPortfolioFilters, DEFAULT_PORTFOLIO_FILTERS } from './portfolioFilters';
 import { getNumericValue, formatCurrency, formatPercent } from './portfolioGridFormatters';
 import { getDetailTicker, getDisplaySymbol, getVisibleRowCounterLabel, resolveSecurityTypeLabel } from './portfolioPresentation';
+import { resolveControlTooltip, resolveQuickLinkTooltip, withHeaderTooltips } from './uiHelpTooltips';
 
 const getPendingEffectUi = (effect) => {
     switch (effect) {
@@ -90,7 +91,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
         filters.nearMoneyPercent, setSearchParams
     ]);
 
-    const colDefs = useMemo(() => [
+    const colDefs = useMemo(() => withHeaderTooltips([
         {
             field: "account_id",
             headerName: "Account",
@@ -132,8 +133,26 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                             />
                         </span>
                         <div className="flex gap-1 text-xs opacity-100">
-                            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">G</a>
-                            <a href={yahooUrl} target="_blank" rel="noopener noreferrer" className="text-[#1976d2] hover:text-[#1565c0] font-semibold">Y</a>
+                            <a
+                                href={googleUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#1976d2] hover:text-[#1565c0] font-semibold"
+                                title={resolveQuickLinkTooltip('google', cleanSym)}
+                                aria-label={resolveQuickLinkTooltip('google', cleanSym)}
+                            >
+                                G
+                            </a>
+                            <a
+                                href={yahooUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#1976d2] hover:text-[#1565c0] font-semibold"
+                                title={resolveQuickLinkTooltip('yahoo', cleanSym)}
+                                aria-label={resolveQuickLinkTooltip('yahoo', cleanSym)}
+                            >
+                                Y
+                            </a>
                         </div>
                     </div>
                 );
@@ -264,7 +283,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                             target="_blank"
                             rel="noopener noreferrer"
                             className="opacity-0 group-hover:opacity-100 text-[#1976d2] hover:text-[#1565c0] transition-opacity"
-                            title="Ask Trading Agent"
+                            title="Open Trading Agent analysis for this row"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
@@ -294,7 +313,7 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 );
             },
         }
-    ], []);
+    ]), []);
 
     // Unique account list for dropdown
     const accountList = useMemo(() => {
@@ -332,9 +351,11 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
         }
     };
 
-    const Button = ({ label, active, onClick }) => (
+    const Button = ({ label, active, onClick, helpText }) => (
         <button
             onClick={onClick}
+            title={helpText || resolveControlTooltip(label) || undefined}
+            aria-label={helpText || resolveControlTooltip(label) || label}
             className={`px-3 py-1 text-xs font-bold rounded transiton-colors ${
                 active
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
@@ -417,6 +438,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                 <select
                     className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
                     value={filters.account}
+                    title="Filter rows to one account or show all accounts."
+                    aria-label="Filter portfolio rows by account"
                     onChange={e => {
                         const nextAccount = e.target.value;
                         setFilters((current) => ({ ...current, account: nextAccount }));
@@ -438,6 +461,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                     step="0.01"
                     value={filters.lastPriceMin}
                     placeholder="Min"
+                    title="Minimum last price filter for visible rows."
+                    aria-label="Minimum last price"
                     onChange={e => setFilters((current) => ({ ...current, lastPriceMin: e.target.value }))}
                     className="w-16 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
                 />
@@ -448,6 +473,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                     step="0.01"
                     value={filters.lastPriceMax}
                     placeholder="Max"
+                    title="Maximum last price filter for visible rows."
+                    aria-label="Maximum last price"
                     onChange={e => setFilters((current) => ({ ...current, lastPriceMax: e.target.value }))}
                     className="w-16 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
                 />
@@ -460,6 +487,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                             min={1}
                             max={60}
                             value={filters.dteLimit}
+                            title="Maximum days-to-expiration used by the Expiring filter."
+                            aria-label="Expiring filter max DTE"
                             onChange={e => setFilters((current) => ({ ...current, dteLimit: Number(e.target.value) }))}
                             className="w-12 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
                         />
@@ -474,6 +503,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
                             min={0}
                             max={20}
                             value={filters.nearMoneyPercent}
+                            title="Maximum strike-distance percent used by Near Money filter."
+                            aria-label="Near money filter max percent"
                             onChange={e => setFilters((current) => ({ ...current, nearMoneyPercent: Number(e.target.value) }))}
                             className="w-12 bg-gray-700 text-white text-xs rounded px-1 py-0.5 border border-gray-600"
                         />
@@ -482,6 +513,8 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
 
                 <button
                     onClick={handleExportCSV}
+                    title={resolveControlTooltip('Export CSV') || undefined}
+                    aria-label="Export visible portfolio rows to CSV"
                     className="ml-4 px-3 py-1 text-xs font-bold rounded bg-green-700 hover:bg-green-600 text-white shadow"
                 >
                     Export CSV
