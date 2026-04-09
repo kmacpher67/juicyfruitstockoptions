@@ -37,8 +37,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - mongo
-      - ibkr-portal
+      mongo:
+        condition: service_healthy
     restart: always
 
   mongo:
@@ -48,23 +48,29 @@ services:
     ports:
       - "27017:27017" # Exposed for local tools if needed
     volumes:
-      - ./mongo_data:/data/db
+      - mongo_data:/data/db
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin123
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'db.runCommand({ ping: 1 })' | mongosh --quiet -u admin -p admin123 --authenticationDatabase admin mongodb://localhost:27017/admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: always
 
-  # IBKR Portal
-  ibkr-portal:
-    image: eclipse-temurin:17-jre
-    container_name: stock_portal_ibkr_portal
-    working_dir: /opt/clientportal.gw
-    command: ["./bin/run.sh", "root/conf.yaml"]
-    volumes:
-      - ./clientportal.gw:/opt/clientportal.gw
-    ports:
-      - "5000:5000"
-    restart: unless-stopped
+  # # IBKR Portal
+  # ibkr-portal:
+  #   image: eclipse-temurin:17-jre
+  #   container_name: stock_portal_ibkr_portal
+  #   working_dir: /opt/clientportal.gw
+  #   command: ["./bin/run.sh", "root/conf.yaml"]
+  #   volumes:
+  #     - ./clientportal.gw:/opt/clientportal.gw
+  #   ports:
+  #     - "5000:5000"
+  #   restart: unless-stopped
 
   # Frontend (Phase 2)
   frontend:
@@ -80,3 +86,6 @@ services:
     depends_on:
       - backend
     restart: always
+
+volumes:
+  mongo_data:

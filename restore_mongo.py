@@ -6,7 +6,7 @@ from bson import json_util
 
 DEFAULT_MONGO_URI = "mongodb://admin:admin123@localhost:27017/?authSource=admin"
 DEFAULT_DB_NAME = "stock_analysis"
-DEFAULT_COLLECTION_NAME = "test_stock_data"
+DEFAULT_COLLECTION_NAME = "stock_data"
 
 
 def restore_data(
@@ -84,7 +84,7 @@ def main():
     parser.add_argument(
         "--collection-name",
         default=None,
-        help="MongoDB collection name. Defaults to test_stock_data.",
+        help="MongoDB collection name. Defaults to stock_data.",
     )
     args = parser.parse_args()
     restore_data(

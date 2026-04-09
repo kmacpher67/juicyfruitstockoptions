@@ -4,7 +4,7 @@ set -euo pipefail
 BACKUP_FILE="${1:-mongo_backup.json}"
 MONGO_URI="${MONGO_URI:-mongodb://admin:admin123@localhost:27017/?authSource=admin}"
 MONGO_DB_NAME="${MONGO_DB_NAME:-stock_analysis}"
-MONGO_COLLECTION_NAME="${MONGO_COLLECTION_NAME:-test_stock_data}"
+MONGO_COLLECTION_NAME="${MONGO_COLLECTION_NAME:-stock_data}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker is not installed or not on PATH."
@@ -24,6 +24,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' stock_portal_mongo 2>/dev/null)" 
 fi
 
 echo "Reloading ${BACKUP_FILE} into ${MONGO_DB_NAME}.${MONGO_COLLECTION_NAME} via ${MONGO_URI}"
+echo "Note: legacy JSON restore targets a single collection. Use ./scripts/restore_mongo.sh for full database restore."
 python3 restore_mongo.py \
   --input-file "${BACKUP_FILE}" \
   --mongo-uri "${MONGO_URI}" \
