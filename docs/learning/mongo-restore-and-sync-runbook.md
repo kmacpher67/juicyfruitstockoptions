@@ -28,6 +28,27 @@ This runbook documents the intended default behavior and the repeatable restore/
 
 ## Repeatable restore workflows
 
+### 0) Portable artifact workflow (recommended default)
+Create a full backup artifact (dump + manifest + checksums):
+```bash
+./scripts/mongo_backup_artifact.sh
+```
+
+Validate a specific artifact:
+```bash
+./scripts/mongo_backup_validate.sh ./backups/mongo/YYYY/MM/DD/<timestamp>
+```
+
+Restore from latest valid artifact:
+```bash
+./scripts/mongo_restore_artifact.sh --latest
+```
+
+Restore from a specific artifact:
+```bash
+./scripts/mongo_restore_artifact.sh --artifact ./backups/mongo/YYYY/MM/DD/<timestamp>
+```
+
 ### A) Full database restore (recommended)
 1. Ensure stack is up and Mongo is healthy.
 2. Restore:
@@ -74,6 +95,9 @@ docker cp stock_portal_mongo:/tmp/mongo_dump ./mongo_dump
 - `docker-run-stock-app.sh`
 - `scripts/restore_mongo.sh`
 - `scripts/reload_docker_mongo.sh`
+- `scripts/mongo_backup_artifact.sh`
+- `scripts/mongo_backup_validate.sh`
+- `scripts/mongo_restore_artifact.sh`
 - `restore_mongo.py`
 - `docs/features/automated_mongo_backup.md`
 - `docs/learning/mongodb-portable-backup-contract.md`
