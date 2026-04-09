@@ -8,6 +8,11 @@ This runbook documents the intended default behavior and the repeatable restore/
 - Default restore behavior prefers **full database restore** (`mongodump` + `mongorestore`).
 - Legacy JSON (`mongo_backup.json`) is treated as a **single-collection fallback** path only.
 
+## Storage answer (runtime vs backup)
+- Runtime data location: Docker named volume (`juicyfruitstockoptions_mongo_data`) mounted at `/data/db` in the Mongo container.
+- Formal backup location: dated artifacts under `./backups/mongo/...` (portable dump files + metadata/checksum), not raw WiredTiger files.
+- Offsite backup location: encrypted copy of backup artifacts to designated Google Drive folder.
+
 ## Intent and constraints
 - Preserve complete operational data: `users`, `system_config`, `ibkr_holdings`, `ibkr_nav_history`, `ibkr_trades`, `ibkr_orders`, `stock_data`, and related collections.
 - Avoid misleading “successful restore” states that only repopulate one collection.
@@ -71,3 +76,5 @@ docker cp stock_portal_mongo:/tmp/mongo_dump ./mongo_dump
 - `scripts/reload_docker_mongo.sh`
 - `restore_mongo.py`
 - `docs/features/automated_mongo_backup.md`
+- `docs/learning/mongodb-portable-backup-contract.md`
+- `docs/learning/mongodb-backup-validation-checklist.md`

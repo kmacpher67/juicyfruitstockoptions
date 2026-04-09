@@ -176,6 +176,22 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Add a migration notice in docs/README that `mongo_backup.json` does not represent full DB state unless explicitly exported as multi-collection format.
     - [ ] Add nightly backup contract to always produce `mongodump` artifact for complete restores (users/settings/portfolio/trades/nav/orders).
     - [ ] Add post-restore smoke check command/script that fails fast when expected baseline collections are missing.
+- [ ] **mongo-backup-portable-validated-contract-20260409**: Define and adopt a formal, portable Mongo backup/restore contract so backups are retrievable, integrity-checked, and restore-verified across machines.
+    - [ ] **mongo-backup-contract-001**: Standardize artifact shape under `./backups/mongo/YYYY/MM/DD/` including:
+        - [ ] `mongo_dump/` directory (full DB dump from `mongodump`)
+        - [ ] `manifest.json` (timestamp, source host, Mongo image/version, db names, collection list, document counts)
+        - [ ] `sha256sums.txt` (checksums for all backup files)
+    - [ ] **mongo-backup-contract-002**: Formalize retention policy for local artifacts (daily/weekly/monthly windows) and explicit cleanup rules.
+    - [ ] **mongo-backup-contract-003**: Add encrypted offsite replication target (Google Drive folder) for backup artifacts and integrity check after upload/download.
+    - [ ] **mongo-backup-contract-004**: Define restore retrieval contract that selects latest valid artifact by manifest + checksum validation (not file mtime alone).
+    - [ ] **mongo-backup-contract-005**: Define mandatory post-restore validation gate:
+        - [ ] Required collections exist (`users`, `user_settings`, `system_config`, `ibkr_holdings`, `ibkr_nav_history`, `ibkr_trades`, `stock_data`).
+        - [ ] Required baseline counts are non-zero (or documented exception for intentionally empty environments).
+        - [ ] Login smoke test passes for known seeded/admin account.
+    - [ ] **mongo-backup-contract-006**: Define ops SLO targets for recoverability:
+        - [ ] RPO target (acceptable data-loss window) documented.
+        - [ ] RTO target (acceptable restore-time window) documented.
+        - [ ] Monthly restore drill required and logged in docs.
 - [x] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches. *(Completed 2026-04-07: DB-first + async refresh + freshness metadata are now baseline contracts with route-level regression coverage.)*
     - [x] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately. *(Completed 2026-04-07: routes/tests cover persisted-first behavior for ticker analysis, news, opportunity, optimizer, signals, smart-roll, and price-history paths.)*
     - [x] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources. *(Completed 2026-04-07: stale-path responses queue background sync with cooldown-aware dedupe; regression coverage in `tests/test_data_freshness_routes.py` and `tests/test_portfolio_features.py`.)*
@@ -864,3 +880,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-08 | **UPDATED** | Added a local Docker CI-parity Playwright execution path (`docker-compose.e2e.yml`, `scripts/run-playwright-docker.sh`, `PLAYWRIGHT_IN_DOCKER=1 ./test-all.sh`) to avoid host Node-version drift and keep local e2e behavior aligned with CI expectations. |
 | 2026-04-08 | **UPDATED** | Implemented deep link URL memory with hijack protection: `ProtectedRoute` captures current URL into React Router state on redirect, `AuthContext.logout()` persists `redirect_context` in `localStorage` with username guard, `Login.jsx` validates username match on re-login before restoring the deep link (mismatched users bounce to `/`). Synced `Dashboard.jsx` account selection, `PortfolioGrid.jsx` focus filters, and `TradeHistory.jsx` timeframe to URL search params for full reload persistence. Fixed login flow regression where `fetchUser` failure during login triggered `logout()` which removed the just-stored token; login now handles profile-fetch inline with proper cleanup. Added `[AuthContext]` and `[Login]` console.debug/error instrumentation for login diagnostics. |
 | 2026-04-09 | **UPDATED** | Added restore/sync architecture notes: default full-DB restore policy (`mongodump` first, JSON fallback), corrected legacy JSON default collection target, and new planning items for Desktop-primary + Dev-laptop replica + optional cloud DR with Cloudflare Tunnel safety constraints. |
+| 2026-04-09 | **ADDED** | Added formal Mongo backup contract planning requirements (`mongo-backup-portable-validated-contract-20260409`) covering artifact format, checksums, encrypted offsite copy, retrieval validation, restore smoke checks, and RPO/RTO + restore-drill policy. |

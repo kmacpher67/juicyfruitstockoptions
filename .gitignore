@@ -25,6 +25,9 @@ build/
 
 # Mongo binary data (use export_mongo.py instead)
 mongo_data/
+# backups/ came from me during the safety snapshot before the full raw-volume reload.
+backups/
+mongo_dump/
 
 # Allow legacy data csvs
 !ibkr-legacy-data/*.csv
