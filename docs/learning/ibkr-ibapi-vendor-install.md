@@ -54,6 +54,28 @@ What it does:
 3. Downloads the zip, extracts only `IBJts/source/pythonclient/`
 4. Copies it to `vendor/ibapi/`
 
+## Stability Policy (Recommended)
+
+For production/dev stability, do **not** auto-follow "latest" on every rebuild.
+
+Use this workflow:
+1. Keep `vendor/ibapi` committed and treat it like a pinned dependency snapshot.
+2. Only run `./ibkr-ibapi-update.sh <version>` intentionally (with explicit version).
+3. Rebuild backend image, run focused TWS tests, and smoke-check `?view=TRADES&tf=RT`.
+4. Commit the vendored diff together with any required compatibility changes.
+
+This avoids surprise runtime breaks when IBKR changes package/module layout.
+
+### Known 10.x module-shape compatibility
+
+Recent IBKR API bundles can expose commission payloads via
+`ibapi.commission_and_fees_report.CommissionAndFeesReport` instead of the older
+`ibapi.commission_report.CommissionReport`.
+
+If your service imports the old module name only, startup can fail with import errors even
+though `ibapi` is installed. Keep a compatibility import path in the TWS service so both
+variants work.
+
 ### CDN URL pattern
 
 ```
@@ -92,6 +114,18 @@ COPY . .
 ```
 
 Option A is preferred for a dev-focused single-machine setup.
+
+## Runtime Verification Checklist
+
+After rebuild/start, verify from the **backend runtime** (not host shell):
+
+```bash
+docker exec stock_portal_backend python -c "import ibapi,sys; print(sys.executable); print(ibapi.__file__); print(getattr(ibapi, '__version__', 'unknown'))"
+docker exec stock_portal_backend python -c "from app.services.ibkr_tws_service import get_ibkr_tws_service; s=get_ibkr_tws_service(); print(s.get_live_status().get('connection_state')); print(s.get_live_status().get('diagnosis'))"
+```
+
+If this reports `unavailable` with an import error, fix Python package compatibility first.
+Only then debug socket/trusted-IP/handshake settings in TWS.
 
 ## Version History Awareness
 

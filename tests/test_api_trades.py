@@ -154,6 +154,31 @@ def test_get_trade_live_status_exposes_last_failure_details():
     assert data["last_failure_at"] == "2026-03-31T12:19:00"
 
 
+def test_get_trade_live_status_uses_service_started_at_for_unavailable_runtime():
+    fake_tws_service = MagicMock()
+    fake_tws_service.get_live_status.return_value = {
+        "connected": False,
+        "connection_state": "unavailable",
+        "diagnosis": "ibapi is not installed in this runtime.",
+        "service_started_at": "2026-04-09T04:00:00+00:00",
+        "last_execution_update": None,
+        "tws_enabled": False,
+    }
+
+    with patch("app.api.trades.MongoClient") as mock_client, patch(
+        "app.api.trades.get_ibkr_tws_service", return_value=fake_tws_service
+    ):
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.count_documents.return_value = 0
+        mock_db.ibkr_trades.find_one.return_value = None
+
+        data = asyncio.run(trades.get_trade_live_status(current_user=_admin_user()))
+
+    assert data["connection_state"] == "unavailable"
+    assert data["last_failure_reason"] == "ibapi is not installed in this runtime."
+    assert data["last_failure_at"] == "2026-04-09T04:00:00+00:00"
+
+
 def test_get_live_trades_endpoint():
     live_docs = [
         {

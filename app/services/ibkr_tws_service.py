@@ -9,14 +9,26 @@ from typing import Any, Callable
 from app.config import settings
 
 try:
+    import ibapi as _ibapi_pkg
     from ibapi.client import EClient
-    from ibapi.commission_report import CommissionReport
+    try:
+        from ibapi.commission_report import CommissionReport
+        IBAPI_COMMISSION_MODULE = "commission_report"
+    except ImportError:
+        from ibapi.commission_and_fees_report import CommissionAndFeesReport as CommissionReport
+        IBAPI_COMMISSION_MODULE = "commission_and_fees_report"
     from ibapi.contract import Contract
     from ibapi.execution import Execution, ExecutionFilter
     from ibapi.wrapper import EWrapper
 
+    IBAPI_VERSION = getattr(_ibapi_pkg, "__version__", None)
+    IBAPI_MODULE_PATH = getattr(_ibapi_pkg, "__file__", None)
     IBAPI_IMPORT_ERROR: Exception | None = None
 except ImportError as exc:  # pragma: no cover - exercised indirectly in runtime only
+    IBAPI_COMMISSION_MODULE = None
+    IBAPI_VERSION = None
+    IBAPI_MODULE_PATH = None
+
     class EWrapper:  # type: ignore[no-redef]
         pass
 
@@ -481,8 +493,12 @@ class IBKRTWSApp(EWrapper, EClient):
             self.logger.warning("Received commission report without execId.")
             return
 
+        commission_value = getattr(commissionReport, "commission", None)
+        if commission_value in (None, ""):
+            commission_value = getattr(commissionReport, "commissionAndFees", 0)
+
         payload = {
-            "commission": getattr(commissionReport, "commission", 0),
+            "commission": commission_value,
             "commission_currency": getattr(commissionReport, "currency", ""),
             "realized_pnl": getattr(commissionReport, "realizedPNL", 0),
             "yield": getattr(commissionReport, "yield_", 0),
@@ -628,25 +644,38 @@ class IBKRTWSApp(EWrapper, EClient):
     def error(
         self,
         reqId: int,
-        errorCode: int,
-        errorString: str,
+        errorCode_or_time: Any,
+        errorCode_or_message: Any,
+        errorString_or_advanced: Any = "",
         advancedOrderRejectJson: str = "",
     ) -> None:
+        # IBAPI callback signature differs between legacy and newer protobuf-based builds.
+        # Legacy: error(reqId, errorCode, errorString, advancedOrderRejectJson="")
+        # Newer:  error(reqId, errorTime, errorCode, errorString, advancedOrderRejectJson="")
+        if isinstance(errorCode_or_time, int):
+            error_code = int(errorCode_or_time)
+            error_string = str(errorCode_or_message or "")
+            advanced_json = str(errorString_or_advanced or "")
+        else:
+            error_code = int(errorCode_or_message or 0)
+            error_string = str(errorString_or_advanced or "")
+            advanced_json = str(advancedOrderRejectJson or "")
+
         payload = {
             "req_id": reqId,
-            "error_code": errorCode,
-            "error": errorString,
-            "advanced_order_reject_json": advancedOrderRejectJson,
+            "error_code": error_code,
+            "error": error_string,
+            "advanced_order_reject_json": advanced_json,
             "timestamp": self._mark_callback(),
         }
-        if int(errorCode) in INFO_ERROR_CODES:
+        if int(error_code) in INFO_ERROR_CODES:
             with self._lock:
                 self.last_status = payload
             self.logger.info(
                 "TWS API status reqId=%s code=%s message=%s",
                 reqId,
-                errorCode,
-                errorString,
+                error_code,
+                error_string,
             )
             return
 
@@ -655,8 +684,8 @@ class IBKRTWSApp(EWrapper, EClient):
         self.logger.error(
             "TWS API error reqId=%s code=%s message=%s",
             reqId,
-            errorCode,
-            errorString,
+            error_code,
+            error_string,
         )
 
 
@@ -674,6 +703,7 @@ class IBKRTWSService:
         sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self._service_started_at = _utc_now_iso()
         self.enabled = settings.IBKR_TWS_ENABLED if enabled is None else enabled
         self.host = host or settings.IBKR_TWS_HOST
         self.port = settings.IBKR_TWS_PORT if port is None else port
@@ -685,6 +715,13 @@ class IBKRTWSService:
         self._lock = threading.RLock()
         self._app: IBKRTWSApp | None = None
         self._thread: threading.Thread | None = None
+        if IBAPI_IMPORT_ERROR is None:
+            self.logger.info(
+                "Detected ibapi runtime version=%s module_path=%s commission_module=%s",
+                IBAPI_VERSION,
+                IBAPI_MODULE_PATH,
+                IBAPI_COMMISSION_MODULE,
+            )
 
     def _has_handshake_evidence(self, app: IBKRTWSApp | None) -> bool:
         if app is None:
@@ -787,8 +824,16 @@ class IBKRTWSService:
             thread = threading.Thread(target=app.run, daemon=True)
             thread.start()
             self._sleep_fn(1)
-            app.reqPositions()
             self._wait_for_connection_signal(app)
+            if self._has_confirmed_session(app):
+                try:
+                    app.reqPositions()
+                except Exception as exc:
+                    self.logger.warning("Failed to request TWS positions: %s", exc)
+            else:
+                self.logger.warning(
+                    "Skipping reqPositions because no confirmed TWS session was established yet."
+                )
             self.refresh_open_orders()
 
             self._thread = thread
@@ -1187,6 +1232,7 @@ class IBKRTWSService:
                 diagnosis = "TWS is configured but no active session has been established."
 
             return {
+                "service_started_at": self._service_started_at,
                 "connected": connected,
                 "host": self.host,
                 "port": self.port,

@@ -149,6 +149,16 @@ def test_informational_tws_status_does_not_set_last_error():
     assert app.last_status["error_code"] == 2104
 
 
+def test_error_callback_supports_new_ibapi_signature_shape():
+    app = IBKRTWSApp()
+
+    app.error(-1, "2026-04-09 12:45:22", 504, "Not connected", "")
+
+    assert app.last_error is not None
+    assert app.last_error["error_code"] == 504
+    assert app.last_error["error"] == "Not connected"
+
+
 def test_position_callback_subscribes_account_updates_once():
     app = IBKRTWSApp()
     calls = []
@@ -299,6 +309,26 @@ def test_execution_and_commission_callbacks_capture_state():
     assert stored["commission"] == 1.25
     assert stored["realized_pnl"] == 12.5
     assert app.execution_snapshot_complete is True
+
+
+def test_commission_callback_supports_new_ibapi_commission_and_fees_field():
+    app = IBKRTWSApp()
+    app.executions["0002"] = {"exec_id": "0002", "symbol": "MSFT"}
+    commission_report = SimpleNamespace(
+        execId="0002",
+        commissionAndFees=2.75,
+        currency="USD",
+        realizedPNL=8.5,
+        yield_=0.0,
+        yieldRedemptionDate=0,
+    )
+
+    app.commissionReport(commission_report)
+
+    stored = app.executions["0002"]
+    assert stored["commission"] == 2.75
+    assert stored["realized_pnl"] == 8.5
+    assert stored["commission_currency"] == "USD"
 
 
 def test_open_order_and_order_status_callbacks_capture_state():

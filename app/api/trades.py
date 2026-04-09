@@ -72,7 +72,12 @@ async def get_trade_live_status(
     last_error = live_status.get("last_error") or {}
     last_status = live_status.get("last_status") or {}
     last_failure_reason = last_error.get("error") or live_status.get("diagnosis")
-    last_failure_at = last_error.get("timestamp") or last_status.get("timestamp")
+    last_failure_at = (
+        last_error.get("timestamp")
+        or last_status.get("timestamp")
+        or live_status.get("connection_attempted_at")
+        or live_status.get("service_started_at")
+    )
 
     return {
         **live_status,
