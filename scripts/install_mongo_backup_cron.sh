@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<USAGE
+Usage:
+  ./scripts/install_mongo_backup_cron.sh
+
+Optional env vars:
+  WORKDIR        Repo root path (default: current directory)
+  CRON_SCHEDULE  Cron schedule expression (default: 15 2 * * *)
+USAGE
+  exit 0
+fi
+
 WORKDIR="${WORKDIR:-$(pwd)}"
 CRON_SCHEDULE="${CRON_SCHEDULE:-15 2 * * *}"
 TAG="# juicyfruit-mongo-backup-pipeline"

@@ -54,6 +54,11 @@ Restore from a specific artifact:
 ./scripts/mongo_restore_artifact.sh --artifact ./backups/mongo/YYYY/MM/DD/<timestamp>
 ```
 
+Run explicit post-restore smoke gate:
+```bash
+./scripts/mongo_restore_smoke_check.sh
+```
+
 ### 0.1) Manual transfer to Desktop (tar.gz path)
 1. Create package on source machine:
 ```bash
@@ -93,14 +98,37 @@ Optional cron schedule override:
 CRON_SCHEDULE="30 3 * * *" ./scripts/install_mongo_backup_cron.sh
 ```
 
+### Windows equivalent
+- Use Windows Task Scheduler to run:
+  - `bash -lc "cd <repo> && ./scripts/mongo_backup_pipeline.sh >> logs/mongo_backup_pipeline.log 2>&1"`
+- Match the same environment values used in `scripts/mongo_backup_pipeline.env`.
+
 ### Pipeline command (what scheduler runs)
 ```bash
 ./scripts/mongo_backup_pipeline.sh
 ```
 
-### Optional upload hook configuration
-By default, pipeline upload is skipped.
-To enable upload with your own command runner:
+### Google Drive automation configuration
+By default, pipeline upload is skipped unless `DRIVE_FOLDER_ID` is configured.
+
+Native Drive automation uses:
+- `scripts/mongo_backup_drive.py upload-and-verify` (upload + checksum verify)
+- `scripts/mongo_backup_drive.py retention` (remote retention cleanup)
+
+Create env file from template:
+```bash
+cp scripts/mongo_backup_pipeline.env.example scripts/mongo_backup_pipeline.env
+```
+
+Set token source in env file (one of):
+1. `DRIVE_ACCESS_TOKEN` (short-lived direct token)
+2. `DRIVE_ACCESS_TOKEN_CMD` (command that prints token, preferred for automation)
+
+Systemd installer auto-loads:
+- `scripts/mongo_backup_pipeline.env` (if present)
+
+### Optional custom upload hook configuration
+If you do not use native Drive path, you can still use custom upload command.
 ```bash
 BACKUP_UPLOAD_CMD='<your-upload-command>' ./scripts/mongo_backup_pipeline.sh
 ```
@@ -161,7 +189,10 @@ docker cp stock_portal_mongo:/tmp/mongo_dump ./mongo_dump
 - `scripts/mongo_backup_package.sh`
 - `scripts/mongo_backup_unpack.sh`
 - `scripts/mongo_backup_pipeline.sh`
+- `scripts/mongo_backup_drive.py`
+- `scripts/mongo_backup_pipeline.env.example`
 - `scripts/mongo_backup_retention.sh`
+- `scripts/mongo_restore_smoke_check.sh`
 - `scripts/install_mongo_backup_systemd_timer.sh`
 - `scripts/install_mongo_backup_cron.sh`
 - `scripts/mongo_restore_artifact.sh`

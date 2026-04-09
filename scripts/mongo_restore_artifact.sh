@@ -91,4 +91,7 @@ const out={};
 printjson(out);
 '
 
+echo "Running restore smoke check..."
+./scripts/mongo_restore_smoke_check.sh
+
 echo "Restore complete."

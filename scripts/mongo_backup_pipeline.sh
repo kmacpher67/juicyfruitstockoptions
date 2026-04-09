@@ -10,6 +10,9 @@ mkdir -p "$LOG_DIR"
 #   BACKUP_UPLOAD_CMD='rclone copyto' BACKUP_UPLOAD_TARGET='gdrive:JuicyFruit/mongo_backups'
 BACKUP_UPLOAD_CMD="${BACKUP_UPLOAD_CMD:-}"
 BACKUP_UPLOAD_TARGET="${BACKUP_UPLOAD_TARGET:-}"
+DRIVE_FOLDER_ID="${DRIVE_FOLDER_ID:-}"
+DRIVE_RETENTION_DAYS="${DRIVE_RETENTION_DAYS:-30}"
+DRIVE_RETENTION_KEEP_MIN="${DRIVE_RETENTION_KEEP_MIN:-10}"
 
 run_find_latest_artifact() {
   local candidates=""
@@ -25,6 +28,16 @@ run_find_latest_artifact() {
 cd "$WORKDIR"
 
 echo "[pipeline] starting mongo backup pipeline at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+if [[ -n "$DRIVE_FOLDER_ID" ]]; then
+  if [[ -z "${DRIVE_ACCESS_TOKEN:-}" && -z "${DRIVE_ACCESS_TOKEN_CMD:-}" ]]; then
+    echo "[pipeline] ERROR: DRIVE_FOLDER_ID is set but no token source is configured." >&2
+    echo "[pipeline] Set one of:" >&2
+    echo "[pipeline]   DRIVE_ACCESS_TOKEN='<oauth_access_token>'" >&2
+    echo "[pipeline]   DRIVE_ACCESS_TOKEN_CMD='gcloud auth application-default print-access-token'" >&2
+    exit 1
+  fi
+fi
 
 BEFORE_ARTIFACT="$(run_find_latest_artifact || true)"
 
@@ -61,8 +74,19 @@ fi
 
 echo "[pipeline] package ready: $PACKAGE_FILE"
 
-if [[ -n "$BACKUP_UPLOAD_CMD" ]]; then
-  echo "[pipeline] upload step enabled"
+if [[ -n "$DRIVE_FOLDER_ID" ]]; then
+  echo "[pipeline] Drive upload+verify enabled for folder: $DRIVE_FOLDER_ID"
+  python3 ./scripts/mongo_backup_drive.py upload-and-verify \
+    --file "$PACKAGE_FILE" \
+    --folder-id "$DRIVE_FOLDER_ID"
+
+  echo "[pipeline] Drive retention cleanup enabled"
+  python3 ./scripts/mongo_backup_drive.py retention \
+    --folder-id "$DRIVE_FOLDER_ID" \
+    --keep-days "$DRIVE_RETENTION_DAYS" \
+    --keep-min "$DRIVE_RETENTION_KEEP_MIN"
+elif [[ -n "$BACKUP_UPLOAD_CMD" ]]; then
+  echo "[pipeline] custom upload hook enabled"
   if [[ -n "$BACKUP_UPLOAD_TARGET" ]]; then
     # shellcheck disable=SC2086
     $BACKUP_UPLOAD_CMD "$PACKAGE_FILE" "$BACKUP_UPLOAD_TARGET/$(basename "$PACKAGE_FILE")"
@@ -70,9 +94,9 @@ if [[ -n "$BACKUP_UPLOAD_CMD" ]]; then
     # shellcheck disable=SC2086
     $BACKUP_UPLOAD_CMD "$PACKAGE_FILE"
   fi
-  echo "[pipeline] upload step completed"
+  echo "[pipeline] custom upload hook completed"
 else
-  echo "[pipeline] upload step skipped (BACKUP_UPLOAD_CMD not set)"
+  echo "[pipeline] upload step skipped (no DRIVE_FOLDER_ID or BACKUP_UPLOAD_CMD set)"
 fi
 
 echo "[pipeline] running retention cleanup"

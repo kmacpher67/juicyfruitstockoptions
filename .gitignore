@@ -42,3 +42,11 @@ del-old-data/
 # IBKR gateway installer and other deprecated IB integration pattern
 ibgateway-stable-standalone-linux-x64.sh
 clientportal.gw/
+
+# OAuth / Google credential secrets (never commit)
+client_secret.json
+client_secret*.json
+*client_secret*.json
+application_default_credentials.json
+.gcloud/
+secrets/

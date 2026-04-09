@@ -174,48 +174,59 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] Startup script now defaults to auto-restore with source priority: `./mongo_dump` (full DB) first, then `mongo_backup.json` (legacy JSON collection import).
     - [x] Legacy JSON restore default target corrected from `test_stock_data` to `stock_data` to avoid accidental wrong-collection restores.
     - [ ] Add a migration notice in docs/README that `mongo_backup.json` does not represent full DB state unless explicitly exported as multi-collection format.
-    - [ ] Add nightly backup contract to always produce `mongodump` artifact for complete restores (users/settings/portfolio/trades/nav/orders).
-    - [ ] Add post-restore smoke check command/script that fails fast when expected baseline collections are missing.
-- [ ] **mongo-backup-portable-validated-contract-20260409**: Define and adopt a formal, portable Mongo backup/restore contract so backups are retrievable, integrity-checked, and restore-verified across machines.
-    - [ ] **mongo-backup-contract-001**: Standardize artifact shape under `./backups/mongo/YYYY/MM/DD/` including:
-        - [ ] `mongo_dump/` directory (full DB dump from `mongodump`)
-        - [ ] `manifest.json` (timestamp, source host, Mongo image/version, db names, collection list, document counts)
-        - [ ] `sha256sums.txt` (checksums for all backup files)
-    - [ ] **mongo-backup-contract-002**: Formalize retention policy for local artifacts (daily/weekly/monthly windows) and explicit cleanup rules.
-    - [ ] **mongo-backup-contract-003**: Add encrypted offsite replication target (Google Drive folder) for backup artifacts and integrity check after upload/download.
-    - [ ] **mongo-backup-contract-004**: Define restore retrieval contract that selects latest valid artifact by manifest + checksum validation (not file mtime alone).
-    - [ ] **mongo-backup-contract-005**: Define mandatory post-restore validation gate:
-        - [ ] Required collections exist (`users`, `user_settings`, `system_config`, `ibkr_holdings`, `ibkr_nav_history`, `ibkr_trades`, `stock_data`).
-        - [ ] Required baseline counts are non-zero (or documented exception for intentionally empty environments).
-        - [ ] Login smoke test passes for known seeded/admin account.
+    - [x] Add nightly backup contract to always produce `mongodump` artifact for complete restores (users/settings/portfolio/trades/nav/orders). *(Implemented 2026-04-09: `scripts/mongo_backup_pipeline.sh` + scheduler installers for systemd/cron.)*
+    - [x] Add post-restore smoke check command/script that fails fast when expected baseline collections are missing. *(Implemented 2026-04-09: `scripts/mongo_restore_smoke_check.sh`, called by `mongo_restore_artifact.sh`.)*
+- [/] **mongo-backup-portable-validated-contract-20260409**: Define and adopt a formal, portable Mongo backup/restore contract so backups are retrievable, integrity-checked, and restore-verified across machines.
+    - [x] **mongo-backup-contract-001**: Standardize artifact shape under `./backups/mongo/YYYY/MM/DD/` including:
+        - [x] `mongo_dump/` directory (full DB dump from `mongodump`)
+        - [x] `manifest.json` (timestamp, source host, Mongo image/version, db names, collection list, document counts)
+        - [x] `sha256sums.txt` (checksums for all backup files)
+    - [x] **mongo-backup-contract-002**: Formalize retention policy for local artifacts (daily/weekly/monthly windows) and explicit cleanup rules. *(Implemented 2026-04-09: local retention script with configurable keep windows.)*
+    - [x] **mongo-backup-contract-003**: Add encrypted offsite replication target (Google Drive folder) for backup artifacts and integrity check after upload/download. *(Implemented 2026-04-09: added `scripts/mongo_backup_drive.py` with upload-and-verify flow (re-download + SHA256 compare), pipeline integration via `DRIVE_FOLDER_ID`, and ops logging in `logs/mongo_backup_drive_ops.jsonl`. Final token provisioning/ops rollout remains environment configuration.)*
+    - [x] **mongo-backup-contract-004**: Define restore retrieval contract that selects latest valid artifact by manifest + checksum validation (not file mtime alone). *(Implemented 2026-04-09: restore path resolves latest artifact and validates manifest/checksum before restore.)*
+    - [x] **mongo-backup-contract-005**: Define mandatory post-restore validation gate:
+        - [x] Required collections exist (`users`, `user_settings`, `system_config`, `ibkr_holdings`, `ibkr_nav_history`, `ibkr_trades`, `stock_data`).
+        - [x] Required baseline counts are non-zero (or documented exception for intentionally empty environments).
+        - [x] Login smoke test passes for known seeded/admin account. *(Implemented as optional strict gate via `REQUIRE_LOGIN_SMOKE=true` in smoke script.)*
     - [ ] **mongo-backup-contract-006**: Define ops SLO targets for recoverability:
         - [ ] RPO target (acceptable data-loss window) documented.
         - [ ] RTO target (acceptable restore-time window) documented.
         - [ ] Monthly restore drill required and logged in docs.
-    - [ ] **mongo-backup-contract-007**: Define automation scheduler contract and implementation target:
-        - [ ] Prefer `systemd timer` on Linux always-on host for reliability/logging/restart behavior.
-        - [ ] Allow `cron` fallback when `systemd --user` timers are unavailable.
-        - [ ] Document Windows Task Scheduler equivalent for Desktop-hosted runtime.
-    - [ ] **mongo-backup-contract-008**: Define end-to-end automated pipeline ordering:
-        - [ ] Step 1: Create artifact (`mongo_backup_artifact.sh`)
-        - [ ] Step 2: Validate artifact locally (`mongo_backup_validate.sh`)
-        - [ ] Step 3: Package transfer artifact (`mongo_backup_package.sh`)
-        - [ ] Step 4: Upload to Google Drive backup folder
-        - [ ] Step 5: Verify remote upload integrity (periodic download + checksum validation)
-        - [ ] Pipeline run is failed if any step fails; no partial-success status.
-    - [ ] **mongo-backup-contract-009**: Define Google Drive backup automation contract:
-        - [ ] Backup folder ID/URL is configured once and treated as source-of-truth destination.
-        - [ ] File naming convention includes `backup_id` timestamp for deterministic retrieval.
-        - [ ] Upload metadata log is persisted locally (timestamp, artifact path, remote file id/url, checksum status).
-        - [ ] Add periodic cleanup policy for remote retention aligned to local retention.
-- [/] **mongo-backup-tooling-bootstrap-20260409**: Establish practical operator tooling for portable backup transfer and restore before full scheduler/offsite automation is finalized.
+    - [x] **mongo-backup-contract-007**: Define automation scheduler contract and implementation target:
+        - [x] Prefer `systemd timer` on Linux always-on host for reliability/logging/restart behavior.
+        - [x] Allow `cron` fallback when `systemd --user` timers are unavailable.
+        - [x] Document Windows Task Scheduler equivalent for Desktop-hosted runtime.
+    - [x] **mongo-backup-contract-008**: Define end-to-end automated pipeline ordering:
+        - [x] Step 1: Create artifact (`mongo_backup_artifact.sh`)
+        - [x] Step 2: Validate artifact locally (`mongo_backup_validate.sh`)
+        - [x] Step 3: Package transfer artifact (`mongo_backup_package.sh`)
+        - [x] Step 4: Upload to Google Drive backup folder
+        - [x] Step 5: Verify remote upload integrity (periodic download + checksum validation)
+        - [x] Pipeline run is failed if any step fails; no partial-success status.
+    - [x] **mongo-backup-contract-009**: Define Google Drive backup automation contract:
+        - [x] Backup folder ID/URL is configured once and treated as source-of-truth destination.
+        - [x] File naming convention includes `backup_id` timestamp for deterministic retrieval.
+        - [x] Upload metadata log is persisted locally (timestamp, artifact path, remote file id/url, checksum status).
+        - [x] Add periodic cleanup policy for remote retention aligned to local retention.
+    - [ ] **mongo-backup-contract-010**: Service Account security hardening for Google Drive backup automation (per `docs/learning/google-drive-setup_guide.md`, section “GOOGLE DOCS SECURITY and LIMITED ACCESS”).
+        - [ ] **Operator setup (Ken)**:
+            - [ ] Create dedicated automation identity strategy: either sandbox Gmail account or Google Cloud Service Account.
+            - [ ] Create/verify dedicated backup folder ownership model and share only that folder with automation identity (`Editor`).
+            - [ ] If Service Account is chosen: create key material, store outside repo (`secrets/`), and rotate/revoke old keys.
+            - [ ] Revoke prior broad user-token app connections not needed anymore.
+        - [ ] **Implementation setup (Codex/Codebase)**:
+            - [ ] Add Drive auth mode selection to pipeline docs (`user-token` vs `service-account`).
+            - [ ] Add service-account token acquisition path in backup tooling (no interactive browser flow).
+            - [ ] Add preflight guardrails that fail if secret path is missing or permissions are too open.
+            - [ ] Add audit log fields for auth mode used on each upload operation.
+- [x] **mongo-backup-tooling-bootstrap-20260409**: Establish practical operator tooling for portable backup transfer and restore before full scheduler/offsite automation is finalized.
     - [x] Added backup artifact generator script (`scripts/mongo_backup_artifact.sh`) that writes dated artifacts under `./backups/mongo/YYYY/MM/DD/<timestamp>/` with `mongo_dump/`, `manifest.json`, and `sha256sums.txt`.
     - [x] Added artifact integrity validator (`scripts/mongo_backup_validate.sh`) for required files + manifest parse + checksum verification.
     - [x] Added artifact-based restore wrapper (`scripts/mongo_restore_artifact.sh`) with baseline post-restore collection counts.
     - [x] Added transfer packaging helpers (`scripts/mongo_backup_package.sh`, `scripts/mongo_backup_unpack.sh`) to avoid path-mismatch errors across machines.
     - [x] Updated runbook with corrected manual transfer/restore flow and Google Drive destination folder reference.
     - [x] Added scheduler execution wrapper scripts (`systemd timer` preferred, `cron` fallback) for unattended daily pipeline runs.
-    - [ ] Add automated Google Drive upload + remote verification + retention cleanup to complete the end-to-end offsite automation path.
+    - [x] Added automated Google Drive upload + remote verification + retention cleanup path in pipeline (`DRIVE_FOLDER_ID` + token env configuration).
 - [x] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches. *(Completed 2026-04-07: DB-first + async refresh + freshness metadata are now baseline contracts with route-level regression coverage.)*
     - [x] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately. *(Completed 2026-04-07: routes/tests cover persisted-first behavior for ticker analysis, news, opportunity, optimizer, signals, smart-roll, and price-history paths.)*
     - [x] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources. *(Completed 2026-04-07: stale-path responses queue background sync with cooldown-aware dedupe; regression coverage in `tests/test_data_freshness_routes.py` and `tests/test_portfolio_features.py`.)*
@@ -908,3 +919,6 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-09 | **UPDATED** | Expanded Mongo backup contract planning with explicit automation sequencing and destination policy: scheduler standard (`systemd timer` preferred, `cron` fallback), Google Drive upload + remote verification steps, and remote retention/metadata logging requirements. |
 | 2026-04-09 | **UPDATED** | Added bootstrap progress tracking for implemented backup tooling (`mongo_backup_artifact.sh`, `mongo_backup_validate.sh`, `mongo_restore_artifact.sh`, package/unpack helpers) and marked scheduler + Drive automation as remaining work under `mongo-backup-tooling-bootstrap-20260409`. |
 | 2026-04-09 | **UPDATED** | Implemented backup automation scripts and docs: added `mongo_backup_pipeline.sh`, retention cleanup, and scheduler installers (`install_mongo_backup_systemd_timer.sh`, `install_mongo_backup_cron.sh`), and marked scheduler wrapper sub-item complete while keeping Google Drive upload/verify automation open. |
+| 2026-04-09 | **UPDATED** | Completed Google Drive automation coding slice for backup pipeline: added `mongo_backup_drive.py` (upload, verify, upload-and-verify, retention), integrated Drive steps into pipeline via `DRIVE_FOLDER_ID`, added environment template for unattended configuration, and promoted corresponding backup F-R sub-items to implemented state. |
+| 2026-04-09 | **UPDATED** | Added `mongo_restore_smoke_check.sh` and wired it into artifact restore flow; promoted backup contract sub-items for artifact structure, retrieval validation, scheduler strategy, and end-to-end pipeline ordering to implemented status. Remaining open item is recoverability SLO policy (`RPO/RTO` + monthly drill logging). |
+| 2026-04-09 | **ADDED** | Added Service Account security hardening requirement (`mongo-backup-contract-010`) with explicit operator-vs-implementation responsibilities, aligned to `docs/learning/google-drive-setup_guide.md` recommendations for least-privilege backup automation. |
