@@ -70,6 +70,46 @@ Restore from a specific artifact:
 Google Drive backup folder:
 - `https://drive.google.com/drive/folders/143kk-X98X-JBuA-73ZI9GfpOrX3fvKok`
 
+## Automation setup (Linux)
+Preferred scheduler is `systemd --user` timer; cron remains fallback.
+
+### Install daily timer (preferred)
+```bash
+./scripts/install_mongo_backup_systemd_timer.sh
+```
+
+Optional schedule override (UTC):
+```bash
+SCHEDULE_UTC=03:30:00 ./scripts/install_mongo_backup_systemd_timer.sh
+```
+
+### Install cron fallback
+```bash
+./scripts/install_mongo_backup_cron.sh
+```
+
+Optional cron schedule override:
+```bash
+CRON_SCHEDULE="30 3 * * *" ./scripts/install_mongo_backup_cron.sh
+```
+
+### Pipeline command (what scheduler runs)
+```bash
+./scripts/mongo_backup_pipeline.sh
+```
+
+### Optional upload hook configuration
+By default, pipeline upload is skipped.
+To enable upload with your own command runner:
+```bash
+BACKUP_UPLOAD_CMD='<your-upload-command>' ./scripts/mongo_backup_pipeline.sh
+```
+
+Example with `rclone` (if installed/configured):
+```bash
+BACKUP_UPLOAD_CMD='rclone copyto' BACKUP_UPLOAD_TARGET='gdrive:JuicyFruit/mongo_backups' ./scripts/mongo_backup_pipeline.sh
+```
+
 ### A) Full database restore (recommended)
 1. Ensure stack is up and Mongo is healthy.
 2. Restore:
@@ -120,6 +160,10 @@ docker cp stock_portal_mongo:/tmp/mongo_dump ./mongo_dump
 - `scripts/mongo_backup_validate.sh`
 - `scripts/mongo_backup_package.sh`
 - `scripts/mongo_backup_unpack.sh`
+- `scripts/mongo_backup_pipeline.sh`
+- `scripts/mongo_backup_retention.sh`
+- `scripts/install_mongo_backup_systemd_timer.sh`
+- `scripts/install_mongo_backup_cron.sh`
 - `scripts/mongo_restore_artifact.sh`
 - `restore_mongo.py`
 - `docs/features/automated_mongo_backup.md`

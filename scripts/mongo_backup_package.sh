@@ -60,7 +60,9 @@ fi
 
 ./scripts/mongo_backup_validate.sh "$ARTIFACT_DIR" >/dev/null
 
-REL="${ARTIFACT_DIR#./backups/}"
+REL="$ARTIFACT_DIR"
+REL="${REL#./backups/}"
+REL="${REL#$PWD/backups/}"
 if [[ "$REL" == "$ARTIFACT_DIR" ]]; then
   echo "ERROR: artifact must be under ./backups for stable packaging path" >&2
   exit 1
