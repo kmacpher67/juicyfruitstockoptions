@@ -49,13 +49,16 @@ if [[ -z "$ARTIFACT_DIR" ]]; then
 fi
 
 if [[ "$ARTIFACT_DIR" == "__LATEST__" ]]; then
-  if [[ ! -d ./backups/mongo ]]; then
-    echo "ERROR: backups root not found: ./backups/mongo" >&2
-    exit 1
+  CANDIDATES=""
+  if [[ -d ./backups/mongo ]]; then
+    CANDIDATES+="$(find ./backups/mongo -type f -name manifest.json -printf '%h\n' 2>/dev/null || true)\n"
   fi
-  ARTIFACT_DIR="$(find ./backups/mongo -type f -name manifest.json -printf '%h\n' | sort | tail -n1)"
+  if [[ -d ./backups ]]; then
+    CANDIDATES+="$(find ./backups -type f -name manifest.json -printf '%h\n' 2>/dev/null || true)\n"
+  fi
+  ARTIFACT_DIR="$(printf "%b" "$CANDIDATES" | awk 'NF' | sort -u | tail -n1)"
   if [[ -z "$ARTIFACT_DIR" ]]; then
-    echo "ERROR: no artifacts found under ./backups/mongo" >&2
+    echo "ERROR: no artifacts found under ./backups or ./backups/mongo" >&2
     exit 1
   fi
 fi

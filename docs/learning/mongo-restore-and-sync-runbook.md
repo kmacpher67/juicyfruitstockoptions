@@ -34,6 +34,11 @@ Create a full backup artifact (dump + manifest + checksums):
 ./scripts/mongo_backup_artifact.sh
 ```
 
+Package the latest artifact for transfer (preserves `backups/...` path layout):
+```bash
+./scripts/mongo_backup_package.sh --latest
+```
+
 Validate a specific artifact:
 ```bash
 ./scripts/mongo_backup_validate.sh ./backups/mongo/YYYY/MM/DD/<timestamp>
@@ -48,6 +53,22 @@ Restore from a specific artifact:
 ```bash
 ./scripts/mongo_restore_artifact.sh --artifact ./backups/mongo/YYYY/MM/DD/<timestamp>
 ```
+
+### 0.1) Manual transfer to Desktop (tar.gz path)
+1. Create package on source machine:
+```bash
+./scripts/mongo_backup_package.sh --latest
+```
+2. Upload resulting file `./backups/mongo_backup_<backup_id>.tar.gz` to transfer target.
+3. On Desktop machine, download file into repo `./backups/`.
+4. Unpack and restore:
+```bash
+./scripts/mongo_backup_unpack.sh ./backups/mongo_backup_<backup_id>.tar.gz
+./scripts/mongo_restore_artifact.sh --latest
+```
+
+Google Drive backup folder:
+- `https://drive.google.com/drive/folders/143kk-X98X-JBuA-73ZI9GfpOrX3fvKok`
 
 ### A) Full database restore (recommended)
 1. Ensure stack is up and Mongo is healthy.
@@ -97,6 +118,8 @@ docker cp stock_portal_mongo:/tmp/mongo_dump ./mongo_dump
 - `scripts/reload_docker_mongo.sh`
 - `scripts/mongo_backup_artifact.sh`
 - `scripts/mongo_backup_validate.sh`
+- `scripts/mongo_backup_package.sh`
+- `scripts/mongo_backup_unpack.sh`
 - `scripts/mongo_restore_artifact.sh`
 - `restore_mongo.py`
 - `docs/features/automated_mongo_backup.md`
