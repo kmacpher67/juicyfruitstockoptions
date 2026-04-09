@@ -99,6 +99,13 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Identify headache factors (latency, maintenance).
     - [ ] **Budget**: Approximate monthly budget cap for cloud hosting of ~$20, less than $30. 
     - [ ] Create latency monitoring script to test IBKR API response times from cloud regions.
+- [ ] **Data Sync Topology (Desktop + Dev Laptop + Optional Cloud DR)**:
+    - [ ] Set Desktop as primary/source-of-truth runtime (trading-adjacent + lowest IBKR friction).
+    - [ ] Define Dev Laptop as replica target for development/testing refreshes from Desktop backups.
+    - [ ] Add repeatable sync pipeline: Desktop `mongodump` artifact -> encrypted storage target -> Laptop `mongorestore`.
+    - [ ] Add restore verification checks after sync (`users`, `ibkr_holdings`, `ibkr_nav_history`, `ibkr_trades`, `stock_data` non-empty expectations).
+    - [ ] If exposing app remotely, prefer Cloudflare Tunnel to app/web only; never expose MongoDB port directly to WAN.
+    - [ ] If cloud-hosting later, position cloud DB as backup/DR replica first, not write-primary, until conflict-resolution policy is defined.
 - [ ] **Docker Hardening**: Secure containers when exposed to the internet (ports, user permissions, secrets).
     - [ ] Implement non-root user in Dockerfiles.
     - [ ] Set up Docker Secrets or strict Env Var management (no hardcoded secrets).
@@ -163,6 +170,12 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [X] Automate backup to GitHub (current manual process).
     - [X] Investigate Google Drive as alternative storage.
     - [X] *Action*: Have agent follow `learning-opportunity.md` to recommend best backup practices.
+- [/] **mongo-restore-default-full-db-20260409**: Make full-database restore the default startup behavior and keep single-collection JSON import as legacy fallback only.
+    - [x] Startup script now defaults to auto-restore with source priority: `./mongo_dump` (full DB) first, then `mongo_backup.json` (legacy JSON collection import).
+    - [x] Legacy JSON restore default target corrected from `test_stock_data` to `stock_data` to avoid accidental wrong-collection restores.
+    - [ ] Add a migration notice in docs/README that `mongo_backup.json` does not represent full DB state unless explicitly exported as multi-collection format.
+    - [ ] Add nightly backup contract to always produce `mongodump` artifact for complete restores (users/settings/portfolio/trades/nav/orders).
+    - [ ] Add post-restore smoke check command/script that fails fast when expected baseline collections are missing.
 - [x] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches. *(Completed 2026-04-07: DB-first + async refresh + freshness metadata are now baseline contracts with route-level regression coverage.)*
     - [x] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately. *(Completed 2026-04-07: routes/tests cover persisted-first behavior for ticker analysis, news, opportunity, optimizer, signals, smart-roll, and price-history paths.)*
     - [x] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources. *(Completed 2026-04-07: stale-path responses queue background sync with cooldown-aware dedupe; regression coverage in `tests/test_data_freshness_routes.py` and `tests/test_portfolio_features.py`.)*
@@ -850,3 +863,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-08 | **UPDATED** | Added and implemented UI contrast/visibility standard for actionable ticker links and gain/loss semantics across Analysis/Portfolio/Trades/Orders/Juicys grids (solid `D/G/Y` link contrast + high-contrast success/error tones). |
 | 2026-04-08 | **UPDATED** | Added a local Docker CI-parity Playwright execution path (`docker-compose.e2e.yml`, `scripts/run-playwright-docker.sh`, `PLAYWRIGHT_IN_DOCKER=1 ./test-all.sh`) to avoid host Node-version drift and keep local e2e behavior aligned with CI expectations. |
 | 2026-04-08 | **UPDATED** | Implemented deep link URL memory with hijack protection: `ProtectedRoute` captures current URL into React Router state on redirect, `AuthContext.logout()` persists `redirect_context` in `localStorage` with username guard, `Login.jsx` validates username match on re-login before restoring the deep link (mismatched users bounce to `/`). Synced `Dashboard.jsx` account selection, `PortfolioGrid.jsx` focus filters, and `TradeHistory.jsx` timeframe to URL search params for full reload persistence. Fixed login flow regression where `fetchUser` failure during login triggered `logout()` which removed the just-stored token; login now handles profile-fetch inline with proper cleanup. Added `[AuthContext]` and `[Login]` console.debug/error instrumentation for login diagnostics. |
+| 2026-04-09 | **UPDATED** | Added restore/sync architecture notes: default full-DB restore policy (`mongodump` first, JSON fallback), corrected legacy JSON default collection target, and new planning items for Desktop-primary + Dev-laptop replica + optional cloud DR with Cloudflare Tunnel safety constraints. |
