@@ -192,6 +192,22 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] RPO target (acceptable data-loss window) documented.
         - [ ] RTO target (acceptable restore-time window) documented.
         - [ ] Monthly restore drill required and logged in docs.
+    - [ ] **mongo-backup-contract-007**: Define automation scheduler contract and implementation target:
+        - [ ] Prefer `systemd timer` on Linux always-on host for reliability/logging/restart behavior.
+        - [ ] Allow `cron` fallback when `systemd --user` timers are unavailable.
+        - [ ] Document Windows Task Scheduler equivalent for Desktop-hosted runtime.
+    - [ ] **mongo-backup-contract-008**: Define end-to-end automated pipeline ordering:
+        - [ ] Step 1: Create artifact (`mongo_backup_artifact.sh`)
+        - [ ] Step 2: Validate artifact locally (`mongo_backup_validate.sh`)
+        - [ ] Step 3: Package transfer artifact (`mongo_backup_package.sh`)
+        - [ ] Step 4: Upload to Google Drive backup folder
+        - [ ] Step 5: Verify remote upload integrity (periodic download + checksum validation)
+        - [ ] Pipeline run is failed if any step fails; no partial-success status.
+    - [ ] **mongo-backup-contract-009**: Define Google Drive backup automation contract:
+        - [ ] Backup folder ID/URL is configured once and treated as source-of-truth destination.
+        - [ ] File naming convention includes `backup_id` timestamp for deterministic retrieval.
+        - [ ] Upload metadata log is persisted locally (timestamp, artifact path, remote file id/url, checksum status).
+        - [ ] Add periodic cleanup policy for remote retention aligned to local retention.
 - [x] **Data Freshness & DB-First Read Architecture**: Make database-first reads the default contract for all market-data APIs so frontend speed and integrity do not depend on synchronous external fetches. *(Completed 2026-04-07: DB-first + async refresh + freshness metadata are now baseline contracts with route-level regression coverage.)*
     - [x] **data-freshness-db-first-001**: Enforce DB-first reads for all data-related frontend queries (analysis, ticker detail, opportunities, optimizer, signals, portfolio enrichments). API handlers must query Mongo first and return best-available persisted snapshot immediately. *(Completed 2026-04-07: routes/tests cover persisted-first behavior for ticker analysis, news, opportunity, optimizer, signals, smart-roll, and price-history paths.)*
     - [x] **data-freshness-db-first-002**: If requested fields are stale, queue asynchronous refresh jobs instead of blocking request/response on live external sources. *(Completed 2026-04-07: stale-path responses queue background sync with cooldown-aware dedupe; regression coverage in `tests/test_data_freshness_routes.py` and `tests/test_portfolio_features.py`.)*
@@ -881,3 +897,4 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 | 2026-04-08 | **UPDATED** | Implemented deep link URL memory with hijack protection: `ProtectedRoute` captures current URL into React Router state on redirect, `AuthContext.logout()` persists `redirect_context` in `localStorage` with username guard, `Login.jsx` validates username match on re-login before restoring the deep link (mismatched users bounce to `/`). Synced `Dashboard.jsx` account selection, `PortfolioGrid.jsx` focus filters, and `TradeHistory.jsx` timeframe to URL search params for full reload persistence. Fixed login flow regression where `fetchUser` failure during login triggered `logout()` which removed the just-stored token; login now handles profile-fetch inline with proper cleanup. Added `[AuthContext]` and `[Login]` console.debug/error instrumentation for login diagnostics. |
 | 2026-04-09 | **UPDATED** | Added restore/sync architecture notes: default full-DB restore policy (`mongodump` first, JSON fallback), corrected legacy JSON default collection target, and new planning items for Desktop-primary + Dev-laptop replica + optional cloud DR with Cloudflare Tunnel safety constraints. |
 | 2026-04-09 | **ADDED** | Added formal Mongo backup contract planning requirements (`mongo-backup-portable-validated-contract-20260409`) covering artifact format, checksums, encrypted offsite copy, retrieval validation, restore smoke checks, and RPO/RTO + restore-drill policy. |
+| 2026-04-09 | **UPDATED** | Expanded Mongo backup contract planning with explicit automation sequencing and destination policy: scheduler standard (`systemd timer` preferred, `cron` fallback), Google Drive upload + remote verification steps, and remote retention/metadata logging requirements. |
