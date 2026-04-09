@@ -31,3 +31,11 @@ mongo_data/
 
 # Claude AI agent worktrees
 .claude/worktrees/
+
+# Local data directories (data is cached .csv .xml files from IB flex and yfinance)
+data/
+del-old-data/
+
+# IBKR gateway installer and other deprecated IB integration pattern
+ibgateway-stable-standalone-linux-x64.sh
+clientportal.gw/
