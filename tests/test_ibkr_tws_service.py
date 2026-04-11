@@ -159,6 +159,16 @@ def test_error_callback_supports_new_ibapi_signature_shape():
     assert app.last_error["error"] == "Not connected"
 
 
+def test_error_callback_supports_new_ibapi_integer_timestamp_signature():
+    app = IBKRTWSApp()
+
+    app.error(-1, 1775920402750, 326, "Unable to connect as the client id is already in use", "")
+
+    assert app.last_error is not None
+    assert app.last_error["error_code"] == 326
+    assert "client id is already in use" in app.last_error["error"]
+
+
 def test_position_callback_subscribes_account_updates_once():
     app = IBKRTWSApp()
     calls = []

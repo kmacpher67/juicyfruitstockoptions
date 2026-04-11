@@ -151,6 +151,7 @@ Recommended same-runtime check:
 
 ```bash
 python -m app.scripts.ibkr_tws_cli execution-diagnostics --force-enable
+python -m app.scripts.ibkr_tws_cli probe-callbacks --force-enable --client-id 99
 ```
 
 This should show:
@@ -158,3 +159,4 @@ This should show:
 - `execution_count`
 - `action_counts`
 - recent `outcome_rows` if any `EXPIRED` / `ASSIGNED` / `EXERCISED` rows were actually received
+- handshake/callback counts from a unique-client same-runtime probe when normal connect attempts are colliding with an in-use client id

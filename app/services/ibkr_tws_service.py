@@ -664,7 +664,23 @@ class IBKRTWSApp(EWrapper, EClient):
         # IBAPI callback signature differs between legacy and newer protobuf-based builds.
         # Legacy: error(reqId, errorCode, errorString, advancedOrderRejectJson="")
         # Newer:  error(reqId, errorTime, errorCode, errorString, advancedOrderRejectJson="")
-        if isinstance(errorCode_or_time, int):
+        is_newer_signature = (
+            errorCode_or_time is not None
+            and errorCode_or_message is not None
+            and not isinstance(errorCode_or_time, int)
+            and isinstance(errorCode_or_message, int)
+        )
+
+        # Some newer builds pass an integer millisecond timestamp as the second
+        # argument, which would otherwise be mistaken for a legacy error code.
+        if (
+            isinstance(errorCode_or_time, int)
+            and isinstance(errorCode_or_message, int)
+            and errorCode_or_time > 1_000_000
+        ):
+            is_newer_signature = True
+
+        if not is_newer_signature and isinstance(errorCode_or_time, int):
             error_code = int(errorCode_or_time)
             error_string = str(errorCode_or_message or "")
             advanced_json = str(errorString_or_advanced or "")

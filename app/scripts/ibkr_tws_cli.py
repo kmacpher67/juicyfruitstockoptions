@@ -195,6 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[
             "status",
             "connect-test",
+            "probe-callbacks",
             "raw-connect-test",
             "positions",
             "sync-positions",
@@ -265,6 +266,24 @@ def main() -> None:
                 payload = {
                     "connect_returned": connect_result,
                     **service.get_live_status(),
+                }
+            elif args.command == "probe-callbacks":
+                positions_requested = False
+                open_orders_requested = False
+                executions_requested = False
+                live_status = service.get_live_status()
+                if live_status.get("connected"):
+                    positions_requested = bool(service.refresh_open_orders() is not False)
+                    executions_requested = service.refresh_executions(account=args.account)
+                    open_orders_requested = True if positions_requested else False
+                payload = {
+                    "connect_returned": connect_result,
+                    "live_status": live_status,
+                    "positions_count": len(service.get_positions()),
+                    "open_orders_count": len(service.get_open_orders(account=args.account, active_only=False)),
+                    "execution_diagnostics": service.get_execution_diagnostics(account=args.account),
+                    "open_orders_requested": open_orders_requested,
+                    "executions_requested": executions_requested,
                 }
             elif args.command == "positions":
                 payload = service.get_positions()
