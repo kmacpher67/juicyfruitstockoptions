@@ -89,11 +89,12 @@ This is the strongest reason not to treat same-night TWS observations as final a
 - Model expiration outcomes explicitly instead of assuming missing positions imply finalized worthless expiration.
 - Prefer finalized P&L from next-day reconciliation, while allowing provisional same-day visibility in the UI.
 - Keep assignment/exercise paths linked to resulting stock trades so the operator can trace the full outcome.
+- Keep Trade History time windows explicit: `RT` is current-calendar-day live data, while `1D` is the last completed trading day and should continue to show Friday outcomes across the weekend and into Monday.
 
 ## Follow-Up Questions
 
 - [x] Operator observation: the TWS Trades window `ACTION` column can show `EXPIRED` and `ASSIGNED` on Friday night / Saturday morning before the next Activity Flex cycle lands.
-- [ ] Which exact TWS API callback / persisted record shape carries the same `ACTION` values shown in the TWS Trades window, and do we already ingest that field or only classic execution-side fields?
+- [/] Current implementation now preserves raw execution-side action text from TWS execution ingestion into `ibkr_trades` as `action` / `raw_action`, but the exact callback-to-TWS-Trades-window mapping for `EXPIRED` and `ASSIGNED` still needs broker/API confirmation.
 - [ ] Should the trade-history UI show a provisional badge for same-day expiration outcomes until the next Activity Flex run lands?
 
 ## Sources

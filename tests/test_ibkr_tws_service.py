@@ -306,9 +306,46 @@ def test_execution_and_commission_callbacks_capture_state():
     assert stored["symbol"] == "AAPL"
     assert stored["account"] == "DU123456"
     assert stored["buy_sell"] == "BOT"
+    assert stored["action"] == "BOT"
+    assert stored["raw_action"] == "BOT"
     assert stored["commission"] == 1.25
     assert stored["realized_pnl"] == 12.5
     assert app.execution_snapshot_complete is True
+
+
+def test_exec_details_preserves_non_fill_action_values():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="ZETA",
+        localSymbol="ZETA  260410C00015500",
+        secType="OPT",
+        exchange="OCC",
+        currency="USD",
+    )
+    execution = SimpleNamespace(
+        execId="expired001",
+        acctNumber="U110638",
+        side="EXPIRED",
+        shares=1,
+        price=0.0,
+        avgPrice=0.0,
+        cumQty=1,
+        orderId=701,
+        permId=9001,
+        clientId=5,
+        time="2026-04-10 22:17:14 US/Eastern",
+        lastLiquidity=0,
+    )
+
+    app.execDetails(9001, contract, execution)
+
+    stored = app.executions["expired001"]
+    assert stored["buy_sell"] == "EXPIRED"
+    assert stored["normalized_buy_sell"] == "EXPIRED"
+    assert stored["action"] == "EXPIRED"
+    assert stored["raw_action"] == "EXPIRED"
+    assert stored["outcome_action"] == "EXPIRED"
+    assert stored["underlying_symbol"] == "ZETA"
 
 
 def test_commission_callback_supports_new_ibapi_commission_and_fees_field():
@@ -392,6 +429,23 @@ def test_refresh_open_orders_requests_all_open_orders(monkeypatch):
 
     assert requested is True
     assert fake_app.req_all_open_orders_called is True
+
+
+def test_refresh_open_orders_returns_false_when_ibapi_request_raises(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.connected = True
+
+    def _boom():
+        raise TypeError("serverVersion is None")
+
+    fake_app.reqAllOpenOrders = _boom
+    service = IBKRTWSService(enabled=True, app_factory=lambda: fake_app, sleep_fn=lambda _: None)
+    service._app = fake_app
+
+    requested = service.refresh_open_orders()
+
+    assert requested is False
 
 
 def test_upsert_open_orders_to_db_writes_ibkr_orders(monkeypatch):
@@ -638,12 +692,54 @@ def test_upsert_executions_to_db_maps_trade_fields(monkeypatch):
     assert args[0] == {"trade_id": "0001"}
     stored_doc = args[1]["$set"]
     assert stored_doc["source"] == "tws_live"
+    assert stored_doc["source_stage"] == "provisional_realtime"
+    assert stored_doc["record_status"] == "provisional"
     assert stored_doc["trade_id"] == "0001"
     assert stored_doc["account_id"] == "DU123456"
     assert stored_doc["asset_class"] == "STK"
     assert stored_doc["trade_date"] == "20260330"
     assert stored_doc["quantity"] == 10
     assert kwargs["upsert"] is True
+
+
+def test_upsert_executions_to_db_preserves_raw_expiration_action(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.executions = {
+        "expired001": {
+            "exec_id": "expired001",
+            "account": "U110638",
+            "symbol": "ZETA",
+            "underlying_symbol": "ZETA",
+            "local_symbol": "ZETA  260410C00015500",
+            "date_time": "20260410 22:17:14",
+            "quantity": 1,
+            "price": 0.0,
+            "buy_sell": "EXPIRED",
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "outcome_action": "EXPIRED",
+            "sec_type": "OPT",
+            "exchange": "OCC",
+            "currency": "USD",
+            "last_update": "2026-04-11T02:17:14+00:00",
+        }
+    }
+    service = IBKRTWSService(enabled=True, app_factory=lambda: fake_app, sleep_fn=lambda _: None)
+    service._app = fake_app
+    mock_db = SimpleNamespace(ibkr_trades=SimpleNamespace(update_one=lambda *args, **kwargs: None))
+    calls = []
+    mock_db.ibkr_trades.update_one = lambda *args, **kwargs: calls.append((args, kwargs))
+
+    upserted = service.upsert_executions_to_db(db=mock_db)
+
+    assert upserted == 1
+    stored_doc = calls[0][0][1]["$set"]
+    assert stored_doc["buy_sell"] == "EXPIRED"
+    assert stored_doc["action"] == "EXPIRED"
+    assert stored_doc["raw_action"] == "EXPIRED"
+    assert stored_doc["outcome_action"] == "EXPIRED"
+    assert stored_doc["underlying_symbol"] == "ZETA"
 
 
 def test_normalize_execution_time_handles_tz_suffix():

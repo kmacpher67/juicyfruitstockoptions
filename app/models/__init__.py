@@ -49,7 +49,16 @@ class TradeRecord(BaseModel):
     net_cash: Optional[float] = Field(None, alias="NetCash")
     close_price: Optional[float] = Field(None, alias="ClosePrice")
     exchange: Optional[str] = None
-    
+    underlying_symbol: Optional[str] = None
+    source: Optional[str] = None
+    buy_sell: Optional[str] = None
+    normalized_buy_sell: Optional[str] = None
+    action: Optional[str] = None
+    raw_action: Optional[str] = None
+    outcome_action: Optional[str] = None
+    source_stage: Optional[str] = None
+    record_status: Optional[str] = None
+
     # Allow extra fields for ODS pattern (Store Everything)
     # Allow population by internal name (snake_case) or alias (CamelCase)
     model_config = {"extra": "allow", "populate_by_name": True}

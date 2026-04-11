@@ -68,3 +68,76 @@ def test_calculate_metrics():
     assert metrics.win_rate == 100.0
     # Updated logic returns gross_win (100.0) instead of inf when no losses
     assert metrics.profit_factor == 100.0
+
+
+def test_calculate_pnl_short_option_expired_worthless_realizes_credit():
+    trades = [
+        {
+            "trade_id": "open1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "asset_class": "OPT",
+            "quantity": -1,
+            "price": 2.5,
+            "commission": 0.5,
+            "buy_sell": "SELL",
+            "date_time": "20260401 10:00:00",
+        },
+        {
+            "trade_id": "expire1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "asset_class": "OPT",
+            "quantity": 1,
+            "price": 0.0,
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "buy_sell": "EXPIRED",
+            "source": "tws_live",
+            "date_time": "20260410 22:17:14",
+        },
+    ]
+
+    results, open_positions = calculate_pnl(trades)
+
+    assert len(results) == 2
+    assert results[1].action == "EXPIRED"
+    assert results[1].raw_action == "EXPIRED"
+    assert results[1].realized_pl == 2.5
+    assert open_positions == {}
+
+
+def test_calculate_pnl_long_option_expired_worthless_realizes_loss():
+    trades = [
+        {
+            "trade_id": "open1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "asset_class": "OPT",
+            "quantity": 1,
+            "price": 1.75,
+            "buy_sell": "BUY",
+            "date_time": "20260401 10:00:00",
+        },
+        {
+            "trade_id": "expire1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "asset_class": "OPT",
+            "quantity": 1,
+            "price": 0.0,
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "buy_sell": "EXPIRED",
+            "date_time": "20260410 22:17:14",
+        },
+    ]
+
+    results, open_positions = calculate_pnl(trades)
+
+    assert results[1].realized_pl == -1.75
+    assert open_positions == {}

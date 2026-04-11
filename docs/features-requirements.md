@@ -515,6 +515,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
     - [x] **Trade Metrics Education**: See [Trade Metrics Guide](learning/trade-metrics.md). Explains Win Rate, Profit Factor, Diagonal Rolls, and Dividends.
     - [x] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
+        - [x] **trade-history-timeframe-1d-last-trading-day**: On `?view=TRADES`, `1D` means the **last completed trading day**, not the last 24 calendar hours. Weekend / Monday rule: on Saturday, Sunday, and Monday, `1D` should still resolve to Friday's completed trade history, including Friday-night `EXPIRED` / `ASSIGNED` outcomes. `RT` remains a separate current-calendar-day live TWS view.
     - [x] **view=TRADES**: add metric widget for Unrealized Profit and Unrealized Loss for each timeframe. Update Total trades to show Open = ## & closed = ## trades (update Trade Metrics Guide](learning/trade-metrics.md )
     - [x] **trade history**: Group by account # and related option trades. 
     - [x] **trade history / dividends**: Can we add dividends to the trade history view? Dividends currently come in via the NAV reports, but a dedicated report is needed for granular ticker-level detail. *(Updated 2026-04-02: backend now emits explicit dividend trade rows (`source: dividend`, `asset_class: DIV`) and TradeHistory renders them as distinct cash events.)*

@@ -48,6 +48,15 @@ The Trade History view allows you to filter metrics by a specific time frame (e.
 3.  **Filtering Unrealized P&L**: The system filters the current *open position lots* based on the selected date range. Only position lots that were *opened* within the selected time window will be included in the Unrealized P&L calculation. This means evaluating "YTD" Unrealized P&L will show you the paper profit/loss strictly for positions initiated this calendar year, ignoring underlying stock you bought three years ago.
 4.  **Market Data**: Unrealized P&L is calculated instantly utilizing cached market prices from the most recent portfolio snapshot (`ibkr_holdings`), drastically improving load times over real-time external API calls.
 
+### `RT` vs `1D`
+
+These windows are intentionally different:
+
+1.  **`RT`** means the current calendar day only and is meant for live TWS-backed freshness.
+2.  **`1D`** means the last completed trading day, not the last 24 rolling hours.
+3.  Weekend / Monday behavior: on Saturday, Sunday, and Monday, `1D` should still resolve to Friday so Friday expirations, assignments, and end-of-day trade outcomes remain visible in the single-day view.
+4.  Practical consequence: a Friday-night `EXPIRED` or `ASSIGNED` outcome may disappear from `RT` once the calendar day changes, but it should still appear in `1D` because `1D` is anchored to the prior completed market day.
+
 ## Complex Scenarios
 
 ### Diagonal Rolls

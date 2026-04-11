@@ -190,6 +190,7 @@ def test_get_live_trades_endpoint():
             "quantity": 5,
             "price": 201.0,
             "buy_sell": "BOT",
+            "action": "BOT",
             "source": "tws_live",
         },
         {
@@ -201,6 +202,7 @@ def test_get_live_trades_endpoint():
             "quantity": 2,
             "price": 410.5,
             "buy_sell": "SLD",
+            "action": "SLD",
             "source": "tws_live",
         },
     ]
@@ -214,6 +216,8 @@ def test_get_live_trades_endpoint():
     assert len(data) == 2
     assert data[0].trade_id == "exec_2"
     assert data[0].source == "tws_live"
+    assert data[0].source_stage == "provisional_realtime"
+    assert data[0].record_status == "provisional"
 
 
 def test_today_live_trade_query_prefers_trade_date():
@@ -222,3 +226,128 @@ def test_today_live_trade_query_prefers_trade_date():
     assert query["source"] == "tws_live"
     assert {"trade_date": "20260331"} in query["$or"]
     assert {"date_time": {"$regex": "^20260331"}} in query["$or"]
+
+
+def test_get_analysis_endpoint_includes_expired_rows_with_provisional_source_status():
+    mock_cursor = [
+        {
+            "trade_id": "open_1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": -1,
+            "price": 2.5,
+            "buy_sell": "SELL",
+            "asset_class": "OPT",
+            "date_time": "20260401 10:00:00",
+            "source": "flex_trade",
+        },
+        {
+            "trade_id": "expired_1",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": 1,
+            "price": 0.0,
+            "buy_sell": "EXPIRED",
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "asset_class": "OPT",
+            "date_time": "20260410 22:17:14",
+            "source": "tws_live",
+        },
+    ]
+
+    with patch("app.api.trades.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.find.return_value.sort.return_value = mock_cursor
+        mock_db.ibkr_dividends.find.return_value = []
+        mock_db.ibkr_holdings.find.return_value = []
+
+        data = asyncio.run(trades.get_trade_analysis(symbol="AMD  260410C00150000", current_user=_admin_user()))
+
+    expired_row = next(row for row in data["trades"] if getattr(row, "action", None) == "EXPIRED")
+    assert expired_row.raw_action == "EXPIRED"
+    assert expired_row.source_stage == "provisional_realtime"
+    assert expired_row.record_status == "provisional"
+    assert expired_row.realized_pl == 2.5
+
+
+def test_get_underlying_trade_trace_rolls_up_stk_opt_dividend_and_expired_rows():
+    mock_trades = [
+        {
+            "trade_id": "stk_open",
+            "symbol": "AMD",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": 100,
+            "price": 10.0,
+            "buy_sell": "BUY",
+            "asset_class": "STK",
+            "date_time": "20260401 10:00:00",
+            "source": "flex_trade",
+        },
+        {
+            "trade_id": "stk_close",
+            "symbol": "AMD",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": -100,
+            "price": 11.0,
+            "buy_sell": "SELL",
+            "asset_class": "STK",
+            "date_time": "20260402 10:00:00",
+            "source": "flex_trade",
+        },
+        {
+            "trade_id": "opt_open",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": -1,
+            "price": 2.5,
+            "buy_sell": "SELL",
+            "asset_class": "OPT",
+            "date_time": "20260403 10:00:00",
+            "source": "flex_trade",
+        },
+        {
+            "trade_id": "opt_expired",
+            "symbol": "AMD  260410C00150000",
+            "underlying_symbol": "AMD",
+            "account_id": "U1",
+            "quantity": 1,
+            "price": 0.0,
+            "buy_sell": "EXPIRED",
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "asset_class": "OPT",
+            "date_time": "20260410 22:17:14",
+            "source": "tws_live",
+        },
+    ]
+    mock_dividends = [
+        {"_id": "div1", "symbol": "AMD", "account_id": "U1", "pay_date": "2024-04-05", "net_amount": 3.0, "code": "RE"},
+    ]
+
+    with patch("app.api.trades.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_trades.find.return_value.sort.return_value = mock_trades
+        mock_db.ibkr_dividends.find.return_value = mock_dividends
+
+        data = asyncio.run(
+            trades.get_underlying_trade_trace(
+                underlying_symbol="AMD",
+                start_date="2026-04-01",
+                end_date="2026-04-30",
+                current_user=_admin_user(),
+            )
+        )
+
+    assert data["underlying_symbol"] == "AMD"
+    assert data["totals"]["stk_realized_pl"] == 100.0
+    assert data["totals"]["opt_realized_pl"] == 2.5
+    assert data["totals"]["div_realized_pl"] == 0.0
+    assert data["totals"]["combined_realized_pl"] == 102.5
+    expired_row = next(row for row in data["trades"] if getattr(row, "action", None) == "EXPIRED")
+    assert expired_row.record_status == "provisional"

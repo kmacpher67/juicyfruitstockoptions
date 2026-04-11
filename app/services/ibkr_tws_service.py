@@ -166,6 +166,10 @@ def _normalize_execution_side(raw_value: Any) -> str:
     return value
 
 
+def _normalize_execution_action(raw_value: Any) -> str:
+    return str(raw_value or "").strip().upper()
+
+
 def _signed_execution_quantity(raw_quantity: Any, raw_side: Any) -> float:
     try:
         quantity = float(raw_quantity or 0)
@@ -441,17 +445,25 @@ class IBKRTWSApp(EWrapper, EClient):
         timestamp = self._mark_callback()
         normalized_time, trade_date = _normalize_execution_time(getattr(execution, "time", ""))
         raw_side = getattr(execution, "side", "")
+        raw_action = _normalize_execution_action(raw_side)
         payload = {
             "exec_id": exec_id,
             "req_id": reqId,
             "account": getattr(execution, "acctNumber", ""),
             "symbol": getattr(contract, "symbol", ""),
-            "underlying_symbol": getattr(contract, "localSymbol", "") or getattr(contract, "symbol", ""),
+            "underlying_symbol": _extract_underlying_symbol(
+                getattr(contract, "symbol", ""),
+                getattr(contract, "localSymbol", ""),
+            ) or getattr(contract, "symbol", ""),
+            "local_symbol": getattr(contract, "localSymbol", ""),
             "sec_type": getattr(contract, "secType", ""),
             "exchange": getattr(contract, "exchange", ""),
             "currency": getattr(contract, "currency", ""),
             "buy_sell": raw_side,
             "normalized_buy_sell": _normalize_execution_side(raw_side),
+            "action": raw_action,
+            "raw_action": raw_action,
+            "outcome_action": raw_action if raw_action in {"EXPIRED", "ASSIGNED", "EXERCISED"} else None,
             "quantity": getattr(execution, "shares", 0),
             "signed_quantity": _signed_execution_quantity(
                 getattr(execution, "shares", 0),
@@ -917,7 +929,11 @@ class IBKRTWSService:
 
         with app._lock:
             app.execution_snapshot_complete = False
-        app.reqExecutions(req_id, execution_filter)
+        try:
+            app.reqExecutions(req_id, execution_filter)
+        except Exception as exc:
+            self.logger.warning("Failed to request TWS executions: %s", exc)
+            return False
         self.logger.info("Requested TWS executions for account=%s reqId=%s.", account or "*", req_id)
         return True
 
@@ -934,10 +950,14 @@ class IBKRTWSService:
         with app._lock:
             app.order_snapshot_complete = False
 
-        if hasattr(app, "reqAllOpenOrders"):
-            app.reqAllOpenOrders()
-        else:  # pragma: no cover - fallback only
-            app.reqOpenOrders()
+        try:
+            if hasattr(app, "reqAllOpenOrders"):
+                app.reqAllOpenOrders()
+            else:  # pragma: no cover - fallback only
+                app.reqOpenOrders()
+        except Exception as exc:
+            self.logger.warning("Failed to request TWS open orders: %s", exc)
+            return False
         self.logger.info("Requested TWS open orders.")
         return True
 
@@ -1036,6 +1056,7 @@ class IBKRTWSService:
                 "account_id": execution.get("account"),
                 "symbol": symbol,
                 "underlying_symbol": execution.get("underlying_symbol") or symbol,
+                "local_symbol": execution.get("local_symbol"),
                 "date_time": execution.get("date_time") or normalized_time,
                 "trade_date": trade_date,
                 "quantity": float(
@@ -1051,6 +1072,9 @@ class IBKRTWSService:
                 "realized_pnl": float(execution.get("realized_pnl") or 0),
                 "buy_sell": execution.get("buy_sell"),
                 "normalized_buy_sell": normalized_side,
+                "action": execution.get("action") or execution.get("raw_action") or execution.get("buy_sell"),
+                "raw_action": execution.get("raw_action") or execution.get("action") or execution.get("buy_sell"),
+                "outcome_action": execution.get("outcome_action"),
                 "order_id": execution.get("order_id"),
                 "perm_id": execution.get("perm_id"),
                 "client_id": execution.get("client_id"),
@@ -1059,6 +1083,8 @@ class IBKRTWSService:
                 "exchange": execution.get("exchange"),
                 "currency": execution.get("currency"),
                 "source": "tws_live",
+                "source_stage": "provisional_realtime",
+                "record_status": "provisional",
                 "last_tws_update": execution.get("last_update"),
             }
             db.ibkr_trades.update_one(

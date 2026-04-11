@@ -8,6 +8,7 @@ import { ExternalLink } from 'lucide-react';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import { resolveControlTooltip, resolveQuickLinkTooltip, withHeaderTooltips } from './uiHelpTooltips';
+import { calculateTradeHistoryDateRange, getTradeActionLabel } from './tradeHistoryUtils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -139,50 +140,6 @@ const TradeHistory = ({ onTickerClick }) => {
         }, { replace: true });
     }, [timeRange, setSearchParams]);
 
-    const calculateDateRange = (range) => {
-        const now = new Date();
-        let startDate = null;
-
-        if (range === 'ALL') return { start: null, end: null };
-        if (range === 'RT') {
-            const today = now.toISOString().split('T')[0];
-            return { start: today, end: today };
-        }
-
-        if (range === 'MTD') {
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        } else if (range === 'YTD') {
-            startDate = new Date(now.getFullYear(), 0, 1);
-        } else if (range === '1D') {
-            startDate = new Date();
-            startDate.setDate(now.getDate() - 1);
-        } else if (range === '1W') {
-            startDate = new Date();
-            startDate.setDate(now.getDate() - 7);
-        } else if (range === '1M') {
-            startDate = new Date();
-            startDate.setMonth(now.getMonth() - 1);
-        } else if (range === '3M') {
-            startDate = new Date();
-            startDate.setMonth(now.getMonth() - 3);
-        } else if (range === '6M') {
-            startDate = new Date();
-            startDate.setMonth(now.getMonth() - 6);
-        } else if (range === '1Y') {
-            startDate = new Date();
-            startDate.setFullYear(now.getFullYear() - 1);
-        } else if (range === '5Y') {
-            startDate = new Date();
-            startDate.setFullYear(now.getFullYear() - 5);
-        }
-
-        // Format YYYY-MM-DD
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = now.toISOString().split('T')[0];
-        return { start: startStr, end: endStr };
-    };
-
-
     const [colDefs] = useState(withHeaderTooltips([
         {
             field: "date_time",
@@ -244,18 +201,12 @@ const TradeHistory = ({ onTickerClick }) => {
         {
             headerName: "Action",
             width: 100,
-            valueGetter: p => {
-                if (p.data.buy_sell === "DIVIDEND") return "DIVIDEND";
-                const side = (p.data.buy_sell || '').toUpperCase();
-                if (side === 'BUY' || side === 'BOT') return 'BUY';
-                if (side === 'SELL' || side === 'SLD') return 'SELL';
-                const qty = p.data.quantity !== undefined ? p.data.quantity : p.data.Quantity;
-                if (!qty) return "-";
-                return qty > 0 ? "BUY" : "SELL";
-            },
+            valueGetter: p => getTradeActionLabel(p.data),
             cellClassRules: {
                 'text-[#2e7d32] font-bold': p => p.value === 'BUY' || p.value === 'DIVIDEND',
-                'text-[#d32f2f] font-bold': p => p.value === 'SELL'
+                'text-[#d32f2f] font-bold': p => p.value === 'SELL',
+                'text-amber-700 font-bold': p => p.value === 'EXPIRED' || p.value === 'EXERCISED',
+                'text-blue-700 font-bold': p => p.value === 'ASSIGNED'
             }
         },
         {
@@ -348,7 +299,7 @@ const TradeHistory = ({ onTickerClick }) => {
                 setMetrics(null);
                 setLiveStatus(liveStatusRes.data);
             } else {
-                const { start, end } = calculateDateRange(timeRange);
+                const { start, end } = calculateTradeHistoryDateRange(timeRange);
                 const params = {};
                 if (start) params.start_date = start;
                 if (end) params.end_date = end;

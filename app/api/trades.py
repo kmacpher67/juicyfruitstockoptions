@@ -40,15 +40,52 @@ def _map_dividend_to_trade_row(doc: dict) -> dict:
     return {
         "trade_id": f"div_{dividend_id}",
         "symbol": doc.get("symbol"),
+        "underlying_symbol": doc.get("symbol"),
         "account_id": doc.get("account_id"),
         "date_time": pay_date,
         "quantity": 0,
         "price": 0,
         "buy_sell": "DIVIDEND",
+        "action": "DIVIDEND",
+        "raw_action": "DIVIDEND",
         "asset_class": "DIV",
         "source": "dividend",
+        "source_stage": "finalized_history",
+        "record_status": "finalized",
         "realized_pnl": float(doc.get("net_amount", 0) or 0),
     }
+
+
+def _annotate_trade_source(doc: dict) -> dict:
+    normalized = dict(doc)
+    source = str(normalized.get("source") or "").strip()
+    if source == "tws_live":
+        normalized.setdefault("source_stage", "provisional_realtime")
+        normalized.setdefault("record_status", "provisional")
+    elif source:
+        normalized.setdefault("source_stage", "finalized_history")
+        normalized.setdefault("record_status", "finalized")
+
+    normalized.setdefault(
+        "action",
+        normalized.get("raw_action")
+        or normalized.get("action")
+        or normalized.get("outcome_action")
+        or normalized.get("buy_sell"),
+    )
+    normalized.setdefault("raw_action", normalized.get("action"))
+    if normalized.get("action") in {"EXPIRED", "ASSIGNED", "EXERCISED"}:
+        normalized.setdefault("outcome_action", normalized.get("action"))
+    return normalized
+
+
+def _matches_underlying(doc: dict, underlying_symbol: str) -> bool:
+    target = str(underlying_symbol or "").strip().upper()
+    if not target:
+        return False
+    symbol = str(doc.get("symbol") or "").strip().upper()
+    underlying = str(doc.get("underlying_symbol") or "").strip().upper()
+    return symbol == target or underlying == target
 
 
 @router.get("/live-status", response_model=dict)
@@ -104,7 +141,7 @@ async def get_live_trades(
     today_prefix = datetime.now().strftime("%Y%m%d")
     cursor = db.ibkr_trades.find(_today_live_trade_query(today_prefix)).sort("date_time", -1)
 
-    return [TradeRecord(**fix_oid(doc)) for doc in cursor]
+    return [TradeRecord(**_annotate_trade_source(fix_oid(doc))) for doc in cursor]
 
 @router.get("/", response_model=List[TradeRecord])
 async def get_trades(
@@ -127,7 +164,7 @@ async def get_trades(
     logger.debug(f"Querying ibkr_trades with query={query}, skip={skip}, limit={limit}")
 
     trade_cursor = db.ibkr_trades.find(query).sort("date_time", -1).skip(skip).limit(limit)
-    raw_trades = [TradeRecord(**fix_oid(doc)) for doc in trade_cursor]
+    raw_trades = [TradeRecord(**_annotate_trade_source(fix_oid(doc))) for doc in trade_cursor]
     
     logger.debug(f"Found {len(raw_trades)} trades in ibkr_trades")
     
@@ -184,7 +221,7 @@ async def get_trade_analysis(
         
         # Step 1: Fetch Trades
         t0 = time.time()
-        raw_trades = [fix_oid(doc) for doc in cursor]
+        raw_trades = [_annotate_trade_source(fix_oid(doc)) for doc in cursor]
         t_fetch_trades = time.time() - t0
         logger.info(f"Retrieved {len(raw_trades)} raw trades in {t_fetch_trades:.4f}s")
         
@@ -290,3 +327,81 @@ async def get_trade_analysis(
         error_msg = f"Analysis Failed: {str(e)}"
         logger.error(f"Critical error in trade analysis: {error_msg}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+@router.get("/analysis/underlying", response_model=dict)
+async def get_underlying_trade_trace(
+    underlying_symbol: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Trace realized trade activity for a selected underlying across STK, OPT, and dividends.
+    """
+    db = get_db()
+    target = str(underlying_symbol or "").strip().upper()
+    if not target:
+        raise HTTPException(status_code=400, detail="underlying_symbol is required")
+
+    query = {"$or": [{"symbol": target}, {"underlying_symbol": target}]}
+    cursor = db.ibkr_trades.find(query).sort("date_time", 1)
+    raw_trades = [_annotate_trade_source(fix_oid(doc)) for doc in cursor]
+
+    div_cursor = db.ibkr_dividends.find({"code": "RE", "symbol": target})
+    for doc in div_cursor:
+        raw_trades.append(_map_dividend_to_trade_row(doc))
+
+    raw_trades.sort(key=lambda x: str(x.get("date_time", "")) if x.get("date_time") else "")
+    analyzed_trades, _open_positions = calculate_pnl(raw_trades)
+
+    s_val = start_date.replace("-", "") if start_date else None
+    e_val = end_date.replace("-", "") if end_date else None
+    filtered_trades = []
+    for trade in analyzed_trades:
+        trade_dict = trade.model_dump()
+        if not _matches_underlying(trade_dict, target):
+            continue
+        trade_date = str(trade_dict.get("date_time") or "")[:8]
+        if s_val and trade_date < s_val:
+            continue
+        if e_val and trade_date > e_val:
+            continue
+        filtered_trades.append(trade)
+
+    totals = {
+        "combined_realized_pl": 0.0,
+        "stk_realized_pl": 0.0,
+        "opt_realized_pl": 0.0,
+        "div_realized_pl": 0.0,
+        "profit_rows": 0,
+        "loss_rows": 0,
+    }
+    account_totals = {}
+    for trade in filtered_trades:
+        realized = float(getattr(trade, "realized_pl", 0.0) or 0.0)
+        asset_class = str(getattr(trade, "asset_class", "") or "").upper()
+        account_id = str(getattr(trade, "account_id", None) or "Unknown")
+        totals["combined_realized_pl"] += realized
+        if asset_class == "STK":
+            totals["stk_realized_pl"] += realized
+        elif asset_class == "DIV":
+            totals["div_realized_pl"] += realized
+        else:
+            totals["opt_realized_pl"] += realized
+        if realized > 0:
+            totals["profit_rows"] += 1
+        elif realized < 0:
+            totals["loss_rows"] += 1
+
+        account_totals.setdefault(account_id, 0.0)
+        account_totals[account_id] += realized
+
+    return {
+        "underlying_symbol": target,
+        "start_date": s_val,
+        "end_date": e_val,
+        "trades": filtered_trades,
+        "totals": totals,
+        "account_totals": account_totals,
+    }

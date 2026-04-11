@@ -10,6 +10,33 @@ logger = logging.getLogger(__name__)
 
 from typing import Tuple
 
+
+EXPIRATION_OUTCOME_ACTIONS = {"EXPIRED"}
+ASSIGNMENT_OUTCOME_ACTIONS = {"ASSIGNED", "EXERCISED"}
+
+
+def _safe_float(value, default=0.0):
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _normalized_action(data: Dict) -> str:
+    return str(
+        data.get("raw_action")
+        or data.get("action")
+        or data.get("outcome_action")
+        or data.get("buy_sell")
+        or ""
+    ).strip().upper()
+
+
+def _effective_underlying(data: Dict, symbol: str | None) -> str | None:
+    return data.get("underlying_symbol") or symbol
+
 def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, dict]]:
     """
     Calculates Realized P&L for a list of trade dictionaries using FIFO matching.
@@ -63,35 +90,75 @@ def calculate_pnl(trades: List[Dict]) -> Tuple[List[AnalyzedTrade], Dict[str, di
                 
                 # Normalize keys for the loop
                 qty_raw = data.get("quantity", data.get("Quantity", 0.0))
-                
-                # Safe float conversion helper
-                def safe_float(val, default=0.0):
-                    if val is None: return default
-                    try:
-                        return float(val)
-                    except (ValueError, TypeError):
-                        return default
-
-                qty = safe_float(qty_raw)
+                qty = _safe_float(qty_raw)
                 
                 # Prioritize 'price' (snake) then 'TradePrice' (legacy)
                 price_raw = data.get("price") if data.get("price") is not None else data.get("TradePrice")
                 if price_raw is None:
                     price_raw = data.get("trade_price")
-                price = safe_float(price_raw)
+                price = _safe_float(price_raw)
                 
                 # Simple Commission handling
                 comm_raw = data.get("commission") if data.get("commission") is not None else data.get("IBCommission")
                 if comm_raw is None:
                     comm_raw = data.get("ib_commission")
-                comm = safe_float(comm_raw)
+                comm = _safe_float(comm_raw)
             except Exception as e:
                 logger.error(f"Error preparing trade logic for {symbol}: {e}")
                 continue
+
+            action = _normalized_action(data)
+            data["action"] = data.get("action") or action or None
+            data["raw_action"] = data.get("raw_action") or data.get("action") or action or None
+            if _effective_underlying(data, symbol):
+                data["underlying_symbol"] = _effective_underlying(data, symbol)
             
             # Passthrough for Dividends
             if data.get("buy_sell") == "DIVIDEND":
                 data["realized_pl"] = data.get("realized_pnl", 0.0)
+                analyzed_results.append(AnalyzedTrade(**data))
+                continue
+
+            if action in EXPIRATION_OUTCOME_ACTIONS:
+                expiration_qty = abs(qty) if qty else 0.0
+                realized_pl = 0.0
+
+                if short_queue:
+                    remaining_expire = expiration_qty or sum(abs(short_qty) for short_qty, _, _ in short_queue)
+                    while remaining_expire > 0 and short_queue:
+                        short_qty, short_price, short_dt = short_queue[0]
+                        match_qty = min(remaining_expire, abs(short_qty))
+                        realized_pl += short_price * match_qty
+
+                        matched_remainder = abs(short_qty) - match_qty
+                        if matched_remainder == 0:
+                            short_queue.pop(0)
+                        else:
+                            short_queue[0] = (-matched_remainder, short_price, short_dt)
+                        remaining_expire -= match_qty
+
+                elif long_queue:
+                    remaining_expire = expiration_qty or sum(long_qty for long_qty, _, _ in long_queue)
+                    while remaining_expire > 0 and long_queue:
+                        long_qty, long_price, long_dt = long_queue[0]
+                        match_qty = min(remaining_expire, long_qty)
+                        realized_pl -= long_price * match_qty
+
+                        matched_remainder = long_qty - match_qty
+                        if matched_remainder == 0:
+                            long_queue.pop(0)
+                        else:
+                            long_queue[0] = (matched_remainder, long_price, long_dt)
+                        remaining_expire -= match_qty
+
+                data["realized_pl"] = realized_pl - abs(comm)
+                data["outcome_action"] = data.get("outcome_action") or action
+                analyzed_results.append(AnalyzedTrade(**data))
+                continue
+
+            if action in ASSIGNMENT_OUTCOME_ACTIONS:
+                data["realized_pl"] = data.get("realized_pnl", 0.0) or 0.0
+                data["outcome_action"] = data.get("outcome_action") or action
                 analyzed_results.append(AnalyzedTrade(**data))
                 continue
             
