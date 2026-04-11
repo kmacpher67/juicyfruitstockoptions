@@ -358,6 +358,41 @@ def test_exec_details_preserves_non_fill_action_values():
     assert stored["underlying_symbol"] == "ZETA"
 
 
+def test_exec_details_prefers_option_outcome_action_over_side():
+    app = IBKRTWSApp()
+    contract = SimpleNamespace(
+        symbol="ZETA",
+        localSymbol="ZETA  260410C00015500",
+        secType="OPT",
+        exchange="OCC",
+        currency="USD",
+    )
+    outcome = SimpleNamespace(name="Expired")
+    execution = SimpleNamespace(
+        execId="expired002",
+        acctNumber="U110638",
+        side="SLD",
+        shares=1,
+        price=0.0,
+        avgPrice=0.0,
+        cumQty=1,
+        orderId=702,
+        permId=9002,
+        clientId=5,
+        time="2026-04-10 22:17:14 US/Eastern",
+        lastLiquidity=0,
+        optExerciseOrLapseType=outcome,
+    )
+
+    app.execDetails(9001, contract, execution)
+
+    stored = app.executions["expired002"]
+    assert stored["buy_sell"] == "SLD"
+    assert stored["action"] == "EXPIRED"
+    assert stored["raw_action"] == "EXPIRED"
+    assert stored["opt_exercise_or_lapse_type"] == "EXPIRED"
+
+
 def test_commission_callback_supports_new_ibapi_commission_and_fees_field():
     app = IBKRTWSApp()
     app.executions["0002"] = {"exec_id": "0002", "symbol": "MSFT"}
@@ -552,6 +587,27 @@ def test_refresh_executions_requests_tws_snapshot(monkeypatch):
     req_id, execution_filter = fake_app.req_executions_calls[0]
     assert req_id == 9002
     assert getattr(execution_filter, "acctCode") == "DU123456"
+
+
+def test_refresh_executions_supports_last_n_days_and_specific_dates(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    service = IBKRTWSService(enabled=True, app_factory=lambda: fake_app, sleep_fn=lambda _: None)
+    service._app = fake_app
+
+    requested = service.refresh_executions(
+        account="DU123456",
+        req_id=9002,
+        last_n_days=2,
+        specific_dates=[20260410],
+    )
+
+    assert requested is True
+    req_id, execution_filter = fake_app.req_executions_calls[0]
+    assert req_id == 9002
+    assert getattr(execution_filter, "acctCode") == "DU123456"
+    assert getattr(execution_filter, "lastNDays") == 2
+    assert getattr(execution_filter, "specificDates") == [20260410]
 
 
 def test_live_status_reports_handshake_failure_when_socket_is_reachable(monkeypatch):

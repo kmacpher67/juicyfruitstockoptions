@@ -170,6 +170,16 @@ def _normalize_execution_action(raw_value: Any) -> str:
     return str(raw_value or "").strip().upper()
 
 
+def _normalize_option_outcome_action(raw_value: Any) -> str:
+    if raw_value in (None, "", -1):
+        return ""
+    value = getattr(raw_value, "name", raw_value)
+    normalized = str(value or "").strip().upper()
+    if normalized in {"NONEITEM", "NONE"}:
+        return ""
+    return normalized
+
+
 def _signed_execution_quantity(raw_quantity: Any, raw_side: Any) -> float:
     try:
         quantity = float(raw_quantity or 0)
@@ -445,7 +455,10 @@ class IBKRTWSApp(EWrapper, EClient):
         timestamp = self._mark_callback()
         normalized_time, trade_date = _normalize_execution_time(getattr(execution, "time", ""))
         raw_side = getattr(execution, "side", "")
-        raw_action = _normalize_execution_action(raw_side)
+        option_outcome_action = _normalize_option_outcome_action(
+            getattr(execution, "optExerciseOrLapseType", None)
+        )
+        raw_action = option_outcome_action or _normalize_execution_action(raw_side)
         payload = {
             "exec_id": exec_id,
             "req_id": reqId,
@@ -463,7 +476,8 @@ class IBKRTWSApp(EWrapper, EClient):
             "normalized_buy_sell": _normalize_execution_side(raw_side),
             "action": raw_action,
             "raw_action": raw_action,
-            "outcome_action": raw_action if raw_action in {"EXPIRED", "ASSIGNED", "EXERCISED"} else None,
+            "outcome_action": raw_action if raw_action in {"EXPIRED", "ASSIGNED", "EXERCISED", "LAPSE"} else None,
+            "opt_exercise_or_lapse_type": option_outcome_action or None,
             "quantity": getattr(execution, "shares", 0),
             "signed_quantity": _signed_execution_quantity(
                 getattr(execution, "shares", 0),
@@ -929,7 +943,14 @@ class IBKRTWSService:
             app.connected = False
         self.logger.info("Disconnected from IBKR TWS.")
 
-    def refresh_executions(self, account: str | None = None, req_id: int = 9001) -> bool:
+    def refresh_executions(
+        self,
+        account: str | None = None,
+        req_id: int = 9001,
+        *,
+        last_n_days: int | None = None,
+        specific_dates: list[int] | None = None,
+    ) -> bool:
         if self._is_disabled():
             return False
 
@@ -942,6 +963,10 @@ class IBKRTWSService:
         execution_filter = ExecutionFilter()
         if account:
             setattr(execution_filter, "acctCode", account)
+        if last_n_days is not None:
+            setattr(execution_filter, "lastNDays", int(last_n_days))
+        if specific_dates:
+            setattr(execution_filter, "specificDates", list(specific_dates))
 
         with app._lock:
             app.execution_snapshot_complete = False
@@ -950,7 +975,13 @@ class IBKRTWSService:
         except Exception as exc:
             self.logger.warning("Failed to request TWS executions: %s", exc)
             return False
-        self.logger.info("Requested TWS executions for account=%s reqId=%s.", account or "*", req_id)
+        self.logger.info(
+            "Requested TWS executions for account=%s reqId=%s last_n_days=%s specific_dates=%s.",
+            account or "*",
+            req_id,
+            last_n_days,
+            specific_dates,
+        )
         return True
 
     def refresh_open_orders(self) -> bool:

@@ -240,6 +240,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Timeout in seconds for raw TCP socket checks.",
     )
     parser.add_argument(
+        "--last-n-days",
+        type=int,
+        help="Optional TWS execution filter lookback window in days.",
+    )
+    parser.add_argument(
+        "--specific-date",
+        action="append",
+        type=int,
+        help="Optional specific execution date(s) in YYYYMMDD format. Repeatable.",
+    )
+    parser.add_argument(
         "--snapshot-id",
         help="Optional deterministic snapshot id for sync-positions upserts.",
     )
@@ -274,7 +285,11 @@ def main() -> None:
                 live_status = service.get_live_status()
                 if live_status.get("connected"):
                     positions_requested = bool(service.refresh_open_orders() is not False)
-                    executions_requested = service.refresh_executions(account=args.account)
+                    executions_requested = service.refresh_executions(
+                        account=args.account,
+                        last_n_days=args.last_n_days,
+                        specific_dates=args.specific_date,
+                    )
                     open_orders_requested = True if positions_requested else False
                 payload = {
                     "connect_returned": connect_result,
@@ -290,15 +305,27 @@ def main() -> None:
             elif args.command == "sync-positions":
                 payload = _upsert_positions(service, snapshot_id=args.snapshot_id)
             elif args.command == "executions":
-                service.refresh_executions(account=args.account)
+                service.refresh_executions(
+                    account=args.account,
+                    last_n_days=args.last_n_days,
+                    specific_dates=args.specific_date,
+                )
                 payload = service.get_executions(account=args.account)
             elif args.command == "execution-diagnostics":
-                service.refresh_executions(account=args.account)
+                service.refresh_executions(
+                    account=args.account,
+                    last_n_days=args.last_n_days,
+                    specific_dates=args.specific_date,
+                )
                 payload = service.get_execution_diagnostics(account=args.account)
             elif args.command == "sync-nav":
                 payload = _insert_nav_snapshots(service, account=args.account)
             elif args.command == "sync-executions":
-                service.refresh_executions(account=args.account)
+                service.refresh_executions(
+                    account=args.account,
+                    last_n_days=args.last_n_days,
+                    specific_dates=args.specific_date,
+                )
                 payload = {
                     "requested": True,
                     "account": args.account,

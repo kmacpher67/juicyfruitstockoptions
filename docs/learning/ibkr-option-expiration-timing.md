@@ -152,6 +152,7 @@ Recommended same-runtime check:
 ```bash
 python -m app.scripts.ibkr_tws_cli execution-diagnostics --force-enable
 python -m app.scripts.ibkr_tws_cli probe-callbacks --force-enable --client-id 99
+python -m app.scripts.ibkr_tws_cli execution-diagnostics --force-enable --client-id 99 --last-n-days 2 --specific-date 20260410
 ```
 
 This should show:
@@ -160,3 +161,8 @@ This should show:
 - `action_counts`
 - recent `outcome_rows` if any `EXPIRED` / `ASSIGNED` / `EXERCISED` rows were actually received
 - handshake/callback counts from a unique-client same-runtime probe when normal connect attempts are colliding with an in-use client id
+
+Important runtime nuance:
+
+- `reqExecutions` is often used as a current-day feed, but the IB API in this repo also exposes execution-filter parameters such as `lastNDays` and `specificDates`.
+- For weekend expiration investigation, a same-day-only request on Saturday may miss Friday-night rows, so use `--last-n-days` and/or `--specific-date 20260410` when probing Friday expiration outcomes on Saturday, April 11, 2026.
