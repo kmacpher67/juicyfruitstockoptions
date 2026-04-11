@@ -137,3 +137,11 @@ Use this hierarchy:
 - Flex / statements: finalized accounting-grade confirmation
 
 If both exist, Juicy Fruit should keep both the raw realtime observation and the later finalized reconciliation record rather than collapsing away the source distinction.
+
+### Troubleshooting Rule
+
+If the operator cannot see `EXPIRED` or `ASSIGNED` in `?view=TRADES`, check in this order:
+
+1. Does the selected timeframe include the relevant trade date?
+2. Does the backend payload from `/api/trades/analysis` or `/api/trades/live` actually contain `action` / `raw_action` with `EXPIRED` or `ASSIGNED`?
+3. If not, treat it as an ingestion/storage gap first, not a presentation bug.

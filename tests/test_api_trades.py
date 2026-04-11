@@ -216,6 +216,7 @@ def test_get_live_trades_endpoint():
     assert len(data) == 2
     assert data[0].trade_id == "exec_2"
     assert data[0].source == "tws_live"
+    assert data[0].action == "BOT"
     assert data[0].source_stage == "provisional_realtime"
     assert data[0].record_status == "provisional"
 

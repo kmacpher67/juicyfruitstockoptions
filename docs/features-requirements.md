@@ -499,6 +499,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] Preserve the raw IBKR/TWS source naming from the Trades window `ACTION` column as a first-class field (`action` / `raw_action`) so values such as `EXPIRED` and `ASSIGNED` remain visible exactly as sent by the source.
         - [ ] Add a separate normalized outcome field only for app logic/grouping; do not replace or overwrite the raw source action text.
         - [ ] Ingest Friday-night / Saturday-morning TWS expiration outcome rows when they appear in the live Trades feed, mark them as provisional realtime records, and later reconcile them against next-day Flex/accounting history.
+        - [ ] Add an operator verification/troubleshooting path that answers: are `EXPIRED` / `ASSIGNED` rows missing because the UI filtered them out, or because TWS/Flex never persisted them into `ibkr_trades` in the first place?
         - [ ] Normalize expiration outcome events so expired worthless contracts are represented explicitly in the trade timeline instead of silently disappearing.
         - [ ] For expired worthless short options, calculate realized profit from premium collected minus commissions/fees and render profit in green.
         - [ ] For long options that expire worthless, calculate realized loss from premium paid plus commissions/fees and render loss in red.
@@ -516,6 +517,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Trade Metrics Education**: See [Trade Metrics Guide](learning/trade-metrics.md). Explains Win Rate, Profit Factor, Diagonal Rolls, and Dividends.
     - [x] **time window**: For trade history view, can we implement a time window starting with MTD, having 1D, 1W, 1M, 3M, 6M, 1Y, 5Y,and All trades?
         - [x] **trade-history-timeframe-1d-last-trading-day**: On `?view=TRADES`, `1D` means the **last completed trading day**, not the last 24 calendar hours. Weekend / Monday rule: on Saturday, Sunday, and Monday, `1D` should still resolve to Friday's completed trade history, including Friday-night `EXPIRED` / `ASSIGNED` outcomes. `RT` remains a separate current-calendar-day live TWS view.
+        - [x] **trade-history-action-visibility-contract**: If `EXPIRED` / `ASSIGNED` rows exist in the backend payload for the selected timeframe, the `Action` column in `?view=TRADES` must render those exact values and must not collapse them into generic `BUY` / `SELL` labels.
     - [x] **view=TRADES**: add metric widget for Unrealized Profit and Unrealized Loss for each timeframe. Update Total trades to show Open = ## & closed = ## trades (update Trade Metrics Guide](learning/trade-metrics.md )
     - [x] **trade history**: Group by account # and related option trades. 
     - [x] **trade history / dividends**: Can we add dividends to the trade history view? Dividends currently come in via the NAV reports, but a dedicated report is needed for granular ticker-level detail. *(Updated 2026-04-02: backend now emits explicit dividend trade rows (`source: dividend`, `asset_class: DIV`) and TradeHistory renders them as distinct cash events.)*

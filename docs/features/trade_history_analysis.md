@@ -24,6 +24,7 @@ A summary dashboard provides:
 - **Visuals**: Green/Red indicators for profitable/unprofitable trades.
 - **Account Context**: Metrics are grouped by `account_id` to provide per-portfolio insights. Missing account identifiers are automatically categorized as `"Unknown"`.
 - **Timeframe Semantics**: `RT` means current-calendar-day live TWS executions. `1D` means the last completed trading day, so on Saturday, Sunday, and Monday it should still show Friday's completed trade activity.
+- **Operator Visibility Rule**: If the selected Trade History timeframe includes an expiration outcome row and the backend payload contains `action: EXPIRED` or `action: ASSIGNED`, the grid `Action` column must show that exact source value.
 - **Dividend Rendering**: Dividend rows are shown as a distinct action/type with `source: dividend` so they are not mistaken for buy/sell executions.
 - **Expiration Outcome Rendering**: Option expiration outcomes should be represented explicitly as timeline events, preserving the raw broker source action names such as `EXPIRED` and `ASSIGNED` while also supporting a normalized internal outcome field for app logic.
 - **Underlying Period Trace**: Operators should be able to select an underlying stock and a period, then see the related `STK` and `OPT` trade rows, per-row P&L, and aggregate totals for that underlying activity.
