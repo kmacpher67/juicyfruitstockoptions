@@ -742,6 +742,59 @@ def test_upsert_executions_to_db_preserves_raw_expiration_action(monkeypatch):
     assert stored_doc["underlying_symbol"] == "ZETA"
 
 
+def test_get_execution_diagnostics_summarizes_actions_and_outcomes(monkeypatch):
+    monkeypatch.setattr(tws_module, "IBAPI_IMPORT_ERROR", None)
+    fake_app = FakeApp()
+    fake_app.executions = {
+        "expired001": {
+            "exec_id": "expired001",
+            "account": "U110638",
+            "symbol": "ZETA",
+            "underlying_symbol": "ZETA",
+            "local_symbol": "ZETA  260410C00015500",
+            "date_time": "20260410 22:17:14",
+            "buy_sell": "EXPIRED",
+            "action": "EXPIRED",
+            "raw_action": "EXPIRED",
+            "source": "tws_live",
+        },
+        "assigned001": {
+            "exec_id": "assigned001",
+            "account": "U110638",
+            "symbol": "T",
+            "underlying_symbol": "T",
+            "local_symbol": "T  260410P00028000",
+            "date_time": "20260410 22:24:19",
+            "buy_sell": "ASSIGNED",
+            "action": "ASSIGNED",
+            "raw_action": "ASSIGNED",
+            "source": "tws_live",
+        },
+        "buy001": {
+            "exec_id": "buy001",
+            "account": "U110638",
+            "symbol": "AAPL",
+            "underlying_symbol": "AAPL",
+            "date_time": "20260410 13:00:00",
+            "buy_sell": "BOT",
+            "action": "BOT",
+            "raw_action": "BOT",
+            "source": "tws_live",
+        },
+    }
+    service = IBKRTWSService(enabled=True, app_factory=lambda: fake_app, sleep_fn=lambda _: None)
+    service._app = fake_app
+
+    diagnostics = service.get_execution_diagnostics(account="U110638")
+
+    assert diagnostics["execution_count"] == 3
+    assert diagnostics["action_counts"]["EXPIRED"] == 1
+    assert diagnostics["action_counts"]["ASSIGNED"] == 1
+    assert diagnostics["action_counts"]["BOT"] == 1
+    assert len(diagnostics["outcome_rows"]) == 2
+    assert diagnostics["outcome_rows"][0]["action"] == "ASSIGNED"
+
+
 def test_normalize_execution_time_handles_tz_suffix():
     normalized, trade_date = _normalize_execution_time("2026-03-31 14:04:16 US/Eastern")
 

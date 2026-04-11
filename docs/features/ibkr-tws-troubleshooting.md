@@ -83,6 +83,7 @@ python -m app.scripts.ibkr_tws_cli connect-test --force-enable
 python -m app.scripts.ibkr_tws_cli sync-nav --force-enable
 python -m app.scripts.ibkr_tws_cli sync-positions --force-enable --snapshot-id manual_verify_YYYYMMDD
 python -m app.scripts.ibkr_tws_cli executions --force-enable
+python -m app.scripts.ibkr_tws_cli execution-diagnostics --force-enable
 python -m app.scripts.ibkr_tws_cli sync-executions --force-enable
 ```
 
@@ -98,6 +99,7 @@ Interpretation:
   - `trade_date` formatted like `YYYYMMDD`
   - `buy_sell` preserved from IBKR (`BOT` / `SLD`) with a normalized side available for downstream logic
   - signed `quantity` once persisted into `ibkr_trades`
+- `execution-diagnostics` should summarize raw action names seen by the current runtime. If the TWS Trades window shows `EXPIRED` / `ASSIGNED` but `action_counts` does not, treat that as evidence the current ingest path is not receiving those rows yet.
 - `sync-executions` success means current-day `tws_live` trade rows can be upserted into Mongo from the same runtime as FastAPI.
 
 If `raw-connect-test` succeeds but `connect-test` reports `handshake_failed`, focus on TWS trust and client-origin settings first.

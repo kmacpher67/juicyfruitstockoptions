@@ -96,6 +96,7 @@ This is the strongest reason not to treat same-night TWS observations as final a
 - [x] Operator observation: the TWS Trades window `ACTION` column can show `EXPIRED` and `ASSIGNED` on Friday night / Saturday morning before the next Activity Flex cycle lands.
 - [/] Current implementation now preserves raw execution-side action text from TWS execution ingestion into `ibkr_trades` as `action` / `raw_action`, but the exact callback-to-TWS-Trades-window mapping for `EXPIRED` and `ASSIGNED` still needs broker/API confirmation.
 - [ ] Should the trade-history UI show a provisional badge for same-day expiration outcomes until the next Activity Flex run lands?
+- [ ] Run same-runtime `execution-diagnostics` against a real Friday/Saturday TWS session and record whether `action_counts` actually includes `EXPIRED` / `ASSIGNED`.
 
 ## Sources
 
@@ -145,3 +146,15 @@ If the operator cannot see `EXPIRED` or `ASSIGNED` in `?view=TRADES`, check in t
 1. Does the selected timeframe include the relevant trade date?
 2. Does the backend payload from `/api/trades/analysis` or `/api/trades/live` actually contain `action` / `raw_action` with `EXPIRED` or `ASSIGNED`?
 3. If not, treat it as an ingestion/storage gap first, not a presentation bug.
+
+Recommended same-runtime check:
+
+```bash
+python -m app.scripts.ibkr_tws_cli execution-diagnostics --force-enable
+```
+
+This should show:
+
+- `execution_count`
+- `action_counts`
+- recent `outcome_rows` if any `EXPIRED` / `ASSIGNED` / `EXERCISED` rows were actually received

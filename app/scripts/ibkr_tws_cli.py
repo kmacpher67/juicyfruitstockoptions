@@ -201,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
             "account-values",
             "sync-nav",
             "executions",
+            "execution-diagnostics",
             "sync-executions",
         ],
         help="TWS action to run.",
@@ -272,6 +273,9 @@ def main() -> None:
             elif args.command == "executions":
                 service.refresh_executions(account=args.account)
                 payload = service.get_executions(account=args.account)
+            elif args.command == "execution-diagnostics":
+                service.refresh_executions(account=args.account)
+                payload = service.get_execution_diagnostics(account=args.account)
             elif args.command == "sync-nav":
                 payload = _insert_nav_snapshots(service, account=args.account)
             elif args.command == "sync-executions":

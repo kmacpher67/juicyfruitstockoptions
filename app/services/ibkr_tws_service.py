@@ -996,6 +996,52 @@ class IBKRTWSService:
             return executions
         return [execution for execution in executions if execution.get("account") == account]
 
+    def get_execution_diagnostics(self, account: str | None = None) -> dict[str, Any]:
+        executions = self.get_executions(account=account)
+        action_counts: dict[str, int] = {}
+        outcome_rows: list[dict[str, Any]] = []
+
+        def _action_for(execution: dict[str, Any]) -> str:
+            return str(
+                execution.get("raw_action")
+                or execution.get("action")
+                or execution.get("outcome_action")
+                or execution.get("buy_sell")
+                or ""
+            ).strip().upper()
+
+        sorted_executions = sorted(
+            executions,
+            key=lambda row: str(row.get("date_time") or row.get("raw_execution_time") or ""),
+            reverse=True,
+        )
+
+        for execution in sorted_executions:
+            action = _action_for(execution) or "UNKNOWN"
+            action_counts[action] = action_counts.get(action, 0) + 1
+            if action in {"EXPIRED", "ASSIGNED", "EXERCISED"}:
+                outcome_rows.append(
+                    {
+                        "exec_id": execution.get("exec_id"),
+                        "account": execution.get("account"),
+                        "symbol": execution.get("symbol"),
+                        "underlying_symbol": execution.get("underlying_symbol"),
+                        "local_symbol": execution.get("local_symbol"),
+                        "action": action,
+                        "buy_sell": execution.get("buy_sell"),
+                        "date_time": execution.get("date_time"),
+                        "raw_execution_time": execution.get("raw_execution_time"),
+                        "source": execution.get("source"),
+                    }
+                )
+
+        return {
+            "requested_account": account,
+            "execution_count": len(executions),
+            "action_counts": dict(sorted(action_counts.items())),
+            "outcome_rows": outcome_rows[:25],
+        }
+
     def get_open_orders(self, account: str | None = None, *, active_only: bool = True) -> list[dict[str, Any]]:
         if self._is_disabled():
             return []
