@@ -495,6 +495,22 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Business Logic**: Implement Cost Basis and Realized P&L calculation (grouping buys/sells by symbol).
     - [x] **Frontend**: Build "Trade History" view with datagrid, filtering, and export.
     - [x] **Metrics**: Add summary metrics (Total P&L, Win Rate, LT/ST P&L, etc.) to the history view.
+    - [ ] **trade-history-option-expiration-profit-20260411**: Detect option expiration outcome events from IBKR trade/order history (`EXPIRED`, `ASSIGNED`, exercise-related stock delivery, or equivalent normalized rows), match them back to the opening option lots, and show the realized profit or loss for the expired contract.
+        - [ ] Preserve the raw IBKR/TWS source naming from the Trades window `ACTION` column as a first-class field (`action` / `raw_action`) so values such as `EXPIRED` and `ASSIGNED` remain visible exactly as sent by the source.
+        - [ ] Add a separate normalized outcome field only for app logic/grouping; do not replace or overwrite the raw source action text.
+        - [ ] Ingest Friday-night / Saturday-morning TWS expiration outcome rows when they appear in the live Trades feed, mark them as provisional realtime records, and later reconcile them against next-day Flex/accounting history.
+        - [ ] Normalize expiration outcome events so expired worthless contracts are represented explicitly in the trade timeline instead of silently disappearing.
+        - [ ] For expired worthless short options, calculate realized profit from premium collected minus commissions/fees and render profit in green.
+        - [ ] For long options that expire worthless, calculate realized loss from premium paid plus commissions/fees and render loss in red.
+        - [ ] For assignment/exercise outcomes, preserve the option outcome row and link it to the resulting stock delivery/close behavior so the operator can see why the P&L changed.
+        - [ ] Keep source freshness visible (`tws_intraday`, `trade_confirmation_flex`, `activity_flex_eod`, etc.) so Friday/Saturday realtime status is not confused with next-day finalized history. See [IBKR Option Expiration Timing](learning/ibkr-option-expiration-timing.md).
+    - [ ] **trade-history-underlying-period-trace-20260411**: Add an underlying-symbol period trace that lets the user pick a stock (`STK`) and a time window, then reconstruct the profit/loss history of all related `OPT` and `STK` trades on that underlying for the selected period.
+        - [ ] Add a picker/filter for `underlying_symbol` plus a start/end date or standard windows (`1W`, `1M`, `3M`, `YTD`, custom).
+        - [ ] Include both stock rows and option rows tied to that underlying, even when option contracts have long local symbols.
+        - [ ] Show per-row realized P&L and subtotal/group totals for `STK`, `OPT`, and combined underlying activity for the period.
+        - [ ] Color-code profit as green and loss as red at the row level and summary level.
+        - [ ] Preserve account context so the trace can be viewed per account and across all accounts without mixing lots incorrectly.
+        - [ ] Include related dividend cash events and preserved source-action outcomes (`EXPIRED`, `ASSIGNED`) in the underlying trace when they belong to the selected stock and period.
     - [x] **Bug issue**: History view is not loading trades, 500 Internal Server Error http://localhost:3000/api/trades/analysis
     - [x] **Bug issue**: Portfolio view sub menu is dropping down when going to the trades menu tab. 
     - [x] **Trade Metrics Education**: See [Trade Metrics Guide](learning/trade-metrics.md). Explains Win Rate, Profit Factor, Diagonal Rolls, and Dividends.
