@@ -260,3 +260,75 @@ def test_load_portfolio_holdings_rows_merges_latest_flex_and_tws_snapshots():
     assert row["unrealized_pnl"] == 180.0
     assert row["cost_basis"] == 4.75
     assert row["merged_sources"] == ["flex", "tws"]
+
+
+def test_load_portfolio_holdings_rows_excludes_stale_tws_only_phantom_rows_when_flex_newer():
+    mock_db = MagicMock()
+
+    # Stale TWS snapshot still carries an old short call that was rolled.
+    live_rows = [
+        {
+            "symbol": "AMD",
+            "local_symbol": "AMD   260410C00207500",
+            "secType": "OPT",
+            "account": "U110638",
+            "position": -1,
+            "last_trade_date": "20260410",
+            "right": "C",
+            "strike": 207.5,
+            "source": "tws",
+        },
+    ]
+    # Newer Flex snapshot contains only the rolled replacements.
+    flex_rows = [
+        {
+            "symbol": "AMD  260424C00237500",
+            "asset_class": "OPT",
+            "account_id": "U110638",
+            "quantity": -1,
+            "expiry": "2026-04-24",
+            "right": "C",
+            "strike": 237.5,
+            "source": "flex",
+        },
+        {
+            "symbol": "AMD  260508C00230000",
+            "asset_class": "OPT",
+            "account_id": "U110638",
+            "quantity": -1,
+            "expiry": "2026-05-08",
+            "right": "C",
+            "strike": 230,
+            "source": "flex",
+        },
+    ]
+
+    stale_tws_date = datetime.now() - timedelta(days=3)
+    fresh_flex_date = datetime.now()
+
+    def find_one_side_effect(query=None, sort=None):
+        if query == {"source": "tws"}:
+            return {"snapshot_id": "tws_snap", "source": "tws", "date": stale_tws_date}
+        if query == {"source": "flex"}:
+            return {"snapshot_id": "flex_snap", "source": "flex", "date": fresh_flex_date}
+        if query == {"source": {"$exists": False}}:
+            return None
+        return None
+
+    def find_side_effect(query, projection):
+        if query == {"snapshot_id": "tws_snap", "source": "tws"}:
+            return live_rows
+        if query == {"snapshot_id": "flex_snap", "source": "flex"}:
+            return flex_rows
+        return []
+
+    mock_db.ibkr_holdings.find_one.side_effect = find_one_side_effect
+    mock_db.ibkr_holdings.find.side_effect = find_side_effect
+    mock_db.system_config.find_one.return_value = {"_id": "data_freshness_config", "price_closed_min": 60}
+
+    rows = _load_portfolio_holdings_rows(mock_db)
+
+    symbols = {row["display_symbol"] for row in rows}
+    assert "AMD 2026-04-10 207.5 Call" not in symbols
+    assert "AMD 2026-04-24 237.5 Call" in symbols
+    assert any(symbol.startswith("AMD 2026-05-08 230") for symbol in symbols)

@@ -1000,31 +1000,51 @@ def _merge_portfolio_rows(base_row: dict, incoming_row: dict) -> dict:
 
 
 def _load_portfolio_holdings_rows(db) -> list[dict]:
+    latest_tws = db.ibkr_holdings.find_one({"source": "tws"}, sort=[("date", -1)])
+    latest_flex = db.ibkr_holdings.find_one({"source": "flex"}, sort=[("date", -1)])
+    if not latest_flex:
+        latest_flex = db.ibkr_holdings.find_one({"source": {"$exists": False}}, sort=[("date", -1)])
+
+    tws_is_stale = False
+    if latest_tws and latest_flex:
+        tws_timestamp = _parse_datetime_utc(latest_tws.get("date") or latest_tws.get("last_tws_update"))
+        threshold_mins = _get_freshness_threshold_minutes(db=db).get(
+            "price_open_min" if _is_us_equity_market_session() else "price_closed_min",
+            15,
+        )
+        if tws_timestamp is not None:
+            tws_is_stale = (datetime.now(timezone.utc) - tws_timestamp) > timedelta(minutes=int(threshold_mins))
+
     live_query = _latest_holdings_query_for_source(db, "tws")
     flex_query = _latest_holdings_query_for_source(db, "flex")
 
-    row_groups: list[list[dict]] = []
+    row_groups: list[tuple[str, list[dict]]] = []
     seen_queries: set[tuple] = set()
-    for query in [live_query, flex_query]:
+    for source, query in [("tws", live_query), ("flex", flex_query)]:
         if not query:
             continue
         key = tuple(sorted((k, str(v)) for k, v in query.items()))
         if key in seen_queries:
             continue
         seen_queries.add(key)
-        row_groups.append(list(db.ibkr_holdings.find(query, {"_id": 0})))
+        row_groups.append((source, list(db.ibkr_holdings.find(query, {"_id": 0}))))
 
     if not row_groups:
         fallback_query = _latest_holdings_query_for_source(db, None)
         if not fallback_query:
             return []
-        row_groups.append(list(db.ibkr_holdings.find(fallback_query, {"_id": 0})))
+        row_groups.append(("fallback", list(db.ibkr_holdings.find(fallback_query, {"_id": 0}))))
 
     merged_rows: dict[tuple, dict] = {}
-    for rows in row_groups:
+    for source, rows in row_groups:
         for raw_row in rows:
             normalized = _normalize_portfolio_row(raw_row)
             key = _portfolio_row_key(normalized)
+            # If Flex is newer and TWS snapshot is stale, stale TWS-only rows should
+            # not appear as phantom positions. Keep TWS limited to enriching matching
+            # Flex/fallback positions when they share the same normalized row key.
+            if source == "tws" and tws_is_stale and key not in merged_rows:
+                continue
             if key in merged_rows:
                 merged_rows[key] = _merge_portfolio_rows(merged_rows[key], normalized)
             else:
