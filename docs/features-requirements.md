@@ -691,6 +691,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [/] Create "Impact Score" for news events on portfolio tickers. *Logic Implemented, UI Pending*
         - [ ] **Research**: Evaluate X (Twitter) API v2 Basic Tier (~$100/mo) vs Free Limits for "Alpha Lists".
         - [ ] **Research**: Investigate Yahoo Scout integration (Scraping vs User Manual Copy/Paste).
+- [ ] **Research**: Evaluate Massive Financial API (https://massive.com/landing/financial-api) for ticker metadata and supplemental market data, compare against yfinance and IBKR sources.
     - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
 - [/] **Markov Chains**: Implement Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock. 
     - [x] Research `markovify` or `pykalman` libraries.
