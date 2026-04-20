@@ -142,13 +142,23 @@ Run controlled experiments comparing strategy variants:
 
 ---
 
-## Open Questions / Scoping Needed
+## Scoping Answers (Resolved 2026-04-19)
 
-1. **Time horizon for "win"** — DTE-based (expired worthless = full premium captured = WIN)? Or fixed N-day P&L window?
-2. **Data readiness** — how many historical `opportunities` records exist with resolvable outcomes? Run `db.opportunities.countDocuments({})` to check.
-3. **Single metric choice** — hit rate (binary win/loss) vs annualized yield delta (continuous, noisier but more informative)?
-4. **Agent autonomy** — semi-autonomous (suggest changes, Ken approves) vs fully autonomous overnight loop?
-5. **Compute** — confirm no GPU needed for Juicy adaptation; all evaluation runs on existing MongoDB + Python stack.
+| Question | Answer |
+|---|---|
+| **Time horizon for "win"** | DTE-based primary: expired worthless = WIN. Secondary: exit with profit at any point = WIN. Both captured in outcome record. |
+| **Autonomy level** | **Zero trust (Level 0).** Ken makes all trades — copy/paste into IBKR. No IBKR write permissions exist in codebase. See [Trade Autonomy Policy](trade-autonomy-policy.md). |
+| **GPU requirement** | Confirmed: no GPU needed. Juicy adaptation runs on MongoDB + Python. |
+| **Metric choice** | **ALL of the above** — hit rate (binary WIN%), annualized yield delta (continuous), return, YTD, QTD, 1Y per ticker AND aggregate portfolio. |
+| **Data readiness** | Unknown — need to query `db.opportunities.countDocuments({})` against live DB. Grader phase first regardless. |
+| **Win definition** | Yield ≥ 33% annualized = score 100. Score 10 = Ken's Inflation Baseline (~5.9%). Full scale: see [Juicy Glossary](juicy-glossary.md). |
+| **Loss definition** | Any annualized yield < 0% is a LOSS. Score -100 = ≥20% annualized loss. |
+
+## Open Questions / Still Needed
+
+1. **Minimum dollar threshold for WIN** — what minimum position size/premium makes a trade worth counting? (e.g., ignore trades < $100 net premium or < $500 notional)
+2. **SCRATCH category** — trades scoring 0–9 (above zero but below Ken's inflation). Should these count as wins, losses, or a third category in aggregate stats?
+3. **Data readiness** — query live DB once restored to get opportunity/graded count baseline.
 
 ---
 

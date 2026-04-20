@@ -48,3 +48,45 @@ Does the premium justify the capital tied up?
 ## Testing Strategy
 1.  **Backtesting**: Run this scoring algorithm against historical data. Did high-scoring trades outperform low-scoring trades?
 2.  **Paper Trading**: Forward test signals in a paper account to verify "real-world" fillability and performance.
+
+---
+
+## Win/Loss Outcome Score (Grading Scale)
+
+After a trade closes, it receives an **Outcome Score** separate from the opportunity score above.  
+This measures realized performance against Ken's capital cost floor. See [Juicy Glossary](juicy-glossary.md).
+
+### Ken's Inflation Baseline (~5.9%)
+The zero point for real returns. Composite of PCE, CPI, IBKR margin rate (~6%), and US fiscal deficit/GDP (~5.8%).  
+Any yield at or below this rate means capital did not beat its own cost.
+
+### Outcome Score Anchors
+
+| Score | Meaning | Annualized Yield |
+|---|---|---|
+| +100 | WIN — Juicy | ≥ 33% |
+| +50 | Good | ≈ 20% |
+| +10 | Beat inflation (barely) | ≈ 5.9% (Ken's Inflation Baseline) |
+| 0 | Pure breakeven | 0% |
+| -50 | Significant loss | ≈ -10% |
+| -100 | LOSS — Capital destruction | ≤ -20% |
+
+**Positive scale (0 → +100):** Linear interpolation from 0% yield (score 0) to 33%+ (score 100).  
+Values between 0 and 10 are "nominally positive but below inflation" — not a real win.
+
+**Negative scale (0 → -100):** Linear interpolation from 0% yield (score 0) to -20%+ loss (score -100).
+
+### Outcome Classification
+- **WIN**: Score ≥ 10 AND yield exceeds Ken's Inflation Baseline AND meets minimum position size threshold (TBD)
+- **LOSS**: Score < 0 (any real money loss, annualized)
+- **SCRATCH**: Score 0–9 (below inflation, not worth the capital tie-up)
+
+### Grading Metrics Tracked (All Windows)
+Per-ticker AND portfolio aggregate:
+
+| Metric | Windows |
+|---|---|
+| Hit Rate (WIN%) | QTD, YTD, 1Y, All-time |
+| Realized Annualized Yield | QTD, YTD, 1Y, All-time |
+| Yield Delta (predicted vs actual) | Per trade + aggregate |
+| Return (absolute $) | QTD, YTD, 1Y, All-time |
