@@ -94,7 +94,10 @@ def _parse_datetime_utc(value) -> datetime | None:
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
-    parsed = pd.to_datetime(value, utc=True, errors="coerce")
+    try:
+        parsed = pd.to_datetime(value, utc=True, errors="coerce")
+    except Exception:
+        return None
     if parsed is None or pd.isna(parsed):
         return None
     return parsed.to_pydatetime().astimezone(timezone.utc)
@@ -761,6 +764,8 @@ def _market_context_for_ticker(db, ticker: str | None) -> dict:
     if not ticker:
         return {}
     doc = db.stock_data.find_one({"Ticker": ticker}, {"_id": 0}) or {}
+    if not isinstance(doc, dict):
+        doc = {}
 
     def _safe_percent(value):
         if value in (None, ""):
@@ -1327,6 +1332,10 @@ def get_juicys(
         rows = []
     raw_rows = rows
     rows = _filter_juicy_workspace_rows(raw_rows, owned_symbols, wheel_mode=wheel_mode)
+    if raw_rows and not rows:
+        # Backward-compatible fallback: if rows do not include wheel-aware inputs yet,
+        # keep legacy workspace behavior instead of dropping the full dataset.
+        rows = raw_rows
     if not raw_rows:
         seed_symbols = [norm_symbol] if norm_symbol else sorted(
             {
@@ -1350,7 +1359,9 @@ def get_juicys(
         )
         if not isinstance(rows, list):
             rows = []
-        rows = _filter_juicy_workspace_rows(rows, owned_symbols, wheel_mode=wheel_mode)
+        filtered_rows = _filter_juicy_workspace_rows(rows, owned_symbols, wheel_mode=wheel_mode)
+        if filtered_rows:
+            rows = filtered_rows
     rows = _sanitize_for_json(rows)
     return {
         "count": len(rows),
@@ -2125,9 +2136,19 @@ async def get_portfolio_holdings(
             coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
 
     pending_summary_by_account = _load_pending_order_summaries(db, coverage_by_account)
+    market_context_symbols = {
+        str(row.get("symbol") or "").strip().upper()
+        for row in data
+        if row.get("symbol")
+    }
+    market_context_symbols.update(
+        str(row.get("underlying_symbol") or row.get("underlying") or "").strip().upper()
+        for row in data
+        if row.get("underlying_symbol") or row.get("underlying")
+    )
     market_context_by_symbol = {
         sym: _market_context_for_ticker(db, sym)
-        for sym in sorted({str(row.get("symbol") or "").strip().upper() for row in data if row.get("symbol")})
+        for sym in sorted(s for s in market_context_symbols if s)
     }
 
     for row in data:
@@ -2179,10 +2200,14 @@ async def get_portfolio_holdings(
 
         # C. X-DIV assignment risk
         if sec_type in ["OPT", "FOP"] and _is_short_call_position(row):
+            row.setdefault("assignment_risk_warning", False)
+            row.setdefault("assignment_risk_label", None)
             market = market_context_by_symbol.get(str(und or "").strip().upper(), {})
             underlying_price = _safe_float(
                 row.get("underlying_market_price")
-                or row.get("market_price")
+                or underlying_price_by_account.get((account_id, und))
+                or row.get("underlying_price")
+                or row.get("underlying_last")
                 or market.get("last_price")
             )
             dividend_amount = None
@@ -2201,7 +2226,11 @@ async def get_portfolio_holdings(
                 days_to_ex_div = max(0, (ex_div_date.date() - datetime.now(timezone.utc).date()).days)
 
             strike = _safe_float(row.get("strike"))
-            option_price = _safe_float(row.get("market_price") or row.get("mark_price") or row.get("price"))
+            option_price = _safe_float(
+                row.get("mark_price")
+                or row.get("price")
+                or row.get("market_price")
+            )
             if option_price is None:
                 option_price = _safe_float(row.get("underlying_option_price"))
             if underlying_price is not None and strike is not None and option_price is not None and dividend_amount is not None:
