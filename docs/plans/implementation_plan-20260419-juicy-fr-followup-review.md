@@ -46,15 +46,15 @@ Exit criteria:
 3. Regression tests cover happy path and invalid payloads.
 
 ## Related F-R Items (Delivery Backlog)
-- `juicy-fr-followup-review-001`: F-R create payload contract.
-- `juicy-fr-followup-review-002`: Strategy-leg normalization (ratio spread vs ITM substitution).
-- `juicy-fr-followup-review-003`: Net credit and effective-entry computation.
-- `juicy-fr-followup-review-004`: F-R queue filter in Juicys tab.
-- `juicy-fr-followup-review-005`: Strategy sub-tabs in Juicys queue.
-- `juicy-fr-followup-review-006`: Review-state transitions and assignment flow.
-- `juicy-fr-followup-review-007`: MTM sync and stale-state indicators.
-- `juicy-fr-followup-review-008`: Roll analysis notes and position intent tracking.
-- `juicy-fr-followup-review-009`: Regression tests (API + UI).
+- `juicy-fr-followup-review-001`: F-R create payload contract. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-002`: Strategy-leg normalization (ratio spread vs ITM substitution). Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-003`: Net credit and effective-entry computation. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-004`: F-R queue filter in Juicys tab. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-005`: Strategy sub-tabs in Juicys queue. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-006`: Review-state transitions and assignment flow. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-007`: MTM sync and stale-state indicators. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-008`: Roll analysis notes and position intent tracking. Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
+- `juicy-fr-followup-review-009`: Regression tests (API + UI). Reference: [Put Ratio Spreads](../learning/put_ratio_spreads.md).
 
 ## Risks
 1. Existing Juicys schema drift may cause migration mismatch.
@@ -70,3 +70,4 @@ Exit criteria:
 - [Master F-R](../features-requirements.md)
 - [Juicy F-R Feature Contract](../features/juicy_fr_followup_review.md)
 - [Juicys Navigation + Optimizer Workspace](../features/juicys_navigation_optimizer_workspace.md)
+- [Put Ratio Spreads](../learning/put_ratio_spreads.md)

@@ -108,3 +108,4 @@ Define the operator workflow and data contract for Follow-up/Review (`F-R`) item
 - [Master F-R](../features-requirements.md)
 - [Juicys Navigation + Optimizer Workspace](juicys_navigation_optimizer_workspace.md)
 - [Implementation Plan — Juicy F-R Follow-up/Review](../plans/implementation_plan-20260419-juicy-fr-followup-review.md)
+- [Put Ratio Spreads](../learning/put_ratio_spreads.md)
