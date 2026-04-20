@@ -34,6 +34,28 @@ The application follows a Service-Oriented Architecture (SOA) style, structured 
     *   `run_ibkr_sync`: Syncs portfolio data from IBKR.
     *   `run_recommendation_scans`: Generates and persists trading signals.
 
+### Scanner Services Hierarchy
+
+Scanners are organized by trading phase, each targeting a distinct segment of the wheel/options strategy lifecycle:
+
+**Phase 1 — Entry Scanner: `CSP_Optimizer`** *(Proposed)*
+*   **Goal**: Find high-yield Cash Secured Puts (CSPs) on quality underlyings.
+*   **Focus**: Strike selection below support, IV rank filtering, yield-to-expiry ranking.
+*   **Output**: CSP opportunities ranked by Annualized Yield %.
+
+**Phase 2 — Yield Scanner: `OptionsAnalyzer`** *(Current — `app/services/options_analysis.py`)*
+*   **Goal**: Maximize ARIF % (Annualized Return on Invested capital from premium).
+*   **Focus**: Covered call selection across held positions; strike, DTE, and IV optimization.
+*   **Output**: Covered call opportunities with yield and premium metrics.
+
+**Phase 3 — Tactical Scanners**
+
+| Scanner | File | Status | Purpose |
+|---|---|---|---|
+| `ExpirationScanner` | `expiration_scanner.py` | Active | Identifies positions with DTE < 7 for rolling or closing decisions |
+| `DividendScanner` | `dividend_scanner.py` | Active | Scans for ex-div dates and buy-write capture opportunities |
+| `MomentumScanner` | *(Proposed)* | Proposed | Scans for Juicy Buy Calls by correlating technical breakouts with low IV |
+
 ## Data Flow & State Management
 
 ### Single Source of Truth
@@ -244,3 +266,4 @@ juicyfruitstockoptions/
 | Date | Action | Reason |
 |---|---|---|
 | 2026-03-28 | **ADDED** File System Tree + MongoDB Collections table | Claude Code workspace setup; reviewed full project structure |
+| 2026-04-19 | **ADDED** Scanner Services Hierarchy sub-section under Core Services | Documents Phase 1 (CSP_Optimizer), Phase 2 (OptionsAnalyzer), Phase 3 (Expiration/Dividend/Momentum) scanner structure |
