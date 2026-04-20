@@ -62,6 +62,13 @@ const HEADER_HELP_BY_KEY = {
 };
 
 const CONTROL_HELP_RULES = [
+    // Nav tab buttons
+    [/^analysis$/i, 'Run stock live analysis and view technical signal rankings and XLSX report.'],
+    [/^my portfolio$/i, 'View IBKR portfolio positions with coverage status, P&L, and open orders.'],
+    [/^trade history$/i, 'Browse closed IBKR trades with realized P&L and performance metrics.'],
+    [/^orders$/i, 'View open broker orders with fill status, quantity, and limit prices.'],
+    [/^juicys$/i, 'Ranked covered-call and wheel opportunities sorted by annualized yield.'],
+    // Grid filter controls
     [/^all$/i, 'Show all rows and clear focus filters.'],
     [/^uncovered$/i, 'Show positions with uncovered shares.'],
     [/^naked$/i, 'Show positions where short calls exceed share coverage.'],
@@ -73,7 +80,6 @@ const CONTROL_HELP_RULES = [
     [/^near money/i, 'Toggle options near the money by strike distance %.'],
     [/^show "stk \?"$/i, 'Include related stock rows in option-focused views.'],
     [/^export csv$/i, 'Download currently visible portfolio rows as CSV.'],
-    [/^my portfolio$/i, 'Open portfolio positions and coverage focus view.'],
 ];
 
 export const resolveHeaderTooltip = (headerName, fieldName = '') => {

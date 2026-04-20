@@ -33,6 +33,14 @@ test('withHeaderTooltips adds help text when missing and preserves explicit tool
     assert.equal(next[1].headerTooltip, 'Explicit help');
 });
 
+test('resolveControlTooltip covers main nav tab buttons', () => {
+    assert.ok(resolveControlTooltip('Analysis'), 'Analysis nav tab missing tooltip');
+    assert.ok(resolveControlTooltip('My Portfolio'), 'My Portfolio nav tab missing tooltip');
+    assert.ok(resolveControlTooltip('Trade History'), 'Trade History nav tab missing tooltip');
+    assert.ok(resolveControlTooltip('Orders'), 'Orders nav tab missing tooltip');
+    assert.ok(resolveControlTooltip('Juicys'), 'Juicys nav tab missing tooltip');
+});
+
 test('resolveControlTooltip covers dynamic focus buttons', () => {
     assert.equal(resolveControlTooltip('Expiring (<6D)'), 'Toggle positions with options expiring within selected DTE.');
     assert.equal(resolveControlTooltip('Near Money (<8%)'), 'Toggle options near the money by strike distance %.');

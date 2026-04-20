@@ -14,6 +14,7 @@ import OrdersGrid from './OrdersGrid';
 import JuicysGrid from './JuicysGrid';
 import TickerModal from './TickerModal';
 import RollAnalysisModal from './RollAnalysisModal';
+import { resolveControlTooltip } from './uiHelpTooltips';
 // import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const formatRelativeTime = (value) => {
@@ -716,6 +717,7 @@ const Dashboard = () => {
                         <div className="flex bg-gray-800 rounded p-1 ml-4 border border-gray-700">
                             <button
                                 onClick={() => setViewMode('ANALYSIS')}
+                                title={resolveControlTooltip('Analysis')}
                                 className={`px-3 py-1 text-sm rounded ${viewMode === 'ANALYSIS' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                             >
                                 Analysis
@@ -723,6 +725,7 @@ const Dashboard = () => {
                             <div className="relative group">
                                 <button
                                     onClick={() => setViewMode('PORTFOLIO')}
+                                    title={resolveControlTooltip('My Portfolio')}
                                     className={`px-3 py-1 text-sm rounded ${viewMode === 'PORTFOLIO' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                                 >
                                     My Portfolio
@@ -765,18 +768,21 @@ const Dashboard = () => {
                             </div>
                             <button
                                 onClick={() => setViewMode('TRADES')}
+                                title={resolveControlTooltip('Trade History')}
                                 className={`px-3 py-1 text-sm rounded ${viewMode === 'TRADES' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                             >
                                 Trade History
                             </button>
                             <button
                                 onClick={() => setViewMode('ORDERS')}
+                                title={resolveControlTooltip('Orders')}
                                 className={`px-3 py-1 text-sm rounded ${viewMode === 'ORDERS' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                             >
                                 Orders
                             </button>
                             <button
                                 onClick={() => setViewMode('JUICYS')}
+                                title={resolveControlTooltip('Juicys')}
                                 className={`px-3 py-1 text-sm rounded ${viewMode === 'JUICYS' ? 'bg-red-100 text-red-600 shadow' : 'text-gray-400 hover:text-white'}`}
                             >
                                 Juicys
