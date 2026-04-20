@@ -3,6 +3,7 @@ from datetime import date, timedelta, datetime, timezone
 import math
 import re
 from typing import Annotated, List
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -14,6 +15,13 @@ from app.auth.dependencies import get_current_active_user
 from app.auth.utils import create_access_token, verify_password, get_password_hash
 from app.config import settings
 from app.models import (
+    FRCreateRequest,
+    FRItem,
+    FRListResponse,
+    FRReviewState,
+    FRStatus,
+    FRStrategyType,
+    FRUpdateRequest,
     Token,
     User,
     StockRecord,

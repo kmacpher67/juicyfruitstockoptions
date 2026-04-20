@@ -1,6 +1,15 @@
 from typing import List, Optional, Any, Dict, Literal
 from enum import Enum
 from pydantic import BaseModel, Field, AliasChoices
+from app.models.fr_followup_review import (
+    FRCreateRequest,
+    FRItem,
+    FRListResponse,
+    FRReviewState,
+    FRStatus,
+    FRStrategyType,
+    FRUpdateRequest,
+)
 
 class StockRecord(BaseModel):
     """
