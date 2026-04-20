@@ -68,6 +68,10 @@ const CONTROL_HELP_RULES = [
     [/^trade history$/i, 'Browse closed IBKR trades with realized P&L and performance metrics.'],
     [/^orders$/i, 'View open broker orders with fill status, quantity, and limit prices.'],
     [/^juicys$/i, 'Ranked covered-call and wheel opportunities sorted by annualized yield.'],
+    // Juicys wheel-phase filter buttons
+    [/^auto$/i, 'Auto wheel mode: shows Cash-Secured PUTs for tickers you don\'t own, Covered CALLs for tickers you do own. Requires >20% annualized yield.'],
+    [/^phase 1$/i, 'Phase 1 — Cash-Secured PUT: sell puts on tickers you want to buy. Collect premium; if assigned you acquire shares at a discount. Requires >20% annualized yield.'],
+    [/^phase 2$/i, 'Phase 2 — Covered CALL: sell calls against shares you already own. Collect premium; if called away you sell at the strike. Requires >20% annualized yield.'],
     // Grid filter controls
     [/^all$/i, 'Show all rows and clear focus filters.'],
     [/^uncovered$/i, 'Show positions with uncovered shares.'],

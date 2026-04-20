@@ -886,18 +886,21 @@ const Dashboard = () => {
                             <div className="ml-2 flex items-center gap-1 rounded border border-gray-600 bg-gray-900 p-1">
                                 <button
                                     onClick={() => setJuicyWheelMode('auto')}
+                                    title={resolveControlTooltip('Auto')}
                                     className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'auto' ? 'bg-blue-700 text-white' : 'text-gray-400 hover:text-white'}`}
                                 >
                                     Auto
                                 </button>
                                 <button
                                     onClick={() => setJuicyWheelMode('phase1')}
+                                    title={resolveControlTooltip('Phase 1')}
                                     className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'phase1' ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-white'}`}
                                 >
                                     Phase 1
                                 </button>
                                 <button
                                     onClick={() => setJuicyWheelMode('phase2')}
+                                    title={resolveControlTooltip('Phase 2')}
                                     className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'phase2' ? 'bg-amber-700 text-white' : 'text-gray-400 hover:text-white'}`}
                                 >
                                     Phase 2

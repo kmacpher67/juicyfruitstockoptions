@@ -33,6 +33,12 @@ test('withHeaderTooltips adds help text when missing and preserves explicit tool
     assert.equal(next[1].headerTooltip, 'Explicit help');
 });
 
+test('resolveControlTooltip covers Juicys wheel-phase buttons', () => {
+    assert.ok(resolveControlTooltip('Auto'), 'Auto wheel button missing tooltip');
+    assert.ok(resolveControlTooltip('Phase 1'), 'Phase 1 button missing tooltip');
+    assert.ok(resolveControlTooltip('Phase 2'), 'Phase 2 button missing tooltip');
+});
+
 test('resolveControlTooltip covers main nav tab buttons', () => {
     assert.ok(resolveControlTooltip('Analysis'), 'Analysis nav tab missing tooltip');
     assert.ok(resolveControlTooltip('My Portfolio'), 'My Portfolio nav tab missing tooltip');
