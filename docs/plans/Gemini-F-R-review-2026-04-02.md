@@ -1,5 +1,8 @@
 # F-R Review - Gemini AI - 2026-04-02
 
+> Follow-up (2026-04-19): Juicys Follow-up/Review queue planning has been split into dedicated docs:
+> [Juicy Follow-up/Review (F-R) Workflow](../features/juicy_fr_followup_review.md) and [Implementation Plan](implementation_plan-20260419-juicy-fr-followup-review.md).
+
 ## 1. Item Counts
 Based on an analysis of `docs/features-requirements.md`:
 - **Open `[ ]` items**: 45

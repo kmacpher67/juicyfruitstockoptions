@@ -2,7 +2,7 @@
 
 > **Date:** 2026-04-07  
 > **Status:** Implemented (Phase 1 complete)  
-> **Parent Requirements:** `docs/features-requirements.md` (`juicys-nav-*`, `stock-analysis-optimizer-juicy-table-*`, `juicy-opportunity-refresh-job-*`)
+> **Parent Requirements:** `docs/features-requirements.md` (`juicys-nav-*`, `stock-analysis-optimizer-juicy-table-*`, `juicy-opportunity-refresh-job-*`, `juicy-fr-followup-review-*`)
 
 ---
 
@@ -109,6 +109,11 @@ Minimum fields:
   - [Opportunity Persistence & Grading](../learning/opportunity-persistence-and-grading.md)
   - [Opportunity Scoring](../learning/opportunity-scoring.md)
 
+### Follow-up/Review Queue Integration (Planned)
+- F-R-tagged reviewed trade records are defined in:
+  - [Juicy Follow-up/Review (F-R) Workflow](juicy_fr_followup_review.md)
+  - [Implementation Plan — Juicy F-R Follow-up/Review](../plans/implementation_plan-20260419-juicy-fr-followup-review.md)
+
 ---
 
 ## Suggested API Surface (Non-Binding)
@@ -161,3 +166,4 @@ Existing endpoint integration:
 |:---|:---|:---|
 | 2026-04-07 | **CREATED** | Captured requirements and contracts for new `Juicys` top nav, Optimizer-table redesign, and refresh-job DB-first workflow |
 | 2026-04-07 | **UPDATED** | Implemented chain-depth/liquidity/short-DTE scoring contract (`stock-analysis-optimizer-juicy-table-009..011`) and documented delivered fields + UI exposure |
+| 2026-04-19 | **UPDATED** | Added cross-link to planned Follow-up/Review queue workflow for F-R-tagged items and related implementation plan (`juicy-fr-followup-review-*`) |
