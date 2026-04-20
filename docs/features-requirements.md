@@ -630,6 +630,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **Opportunity Signals**: Detect and alert on uncovered stock positions (gap shares) suitable for covered calls (displayed as "Opp Block" in Portfolio view).
     - [x] **Bug issue**: MRVL Gap 500 Shares, Trend UP (+0.12%) but it's not up in recent trading. **Fixed**: Corrected parsing of "1D % Change" in OptionsAnalyzer and fixed scoring logic for trend.
     - [x] **Opportunity Scoring Rubric**: See [Opportunity Scoring](learning/opportunity-scoring.md). Defines the 0-100 rating scale and factors (IV, Trend, Liquidity). 
+    - [ ] **juicy-glossary-doc**: Create and maintain [docs/learning/juicy-glossary.md](learning/juicy-glossary.md) as the master reference for Juicy Fruit strategy terms, WIN/LOSS outcome scoring, Ken's Inflation Baseline, and trade autonomy levels. *(Created 2026-04-19: WIN=≥33% yield=score 100, Ken's Inflation composite ~5.9%=score 10/zero point, LOSS=any negative annualized yield down to -100 at ≥20% loss.)*
     - [ ] **juicy-opportunity-refresh-job-001**: Add a dedicated scheduler job path for Juicy opportunity refresh (manual enqueue + periodic run). Job should reevaluate tracked analysis tickers and upsert only changed/new/better-scored opportunities with `last_scored_at` timestamp.
     - [ ] **juicy-opportunity-refresh-job-002**: Refresh job source precedence: use TWS realtime where available for live option/underlying inputs, otherwise yfinance fallback, and record `data_source` used per opportunity snapshot.
     - [ ] **juicy-opportunity-refresh-job-003**: Persist refresh-run audit documents (queued/start/end/status/row counts/errors) so UI and operators can diagnose stale Juicy tables quickly.
@@ -692,6 +693,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
         - [ ] **Research**: Evaluate X (Twitter) API v2 Basic Tier (~$100/mo) vs Free Limits for "Alpha Lists".
         - [ ] **Research**: Investigate Yahoo Scout integration (Scraping vs User Manual Copy/Paste).
 - [ ] **Research**: Evaluate Massive Financial API (https://massive.com/landing/financial-api) for ticker metadata and supplemental market data, compare against yfinance and IBKR sources.
+- [ ] **Research**: Evaluate Alpha Vantage MCP (https://mcp.alphavantage.co/) for equity and options market data, compare cost/benefit against yfinance, IBKR, Massive Financial API, Polygon.io, and EODHD, and determine whether the MCP layer materially reduces integration plumbing for Juicy Fruit.
+    - [ ] Compare pricing tiers, request limits, historical depth, latency, and options coverage across candidate data services.
+    - [ ] Validate how well the MCP server fits agentic / LLM workflows versus direct REST API wrappers.
+    - [ ] Recommend the best role for Alpha Vantage in the stack: primary source, secondary source, or research-only.
     - [x] **Learning Opportunity**: - using the  .agent/workflows/learing-opportunity.md write a learning doc about how to LMM and target macro trends and news events in our trading. 
 - [/] **Markov Chains**: Implement Markov Chains for signal generation and proposed strategies like rolls vs holding for a given OPT and it's underlying stock. 
     - [x] Research `markovify` or `pykalman` libraries.
@@ -852,6 +857,20 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Scikit-learn: Best practices for this specific project?
     - [ ] MLflow: Is it overkill or necessary for experiment tracking?
 
+### Trade Autonomy Policy
+> Reference: [Trade Autonomy Policy](learning/trade-autonomy-policy.md) | [Juicy Glossary](learning/juicy-glossary.md)
+
+**Current Status: Level 0 — Zero Trust.** Ken makes all trades; system is advisory only. No IBKR write permissions exist in the codebase today.
+
+- [x] **autonomy-level-0**: Document zero-trust policy — system surfaces recommendations, Ken copy/pastes into IBKR. No order submission. *(Documented 2026-04-19 in `docs/learning/trade-autonomy-policy.md`.)*
+- [ ] **autonomy-level-1-order-ticket**: Level 1 — Order ticket generation. System formats exact order parameters (BTC symbol, STO symbol, strike, expiry, limit price, net credit) for Ken to review and submit with minimal effort. No code path to IBKR required; this is a UI/copy feature only.
+    - [ ] Format "Roll this position" order parameters in the PortfolioGrid roll action or TickerModal Smart Rolls tab.
+    - [ ] Format "BTC at 50% profit" parameters for any open short position on demand.
+    - [ ] Include account context so the order goes to the correct IBKR account.
+- [ ] **autonomy-friday-alert**: Surface explicit expiration-day (DTE=0 or DTE=1) ITM alert before 3pm ET Friday. Target: prevent forgetting to roll covered calls before weekend assignment. UI: red banner on `?view=PORTFOLIO` for any ITM short option with DTE ≤ 1 on Friday.
+- [ ] **autonomy-level-2-sandbox**: Level 2 prerequisite — verify IBKR paper trading account is operational and wired into Juicy Fruit as a safe sandbox target before any automated submission is considered.
+- [ ] **autonomy-policy-review**: Monthly review checkpoint — Ken reviews any automation outcomes (paper or live) logged in `automation_audit_log` and confirms policy is still appropriate.
+
 ### AutoResearch-Style Autonomous Optimization (Frontier) `[!] Research & Scoping Phase — No Code Yet`
 > Reference: [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — "give an AI agent a small but real setup and let it experiment autonomously overnight." See [AutoResearch Learning Doc](learning/autoresearch-karpathy.md).
 
@@ -887,12 +906,16 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **comparator-002**: Produce a strategy leaderboard showing hit rate, average annualized yield, max drawdown, and Sharpe-equivalent metric per strategy. Surfaces which Juicy strategies actually outperform over time.
     - [ ] **comparator-003**: Connect to existing backtesting F-R items (Section 3 — Backtesting Engine) as a downstream consumer of graded recommendation data.
 
-> **Scope / Refinement Questions for Ken** (answer these before any implementation):
-> 1. **Time horizon**: What defines "did a recommendation work"? DTE-based (option expired worthless = win)? Or 30-day forward P&L window regardless of DTE?
-> 2. **Data readiness**: Do you want to start grading historical `opportunities` collection records NOW (if enough exist), or prioritize recording-everything-forward first for 30-60 days before grading?
-> 3. **GPU/compute**: autoresearch requires an H100. For the Juicy adaptation (Python backtests on MongoDB), no GPU is needed — confirm this is acceptable vs exploring true LLM-in-the-loop optimization.
-> 4. **Primary goal priority**: (a) grade existing recommendations to measure algo quality, OR (b) actively improve the algo via self-optimization loop? These can sequence: grader first, optimizer second.
-> 5. **Agent autonomy level**: Should the optimizer suggest parameter changes for Ken to approve (semi-autonomous), or self-apply and log results overnight (fully autonomous)?
+> **Scope / Refinement Questions for Ken** — ANSWERED 2026-04-19:
+> 1. **Time horizon**: DTE-based primary (expired worthless = WIN). Secondary: exit with profit at any point = WIN.
+> 2. **Data readiness**: Query live DB for opportunity count once restored; grader phase first regardless.
+> 3. **GPU/compute**: Confirmed no GPU needed — Juicy adaptation runs on MongoDB + Python.
+> 4. **Primary goal**: Grader first (truth engine), optimizer second.
+> 5. **Agent autonomy**: **ZERO TRUST — Level 0.** Ken makes all trades. System is advisory only. See [Trade Autonomy Policy](learning/trade-autonomy-policy.md).
+> 6. **Metrics**: ALL — hit rate, yield delta, return, YTD, QTD, 1Y per ticker AND aggregate.
+> 7. **WIN/LOSS**: ≥33% annualized yield = score 100, Ken's Inflation Baseline (~5.9%) = score 10, LOSS = negative yield to -100 at ≥20% loss. See [Juicy Glossary](learning/juicy-glossary.md).
+>
+> **Still open**: Minimum dollar/premium threshold for WIN; SCRATCH category treatment (score 0–9 band).
 
 ---
 
