@@ -212,6 +212,64 @@ def test_get_juicys_workspace_rows_sanitizes_non_finite_values():
         assert payload["rows"][0]["yield_pct"] is None
 
 
+def test_get_juicys_workspace_rows_filters_by_wheel_phase_and_return_threshold():
+    admin = User(username="u", role="admin", disabled=False)
+    with patch("app.api.routes.MongoClient") as mock_client:
+        mock_db = mock_client.return_value.get_default_database.return_value
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "snap-1"}
+        mock_db.ibkr_holdings.find.return_value = [
+            {"symbol": "AAPL", "asset_class": "STK", "quantity": 100},
+        ]
+        mock_db.juicy_opportunities.find.return_value.sort.return_value.limit.return_value = [
+            {
+                "symbol": "AAPL",
+                "strategy": "Covered Call",
+                "type": "CALL",
+                "action": "SELL",
+                "dte": 30,
+                "strike": 105.0,
+                "premium": 5.0,
+                "annualized_return_pct": 58.33,
+                "wheel_phase": "COVERED_CALL",
+                "score": 88,
+            },
+            {
+                "symbol": "AAPL",
+                "strategy": "Cash Secured Put",
+                "type": "PUT",
+                "action": "SELL",
+                "dte": 30,
+                "strike": 95.0,
+                "premium": 2.0,
+                "annualized_return_pct": 24.21,
+                "wheel_phase": "CASH_SECURED_PUT",
+                "score": 72,
+            },
+            {
+                "symbol": "MSFT",
+                "strategy": "Cash Secured Put",
+                "type": "PUT",
+                "action": "SELL",
+                "dte": 30,
+                "strike": 95.0,
+                "premium": 1.0,
+                "annualized_return_pct": 12.12,
+                "wheel_phase": "CASH_SECURED_PUT",
+                "score": 62,
+            },
+        ]
+
+        payload = routes.get_juicys(admin, preset="juicy", limit=20)
+        assert payload["count"] == 1
+        assert payload["rows"][0]["symbol"] == "AAPL"
+        assert payload["rows"][0]["wheel_phase"] == "COVERED_CALL"
+        assert payload["rows"][0]["annualized_return_pct"] > 20
+
+        phase1_payload = routes.get_juicys(admin, preset="juicy", limit=20, wheel_mode="phase1")
+        assert phase1_payload["count"] == 1
+        assert all(row["wheel_phase"] == "CASH_SECURED_PUT" for row in phase1_payload["rows"])
+
+
 def test_get_juicys_seed_refresh_tolerates_single_symbol_failure():
     admin = User(username="u", role="admin", disabled=False)
     with patch("app.api.routes.MongoClient") as mock_client, patch(

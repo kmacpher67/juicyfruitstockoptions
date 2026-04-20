@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Any
 
 import yfinance as yf
@@ -15,6 +16,8 @@ class JuicyPreset:
 
 PRESET_JUICY = JuicyPreset(key="juicy", label="Juicy Fruit Options")
 PRESET_HOT_PUTS = JuicyPreset(key="hot_puts", label="Hot PUTS")
+WHEEL_PHASE_CASH_SECURED_PUT = "CASH_SECURED_PUT"
+WHEEL_PHASE_COVERED_CALL = "COVERED_CALL"
 
 
 def _safe_float(value: Any) -> float | None:
@@ -33,6 +36,17 @@ def _safe_int(value: Any) -> int:
         return int(float(value))
     except (TypeError, ValueError):
         return 0
+
+
+def _normalize_symbol(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    text = text.split()[0]
+    occ_match = re.match(r"^([A-Z]{1,6})\d{6}[CP]\d+", text)
+    if occ_match:
+        return occ_match.group(1)
+    return text
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -58,6 +72,147 @@ def _parse_datetime(value: Any) -> datetime | None:
 
 def _iso_utc(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _annualized_return_if_flat(*, premium: float | None, strike: float | None, dte: int | None) -> float | None:
+    premium_value = _safe_float(premium)
+    strike_value = _safe_float(strike)
+    dte_value = _safe_int(dte)
+    if premium_value is None or strike_value is None or premium_value <= 0 or strike_value <= 0 or dte_value <= 0:
+        return None
+    return (premium_value / strike_value) * (365.0 / dte_value) * 100.0
+
+
+def _parse_dividend_context(stock: dict | None) -> dict[str, Any]:
+    if not isinstance(stock, dict):
+        return {"dividend_amount": None, "ex_div_date": None, "days_to_ex_div": None}
+
+    current_price = _safe_float(stock.get("Current Price") or stock.get("currentPrice"))
+    div_yield_pct = _safe_float(stock.get("Div Yield") or stock.get("dividendYield"))
+    if div_yield_pct is not None and current_price and current_price > 0:
+        dividend_amount = current_price * (div_yield_pct / 100.0) / 4.0
+    else:
+        dividend_rate = _safe_float(stock.get("dividendRate") or stock.get("trailingAnnualDividendRate"))
+        dividend_amount = dividend_rate / 4.0 if dividend_rate is not None else None
+
+    ex_ts = stock.get("exDividendDate")
+    ex_div_date = None
+    days_to_ex_div = None
+    if ex_ts not in (None, ""):
+        try:
+            if isinstance(ex_ts, (int, float)):
+                ex_div_date = datetime.fromtimestamp(float(ex_ts), tz=timezone.utc)
+            else:
+                ex_div_date = datetime.fromisoformat(str(ex_ts).replace("Z", "+00:00"))
+                if ex_div_date.tzinfo is None:
+                    ex_div_date = ex_div_date.replace(tzinfo=timezone.utc)
+                else:
+                    ex_div_date = ex_div_date.astimezone(timezone.utc)
+        except Exception:
+            ex_div_date = None
+    if ex_div_date is not None:
+        days_to_ex_div = max(0, (ex_div_date.date() - datetime.now(timezone.utc).date()).days)
+
+    return {
+        "dividend_amount": dividend_amount,
+        "ex_div_date": ex_div_date.isoformat().replace("+00:00", "Z") if ex_div_date else None,
+        "days_to_ex_div": days_to_ex_div,
+    }
+
+
+def _wheel_phase_for_row(row: dict) -> str:
+    row_type = str(row.get("type") or "").strip().upper()
+    strategy = str(row.get("strategy") or "").strip().upper()
+    if row_type == "PUT" or "PUT" in strategy:
+        return WHEEL_PHASE_CASH_SECURED_PUT
+    return WHEEL_PHASE_COVERED_CALL
+
+
+def _apply_assignment_risk(row: dict, *, current_price: float | None, dividend_amount: float | None, days_to_ex_div: int | None) -> dict:
+    if current_price is None or dividend_amount is None or dividend_amount <= 0:
+        return row
+
+    strike = _safe_float(row.get("strike"))
+    premium = _safe_float(row.get("premium"))
+    if strike is None or premium is None or strike <= 0:
+        return row
+
+    row_type = str(row.get("type") or "").strip().upper()
+    action = str(row.get("action") or "").strip().upper()
+    expiry_dte = _safe_int(row.get("dte"))
+    if row_type != "CALL" or action != "SELL":
+        return row
+
+    if current_price <= strike:
+        return row
+
+    if days_to_ex_div is not None and expiry_dte > 0 and days_to_ex_div > expiry_dte:
+        return row
+
+    intrinsic = max(0.0, current_price - strike)
+    extrinsic = max(0.0, premium - intrinsic)
+    if extrinsic >= dividend_amount:
+        return row
+
+    score = _safe_int(row.get("score"))
+    adjusted_score = max(0, score - 50)
+    row.update(
+        {
+            "assignment_risk_warning": True,
+            "assignment_risk_label": "ASSIGNMENT RISK",
+            "critical_warning_score": -50,
+            "extrinsic_value": round(extrinsic, 4),
+            "dividend_amount": round(dividend_amount, 4),
+            "days_to_ex_div": days_to_ex_div,
+            "score": adjusted_score,
+        }
+    )
+    summary = str(row.get("reason_summary") or "").strip()
+    reason = "ASSIGNMENT RISK | extrinsic below dividend"
+    row["reason_summary"] = f"{summary} | {reason}" if summary else reason
+    reason_text = str(row.get("reason") or "").strip()
+    row["reason"] = f"{reason_text} | {reason}" if reason_text else reason
+    return row
+
+
+def get_owned_symbols(db) -> set[str]:
+    try:
+        latest = db.ibkr_holdings.find_one(sort=[("date", -1)])
+    except Exception:
+        latest = None
+    if not isinstance(latest, dict) or not latest:
+        return set()
+
+    if latest.get("snapshot_id"):
+        query = {"snapshot_id": latest.get("snapshot_id")}
+    elif latest.get("report_date"):
+        query = {"report_date": latest.get("report_date")}
+    else:
+        query = {}
+
+    try:
+        holdings_cursor = db.ibkr_holdings.find(
+            query,
+            {"_id": 0, "symbol": 1, "underlying_symbol": 1, "quantity": 1, "secType": 1, "asset_class": 1, "security_type": 1},
+        )
+        holdings = list(holdings_cursor) if holdings_cursor is not None else []
+    except Exception:
+        return set()
+
+    owned: set[str] = set()
+    for row in holdings:
+        if not isinstance(row, dict):
+            continue
+        qty = _safe_float(row.get("quantity")) or 0.0
+        if qty <= 0:
+            continue
+        sec_type = str(row.get("secType") or row.get("asset_class") or row.get("security_type") or "").strip().upper()
+        if sec_type and sec_type != "STK":
+            continue
+        symbol = _normalize_symbol(row.get("underlying_symbol") or row.get("symbol"))
+        if symbol:
+            owned.add(symbol)
+    return owned
 
 
 def _score_candidate(*, iv_rank: float | None, skew: float | None, tsmom_60: float | None, yield_pct: float | None, option_type: str) -> int:
@@ -243,7 +398,8 @@ def build_chain_level_call_candidates(symbol: str, current_price: float, max_dte
             premium = _premium_from_row(bid, ask, last)
 
             yield_pct = (premium / current_price) * 100.0 if current_price > 0 else 0.0
-            annualized_yield_pct = yield_pct * (365.0 / dte)
+            annualized_return_pct = _annualized_return_if_flat(premium=premium, strike=strike, dte=dte)
+            annualized_yield_pct = annualized_return_pct if annualized_return_pct is not None else yield_pct * (365.0 / dte)
             spread = (ask - bid) if (ask > 0 and bid > 0) else None
             mid = ((ask + bid) / 2.0) if (ask > 0 and bid > 0) else None
             spread_pct_mid = (spread / mid) if (spread is not None and mid and mid > 0) else None
@@ -270,11 +426,14 @@ def build_chain_level_call_candidates(symbol: str, current_price: float, max_dte
                     "action": "SELL",
                     "dte": dte,
                     "strike": round(strike, 2),
+                    "expiry": expiry,
                     "premium": round(premium, 4),
                     "yield_pct": round(yield_pct, 4),
                     "annualized_yield_pct": round(annualized_yield_pct, 2),
+                    "annualized_return_pct": round(annualized_return_pct, 2) if annualized_return_pct is not None else round(annualized_yield_pct, 2),
+                    "wheel_phase": WHEEL_PHASE_COVERED_CALL,
                     "score": score,
-                    "reason_summary": f"{timeframe_bucket} | liq {liquidity_grade} | ann {annualized_yield_pct:.1f}%",
+                    "reason_summary": f"{timeframe_bucket} | liq {liquidity_grade} | arif {(annualized_return_pct if annualized_return_pct is not None else annualized_yield_pct):.1f}%",
                     "reason": f"{moneyness_label} call sell | {timeframe_bucket} | liq {liquidity_grade}",
                     "strike_target": round(strike, 2),
                     "timeframe_bucket": timeframe_bucket,
@@ -290,6 +449,7 @@ def build_chain_level_call_candidates(symbol: str, current_price: float, max_dte
                     "preset_tags": [PRESET_JUICY.key],
                     "scoring_inputs": {
                         "annualized_yield_pct": round(annualized_yield_pct, 2),
+                        "annualized_return_pct": round(annualized_return_pct, 2) if annualized_return_pct is not None else round(annualized_yield_pct, 2),
                         "yield_pct": round(yield_pct, 4),
                         "dte": dte,
                         "volume": volume,
@@ -330,6 +490,7 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
     put_dte = _calc_dte_from_expiry(stock.get("_PutExpDate_365"))
 
     candidates: list[dict] = []
+    dividend_context = _parse_dividend_context(stock)
 
     if include_chain_rows:
         try:
@@ -344,6 +505,11 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
         yield_pct=call_yield,
         option_type="CALL",
     )
+    call_arif = _annualized_return_if_flat(
+        premium=call_premium,
+        strike=call_strike if call_strike is not None else round(price * 1.05, 2),
+        dte=call_dte if call_dte is not None else 30,
+    )
     candidates.append(
         {
             "symbol": symbol,
@@ -355,11 +521,14 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
             "strike": call_strike if call_strike is not None else round(price * 1.05, 2),
             "premium": call_premium,
             "yield_pct": call_yield,
-            "annualized_yield_pct": None,
+            "annualized_yield_pct": call_arif,
+            "annualized_return_pct": call_arif,
+            "wheel_phase": WHEEL_PHASE_COVERED_CALL,
             "score": call_score,
             "reason_summary": _reason_summary("Covered Call", call_yield, iv_rank, tsmom_60),
             "reason": _reason_summary("Covered Call", call_yield, iv_rank, tsmom_60),
             "strike_target": call_strike if call_strike is not None else round(price * 1.05, 2),
+            "expiry": stock.get("_CallExpDate_90") or stock.get("_CallExpDate_180") or stock.get("_CallExpDate_365"),
             "timeframe_bucket": "monthly",
             "liquidity_grade": None,
             "volume": None,
@@ -372,12 +541,18 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
                 "call_put_skew": skew,
                 "tsmom_60": tsmom_60,
                 "yield_pct": call_yield,
+                "annualized_return_pct": call_arif,
                 "current_price": price,
             },
             "data_source": str(stock.get("source") or "stock_data_db"),
         }
     )
 
+    put_arif = _annualized_return_if_flat(
+        premium=put_premium,
+        strike=put_strike if put_strike is not None else round(price * 0.9, 2),
+        dte=put_dte if put_dte is not None else 30,
+    )
     put_score = _score_candidate(
         iv_rank=iv_rank,
         skew=skew,
@@ -400,11 +575,14 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
             "strike": put_strike if put_strike is not None else round(price * 0.9, 2),
             "premium": put_premium,
             "yield_pct": put_yield,
-            "annualized_yield_pct": None,
+            "annualized_yield_pct": put_arif,
+            "annualized_return_pct": put_arif,
+            "wheel_phase": WHEEL_PHASE_CASH_SECURED_PUT,
             "score": put_score,
             "reason_summary": _reason_summary("Cash Secured Put", put_yield, iv_rank, tsmom_60),
             "reason": _reason_summary("Cash Secured Put", put_yield, iv_rank, tsmom_60),
             "strike_target": put_strike if put_strike is not None else round(price * 0.9, 2),
+            "expiry": stock.get("_PutExpDate_365"),
             "timeframe_bucket": "monthly",
             "liquidity_grade": None,
             "volume": None,
@@ -417,6 +595,7 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
                 "call_put_skew": skew,
                 "tsmom_60": tsmom_60,
                 "yield_pct": put_yield,
+                "annualized_return_pct": put_arif,
                 "current_price": price,
             },
             "data_source": str(stock.get("source") or "stock_data_db"),
@@ -436,6 +615,8 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
             "premium": None,
             "yield_pct": None,
             "annualized_yield_pct": None,
+            "annualized_return_pct": None,
+            "wheel_phase": None,
             "score": hold_score,
             "reason_summary": _reason_summary("Hold / Wait", None, iv_rank, tsmom_60),
             "reason": _reason_summary("Hold / Wait", None, iv_rank, tsmom_60),
@@ -452,11 +633,27 @@ def build_juicy_candidates(stock: dict, symbol: str, include_chain_rows: bool = 
                 "call_put_skew": skew,
                 "tsmom_60": tsmom_60,
                 "yield_pct": None,
+                "annualized_return_pct": None,
                 "current_price": price,
             },
             "data_source": str(stock.get("source") or "stock_data_db"),
         }
     )
+
+    for row in candidates:
+        row["wheel_phase"] = row.get("wheel_phase") or _wheel_phase_for_row(row)
+        annualized_return_pct = row.get("annualized_return_pct")
+        if annualized_return_pct is None:
+            annualized_return_pct = row.get("annualized_yield_pct")
+        row["annualized_return_pct"] = annualized_return_pct
+        if row.get("annualized_yield_pct") is None:
+            row["annualized_yield_pct"] = annualized_return_pct
+        _apply_assignment_risk(
+            row,
+            current_price=price,
+            dividend_amount=dividend_context.get("dividend_amount"),
+            days_to_ex_div=dividend_context.get("days_to_ex_div"),
+        )
 
     candidates.sort(key=lambda row: (row.get("score") or 0), reverse=True)
     return candidates
@@ -483,6 +680,10 @@ def upsert_juicy_candidates(db, symbol: str, rows: list[dict], source: str = "op
         strategy_key = _strategy_key(row)
         existing = coll.find_one({"strategy_key": strategy_key}, {"_id": 0, "create_date": 1}) or {}
         create_date = existing.get("create_date") or _iso_utc(now)
+        wheel_phase = row.get("wheel_phase") or _wheel_phase_for_row(row)
+        annualized_return_pct = row.get("annualized_return_pct")
+        if annualized_return_pct is None:
+            annualized_return_pct = row.get("annualized_yield_pct")
 
         doc = {
             **row,
@@ -490,6 +691,9 @@ def upsert_juicy_candidates(db, symbol: str, rows: list[dict], source: str = "op
             "symbol": symbol,
             "last_updated": _iso_utc(now),
             "source": source,
+            "wheel_phase": wheel_phase,
+            "annualized_return_pct": annualized_return_pct,
+            "annualized_yield_pct": annualized_return_pct if annualized_return_pct is not None else row.get("annualized_yield_pct"),
         }
 
         coll.update_one(

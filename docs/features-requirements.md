@@ -634,6 +634,10 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] **juicy-opportunity-refresh-job-001**: Add a dedicated scheduler job path for Juicy opportunity refresh (manual enqueue + periodic run). Job should reevaluate tracked analysis tickers and upsert only changed/new/better-scored opportunities with `last_scored_at` timestamp.
     - [ ] **juicy-opportunity-refresh-job-002**: Refresh job source precedence: use TWS realtime where available for live option/underlying inputs, otherwise yfinance fallback, and record `data_source` used per opportunity snapshot.
     - [ ] **juicy-opportunity-refresh-job-003**: Persist refresh-run audit documents (queued/start/end/status/row counts/errors) so UI and operators can diagnose stale Juicy tables quickly.
+    - [ ] **wheel-lifecycle-tracker-001**: Implement a "Strategy Campaign" ID to link Cash-Secured Puts to the resulting Covered Call campaign upon assignment.
+    - [ ] **strategy-csp-optimizer**: Create a "Hot PUTS" scanner in the Juicys Workspace specifically for Phase 1 of the Wheel.
+        - [ ] Logic: Filter for `IV Rank > 50` and `Delta 0.20 to 0.30` on high-quality technical setups (`Price > 50 SMA` but `RSI < 40`).
+    - [ ] **assignment-bridge-logic**: Detect "Assignment" events in the trade history (Short Put closed via assignment) and automatically flag that ticker for Phase 2 (Covered Call) in the Optimizer tab.
     - [x] **Smart Roll / Diagonal Assistant**: Analyze existing short calls expiring within X days to find optimal rolling strategies (Calendar/Diagonal Spreads).
         - [ ] **Goal**: Optimize for short duration and favorable Return/Yield, prioritizing trades that result in a net credit or "decent return" even when buying back the existing position.
         - [x] **Greeks Data Ingestion (Analysis)**: Determined that `yfinance` does not provide Greeks. Created [Greeks Ingestion Strategy](../docs/learning/greeks-data-ingestion.md) detailing how to calculate them using Black-Scholes (`py_vollib`).
@@ -788,6 +792,7 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [x] **juicys-nav-005**: Add workspace `Refresh` action that schedules the Juicy refresh job and shows queue/freshness status instead of blocking on synchronous fetches. *(Completed 2026-04-07: `Refresh` calls `POST /api/juicys/refresh` queue path and then reloads persisted rows.)*
     - [ ] **juicys-nav-006**: Provide spreadsheet download/export for currently filtered Juicys rows (same expectation as Analysis table exports).
     - [x] **juicys-nav-007**: Create and maintain feature detail doc [Juicys Navigation + Optimizer Workspace](features/juicys_navigation_optimizer_workspace.md) as the implementation contract. *(Completed 2026-04-07; updated 2026-04-07 with chain-depth + liquidity + short-DTE contract.)*
+    - [ ] **juicys-workspace-wheel-view**: Add a "Wheel Mode" toggle to the Juicys page that highlights tickers currently in Phase 1 (looking to entry) vs Phase 2 (already owned, looking to sell calls).
 
 ### Visualizations
 - [ ] **Interactive Graphs**:

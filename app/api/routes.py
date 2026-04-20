@@ -37,8 +37,11 @@ from app.services.juicy_service import (
     build_juicy_candidates,
     compute_latest_market_close_utc,
     evaluate_juicy_staleness,
+    get_owned_symbols,
     get_juicy_rows,
     upsert_juicy_candidates,
+    WHEEL_PHASE_CASH_SECURED_PUT,
+    WHEEL_PHASE_COVERED_CALL,
 )
 from app.utils.logging_config import log_endpoint
 
@@ -114,6 +117,74 @@ def _sanitize_for_json(value):
     except Exception:
         pass
     return value
+
+
+def _row_annualized_return_pct(row: dict) -> float | None:
+    premium = _safe_float(row.get("premium"))
+    strike = _safe_float(row.get("strike"))
+    dte = _safe_float(row.get("dte"))
+    if premium is not None and strike is not None and dte is not None and premium > 0 and strike > 0 and dte > 0:
+        return (premium / strike) * (365.0 / dte) * 100.0
+
+    for field in ("annualized_return_pct", "annualized_yield_pct"):
+        value = _safe_float(row.get(field))
+        if value is not None:
+            return value
+
+    return None
+
+
+def _workspace_wheel_phase_for_row(row: dict) -> str | None:
+    phase = str(row.get("wheel_phase") or "").strip().upper()
+    if phase in {WHEEL_PHASE_CASH_SECURED_PUT, WHEEL_PHASE_COVERED_CALL}:
+        return phase
+
+    row_type = str(row.get("type") or "").strip().upper()
+    strategy = str(row.get("strategy") or "").strip().upper()
+    if row_type == "PUT" or "PUT" in strategy:
+        return WHEEL_PHASE_CASH_SECURED_PUT
+    if row_type == "CALL" or "CALL" in strategy:
+        return WHEEL_PHASE_COVERED_CALL
+    return None
+
+
+def _filter_juicy_workspace_rows(rows: list[dict], owned_symbols: set[str], wheel_mode: str = "auto") -> list[dict]:
+    filtered: list[dict] = []
+    mode = str(wheel_mode or "auto").strip().lower()
+    forced_phase = None
+    if mode in {"phase1", "csp", "cash_secured_put", "put", "puts"}:
+        forced_phase = WHEEL_PHASE_CASH_SECURED_PUT
+    elif mode in {"phase2", "cc", "covered_call", "call", "calls"}:
+        forced_phase = WHEEL_PHASE_COVERED_CALL
+
+    for row in rows:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        phase = _workspace_wheel_phase_for_row(row)
+        if phase is None:
+            continue
+
+        if forced_phase is not None:
+            if phase != forced_phase:
+                continue
+        else:
+            symbol_owned = symbol in owned_symbols
+            if symbol_owned and phase != WHEEL_PHASE_COVERED_CALL:
+                continue
+            if not symbol_owned and phase != WHEEL_PHASE_CASH_SECURED_PUT:
+                continue
+
+        annualized_return_pct = _row_annualized_return_pct(row)
+        if annualized_return_pct is None or annualized_return_pct <= 20:
+            continue
+
+        normalized = dict(row)
+        normalized["wheel_phase"] = phase
+        normalized["annualized_return_pct"] = annualized_return_pct
+        if normalized.get("annualized_yield_pct") is None:
+            normalized["annualized_yield_pct"] = annualized_return_pct
+        filtered.append(normalized)
+
+    return filtered
 
 
 def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
@@ -709,6 +780,9 @@ def _market_context_for_ticker(db, ticker: str | None) -> dict:
         "ema_20": _safe_float(doc.get("EMA_20")),
         "hma_20": _safe_float(doc.get("HMA_20")),
         "div_yield": _safe_percent(doc.get("Div Yield")),
+        "dividend_rate": _safe_float(doc.get("dividendRate")),
+        "trailing_annual_dividend_rate": _safe_float(doc.get("trailingAnnualDividendRate")),
+        "ex_dividend_date": _format_utc_iso(_parse_datetime_utc(doc.get("exDividendDate"))),
     }
 
 
@@ -1235,10 +1309,12 @@ def get_juicys(
     limit: int = 200,
     sort_by: str = "score",
     sort_dir: str = "desc",
+    wheel_mode: str = "auto",
 ):
     client = MongoClient(settings.MONGO_URI)
     db = client.get_default_database("stock_analysis")
     norm_symbol = _normalize_ticker_symbol(symbol) if symbol else None
+    owned_symbols = get_owned_symbols(db)
     rows = get_juicy_rows(
         db,
         symbol=norm_symbol,
@@ -1249,7 +1325,9 @@ def get_juicys(
     )
     if not isinstance(rows, list):
         rows = []
-    if not rows:
+    raw_rows = rows
+    rows = _filter_juicy_workspace_rows(raw_rows, owned_symbols, wheel_mode=wheel_mode)
+    if not raw_rows:
         seed_symbols = [norm_symbol] if norm_symbol else sorted(
             {
                 row.get("Ticker")
@@ -1272,6 +1350,7 @@ def get_juicys(
         )
         if not isinstance(rows, list):
             rows = []
+        rows = _filter_juicy_workspace_rows(rows, owned_symbols, wheel_mode=wheel_mode)
     rows = _sanitize_for_json(rows)
     return {
         "count": len(rows),
@@ -2046,6 +2125,10 @@ async def get_portfolio_holdings(
             coverage_by_account[key]["short_calls"] += abs(qty) * multiplier
 
     pending_summary_by_account = _load_pending_order_summaries(db, coverage_by_account)
+    market_context_by_symbol = {
+        sym: _market_context_for_ticker(db, sym)
+        for sym in sorted({str(row.get("symbol") or "").strip().upper() for row in data if row.get("symbol")})
+    }
 
     for row in data:
         # A. Coverage Status
@@ -2093,6 +2176,49 @@ async def get_portfolio_holdings(
                     row["is_expiring_soon"] = dte <= 6
                 except:
                     pass
+
+        # C. X-DIV assignment risk
+        if sec_type in ["OPT", "FOP"] and _is_short_call_position(row):
+            market = market_context_by_symbol.get(str(und or "").strip().upper(), {})
+            underlying_price = _safe_float(
+                row.get("underlying_market_price")
+                or row.get("market_price")
+                or market.get("last_price")
+            )
+            dividend_amount = None
+            if underlying_price is not None and underlying_price > 0:
+                div_yield = _safe_float(market.get("div_yield"))
+                if div_yield is not None:
+                    dividend_amount = underlying_price * (div_yield / 100.0) / 4.0
+            if dividend_amount is None:
+                dividend_rate = _safe_float(market.get("dividend_rate") or market.get("trailing_annual_dividend_rate"))
+                if dividend_rate is not None:
+                    dividend_amount = dividend_rate / 4.0
+
+            ex_div_date = _parse_datetime_utc(market.get("ex_dividend_date"))
+            days_to_ex_div = None
+            if ex_div_date is not None:
+                days_to_ex_div = max(0, (ex_div_date.date() - datetime.now(timezone.utc).date()).days)
+
+            strike = _safe_float(row.get("strike"))
+            option_price = _safe_float(row.get("market_price") or row.get("mark_price") or row.get("price"))
+            if option_price is None:
+                option_price = _safe_float(row.get("underlying_option_price"))
+            if underlying_price is not None and strike is not None and option_price is not None and dividend_amount is not None:
+                if underlying_price > strike:
+                    expiry_days = _safe_float(row.get("dte"))
+                    if expiry_days is not None and days_to_ex_div is not None and days_to_ex_div <= expiry_days:
+                        intrinsic = max(0.0, underlying_price - strike)
+                        extrinsic = max(0.0, option_price - intrinsic)
+                        if extrinsic < dividend_amount:
+                            row["assignment_risk_warning"] = True
+                            row["assignment_risk_label"] = "ASSIGNMENT RISK"
+                            row["critical_warning_score"] = -50
+                            row["extrinsic_value"] = round(extrinsic, 4)
+                            row["dividend_amount"] = round(dividend_amount, 4)
+                            row["days_to_ex_div"] = days_to_ex_div
+                            row["score_adjustment"] = -50
+                            row["risk_notes"] = "Extrinsic below dividend; prioritize roll before ex-div."
             
             # Strike Distance & ITM
             _, _, parsed_strike = _extract_option_fields(row)

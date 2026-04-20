@@ -344,6 +344,7 @@ const Dashboard = () => {
     const [juicyRows, setJuicyRows] = useState([]);
     const [juicyPreset, setJuicyPreset] = useState('juicy');
     const [juicyLimit, setJuicyLimit] = useState(500);
+    const [juicyWheelMode, setJuicyWheelMode] = useState('auto');
     const [juicyRefreshing, setJuicyRefreshing] = useState(false);
     const [filterTicker, setFilterTicker] = useState(null);
     const [liveStatus, setLiveStatus] = useState(null);
@@ -400,10 +401,10 @@ const Dashboard = () => {
         }
     };
 
-    const loadJuicysData = async ({ preset = juicyPreset, limit = juicyLimit } = {}) => {
+    const loadJuicysData = async ({ preset = juicyPreset, limit = juicyLimit, wheelMode = juicyWheelMode } = {}) => {
         setLoading(true);
         try {
-            const res = await api.get('/juicys', { params: { preset, limit } });
+            const res = await api.get('/juicys', { params: { preset, limit, wheel_mode: wheelMode } });
             setJuicyRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
         } catch (error) {
             console.error('Failed to load juicys:', error);
@@ -553,7 +554,7 @@ const Dashboard = () => {
                 api.get('/portfolio/holdings').then(res => setPortfolioHoldings(res.data)).catch(e => console.error("Silent portfolio fetch failed", e));
             }
         }
-    }, [viewMode, user, selectedPortfolioAccount, juicyPreset, juicyLimit]);
+    }, [viewMode, user, selectedPortfolioAccount, juicyPreset, juicyLimit, juicyWheelMode]);
 
     // Derived Portfolio Tickers set
     const portfolioTickers = React.useMemo(() => {
@@ -876,6 +877,26 @@ const Dashboard = () => {
                             >
                                 Hot PUTS
                             </button>
+                            <div className="ml-2 flex items-center gap-1 rounded border border-gray-600 bg-gray-900 p-1">
+                                <button
+                                    onClick={() => setJuicyWheelMode('auto')}
+                                    className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'auto' ? 'bg-blue-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Auto
+                                </button>
+                                <button
+                                    onClick={() => setJuicyWheelMode('phase1')}
+                                    className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'phase1' ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Phase 1
+                                </button>
+                                <button
+                                    onClick={() => setJuicyWheelMode('phase2')}
+                                    className={`px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors ${juicyWheelMode === 'phase2' ? 'bg-amber-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Phase 2
+                                </button>
+                            </div>
                             <label className="text-xs text-gray-400 ml-2">Rows</label>
                             <select
                                 className="bg-gray-700 text-white p-1.5 rounded border border-gray-600 text-sm"

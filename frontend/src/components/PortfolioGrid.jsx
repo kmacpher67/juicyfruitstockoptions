@@ -23,6 +23,11 @@ const getPendingEffectUi = (effect) => {
     }
 };
 
+const getAssignmentRiskUi = (warning) => {
+    if (!warning) return null;
+    return { label: 'ASSIGNMENT RISK', tone: 'text-[#ff8a80] border-[#d32f2f]/60 bg-[#d32f2f]/10' };
+};
+
 const toCsvCell = (value) => {
     if (value === undefined || value === null) return '';
     return `"${String(value).replace(/"/g, '""')}"`;
@@ -192,6 +197,24 @@ const PortfolioGrid = ({ data, filterTicker, onTickerClick, selectedAccount = 'a
             type: 'numericColumn',
             cellClass: params => (params.data.is_expiring_soon) ? 'bg-red-900/30 text-[#d32f2f] font-bold' : '',
             valueFormatter: p => getNumericValue(p.value) ?? '-'
+        },
+        {
+            field: "assignment_risk_label",
+            headerName: "X-DIV",
+            width: 150,
+            sortable: true,
+            cellRenderer: (params) => {
+                const riskUi = getAssignmentRiskUi(params.data?.assignment_risk_warning);
+                if (!riskUi) return '-';
+                return (
+                    <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${riskUi.tone}`}
+                        title={`Critical Warning${params.data?.extrinsic_value !== undefined ? `: extrinsic ${params.data.extrinsic_value}` : ''}${params.data?.dividend_amount !== undefined ? ` vs dividend ${params.data.dividend_amount}` : ''}`}
+                    >
+                        {riskUi.label}
+                    </span>
+                );
+            },
         },
         {
             field: "dist_to_strike_pct",

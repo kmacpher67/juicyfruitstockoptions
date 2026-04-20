@@ -166,6 +166,67 @@ def test_get_portfolio_holdings_otm_distance_uses_underlying_price_not_option_pr
         assert amd_opt["is_itm"] is True
 
 
+def test_get_portfolio_holdings_marks_assignment_risk_for_short_calls(client):
+    with patch("app.api.routes.MongoClient") as mock_mongo_cls, \
+         patch("app.services.options_analysis.OptionsAnalyzer") as mock_analyzer_cls:
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_mongo_cls.return_value = mock_client
+        mock_client.get_default_database.return_value = mock_db
+
+        now = datetime.now()
+        mock_holdings = [
+            {
+                "symbol": "AAPL",
+                "asset_class": "STK",
+                "account_id": "U1",
+                "quantity": 100,
+                "mark_price": 160.0,
+                "report_date": "2026-03-27",
+            },
+            {
+                "symbol": "AAPL  260402C00150000",
+                "asset_class": "OPT",
+                "account_id": "U1",
+                "quantity": -1,
+                "strike": 150.0,
+                "mark_price": 5.2,
+                "expiry": (now + timedelta(days=5)).strftime("%Y-%m-%d"),
+                "underlying_symbol": "AAPL",
+            },
+        ]
+
+        mock_db.ibkr_holdings.find_one.return_value = {"snapshot_id": "test_snap"}
+        mock_db.ibkr_holdings.find.return_value = mock_holdings
+        mock_db.ibkr_dividends.aggregate.return_value = []
+        mock_db.stock_data.find_one.return_value = {
+            "Ticker": "AAPL",
+            "Current Price": 160.0,
+            "Div Yield": 2.0,
+            "exDividendDate": (now + timedelta(days=3)).isoformat(),
+        }
+
+        mock_analyzer = MagicMock()
+        mock_analyzer_cls.return_value = mock_analyzer
+        mock_analyzer.grouped = {
+            "AAPL": {
+                "shares": 100,
+                "short_calls": 100,
+                "options": [mock_holdings[1]],
+            }
+        }
+
+        response = client.get("/api/portfolio/holdings")
+        assert response.status_code == 200
+        data = response.json()
+
+        aapl_opt = next(h for h in data if h["asset_class"] == "OPT")
+        assert aapl_opt["assignment_risk_warning"] is True
+        assert aapl_opt["assignment_risk_label"] == "ASSIGNMENT RISK"
+        assert aapl_opt["critical_warning_score"] == -50
+        assert aapl_opt["extrinsic_value"] == pytest.approx(0.0, 0.01)
+
+
 def test_get_portfolio_holdings_coverage_is_grouped_by_account(client):
     with patch("app.api.routes.MongoClient") as mock_mongo_cls, \
          patch("app.services.options_analysis.OptionsAnalyzer") as mock_analyzer_cls:

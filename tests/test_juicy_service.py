@@ -76,6 +76,8 @@ def test_build_juicy_candidates_includes_chain_rows_and_heuristics():
     assert 'Covered Call' in strategies
     assert 'Cash Secured Put' in strategies
     assert 'Hold / Wait' in strategies
+    assert any(r.get('wheel_phase') == 'COVERED_CALL' for r in rows if r['strategy'] != 'Hold / Wait')
+    assert any((r.get('annualized_return_pct') or 0) > 20 for r in rows if r['strategy'] != 'Hold / Wait')
 
 
 def test_liquidity_grade_thresholds():

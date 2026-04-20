@@ -42,6 +42,7 @@ const JuicysGrid = ({ rows, onTickerClick }) => {
         { field: 'symbol', headerName: 'Ticker', pinned: 'left', width: 110, sortable: true, filter: true, cellRenderer: TickerCell },
         { field: 'as_of', headerName: 'As Of', width: 180, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
         { field: 'strategy', headerName: 'Strategy', width: 180, sortable: true, filter: true },
+        { field: 'wheel_phase', headerName: 'Wheel', width: 145, sortable: true, filter: true, valueFormatter: (p) => (p.value ? p.value.replaceAll('_', ' ') : '-') },
         { field: 'type', headerName: 'Type', width: 90, sortable: true, filter: true },
         { field: 'action', headerName: 'Action', width: 100, sortable: true, filter: true },
         { field: 'timeframe_bucket', headerName: 'Bucket', width: 95, sortable: true, filter: true },
@@ -49,11 +50,39 @@ const JuicysGrid = ({ rows, onTickerClick }) => {
         { field: 'strike', headerName: 'Strike', width: 100, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter', valueFormatter: (p) => formatNumber(p.value, 2) },
         { field: 'premium', headerName: 'Premium', width: 110, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter', valueFormatter: (p) => formatNumber(p.value, 2) },
         { field: 'yield_pct', headerName: 'Yield %', width: 110, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter', valueFormatter: (p) => (p.value === null || p.value === undefined ? '-' : `${formatNumber(p.value, 2)}%`) },
-        { field: 'annualized_yield_pct', headerName: 'Ann %', width: 100, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter', valueFormatter: (p) => (p.value === null || p.value === undefined ? '-' : `${formatNumber(p.value, 2)}%`) },
+        { field: 'annualized_return_pct', headerName: 'ARIF %', width: 100, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter', valueFormatter: (p) => (p.value === null || p.value === undefined ? '-' : `${formatNumber(p.value, 2)}%`) },
         { field: 'volume', headerName: 'Vol', width: 90, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter' },
         { field: 'open_interest', headerName: 'OI', width: 90, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter' },
         { field: 'liquidity_grade', headerName: 'Liq', width: 80, sortable: true, filter: true },
-        { field: 'score', headerName: 'Score', width: 95, type: 'numericColumn', sortable: true, filter: 'agNumberColumnFilter' },
+        {
+            field: 'score',
+            headerName: 'Score',
+            width: 95,
+            type: 'numericColumn',
+            sortable: true,
+            filter: 'agNumberColumnFilter',
+            cellClass: (params) => (params.data?.assignment_risk_warning ? 'text-[#d32f2f] font-bold' : ''),
+            cellRenderer: (params) => (
+                <span title={params.data?.assignment_risk_warning ? 'Critical Warning: assignment risk' : undefined}>
+                    {params.value}
+                </span>
+            ),
+        },
+        {
+            field: 'assignment_risk_label',
+            headerName: 'Risk',
+            width: 140,
+            sortable: true,
+            filter: true,
+            cellRenderer: (params) => {
+                if (!params.value) return '-';
+                return (
+                    <span className="inline-flex items-center rounded-full border border-[#d32f2f]/60 bg-[#d32f2f]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ff8a80]">
+                        {params.value}
+                    </span>
+                );
+            },
+        },
         { field: 'reason_summary', headerName: 'Reason', minWidth: 220, flex: 1, sortable: true, filter: true },
         { field: 'create_date', headerName: 'Create Date', width: 170, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
         { field: 'last_updated', headerName: 'Last Updated', width: 170, sortable: true, filter: true, valueFormatter: (p) => formatDateTime(p.value) },
