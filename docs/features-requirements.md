@@ -852,6 +852,48 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
     - [ ] Scikit-learn: Best practices for this specific project?
     - [ ] MLflow: Is it overkill or necessary for experiment tracking?
 
+### AutoResearch-Style Autonomous Optimization (Frontier) `[!] Research & Scoping Phase — No Code Yet`
+> Reference: [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — "give an AI agent a small but real setup and let it experiment autonomously overnight." See [AutoResearch Learning Doc](learning/autoresearch-karpathy.md).
+
+**Background:** Karpathy's `autoresearch` repo demonstrates autonomous AI-driven experimentation: an agent edits a single target file (`train.py`), runs a fixed-time experiment, measures a single metric (`val_bpb`), keeps or discards the change, and repeats — producing a log of hundreds of experiments while you sleep. The human programs only the `program.md` instruction file, not the experiments themselves. The core idea is *directly applicable to Juicy Fruit*: instead of optimizing an LLM training loop, we apply the same autonomous-iteration pattern to optimize scoring algorithms, strategy parameters, and recommendation quality — measured against actual trade outcomes over time.
+
+**Key Insight:** autoresearch is NOT just for code. The loop — `modify → run → measure → keep/discard → repeat` — maps naturally to options strategy evaluation: modify a scoring weight or threshold → backtest or forward-test → measure recommendation accuracy or yield → keep or discard → iterate.
+
+- [ ] **autoresearch-eval**: Evaluate `karpathy/autoresearch` feasibility and adaptation plan for Juicy Fruit algo self-optimization. Produces a scoping document before any code is written.
+    - [ ] **autoresearch-eval-001**: Map autoresearch primitives to Juicy equivalents: `train.py` → scoring/strategy parameter file, `val_bpb` → recommendation accuracy or annualized yield delta, `program.md` → Juicy research instruction context, `5-minute budget` → backtest window or forward-test DTE horizon.
+    - [ ] **autoresearch-eval-002**: Determine whether the loop is CPU-viable without a GPU. autoresearch uses H100 for LLM training; Juicy's backtests run on MongoDB + Python. Confirm no GPU dependency for the Juicy adaptation.
+    - [ ] **autoresearch-eval-003**: Identify candidate "single-file targets" in Juicy codebase — `app/services/opportunity_service.py`, `app/services/scanner_service.py`, `app/services/roll_service.py`, `app/utils/greeks_calculator.py` scoring functions — where isolated parameter changes produce a measurable outcome signal.
+    - [ ] **autoresearch-eval-004**: Define the Juicy "truth metric" for measuring whether a recommendation worked. Candidates: (a) annualized yield delta vs actual outcome at DTE, (b) recommendation score vs realized P&L within N days, (c) hit rate (win/loss) across scored opportunities. Document which metric is most reliable given data available.
+    - [ ] **autoresearch-eval-005**: Assess data readiness — do we have enough historical persisted recommendations (from `opportunities` collection) with known outcomes to begin grading? If not, scope a "record everything forward" phase first (see `autoresearch-poc-recommendation-grader`).
+    - [ ] **autoresearch-eval-006**: Write scoping summary doc `docs/plans/implementation_plan-YYYYMMDD-autoresearch.md` covering: what we'd optimize, what metric we'd minimize/maximize, what the agent would modify per iteration, and how we'd prevent look-ahead bias.
+
+- [ ] **autoresearch-poc-recommendation-grader**: PoC — Recommendation Outcome Tracker ("Truth Engine"). Prerequisite for all optimization loops. Aligned with existing `Outcome Tracking` and `Grading Engine` F-R items in Section 3.
+    - [ ] **grader-001**: For every persisted `opportunities` record, store a `scored_at` timestamp and the full scoring inputs snapshot (`IV`, `delta`, `DTE`, `price`, `annualized_yield_pct`, `score`) so grading can replay the original signal context without re-fetching stale market data.
+    - [ ] **grader-002**: Add an `outcome` subdocument to each opportunity: `outcome_at` (the evaluation date), `outcome_price`, `outcome_pnl`, `outcome_yield_realized`, `outcome_result` (`WIN`/`LOSS`/`EXPIRED_WORTHLESS`/`ASSIGNED`/`ROLLED`/`PENDING`). Populated by a scheduled grader job.
+    - [ ] **grader-003**: Scheduler job `run_opportunity_grader()` — runs nightly, queries opportunities where `scored_at` + DTE <= today and `outcome.outcome_result == "PENDING"`, fetches current price/expiry outcome from TWS or yfinance, computes realized P&L vs predicted yield, and writes `outcome` subdoc.
+    - [ ] **grader-004**: Add `score_vs_outcome` correlation metric: rank historical recommendations by `score` and compute hit rate per score decile (top-scored recommendations should win more often). Surface in a grading analytics endpoint.
+    - [ ] **grader-005**: UI — basic grading dashboard on `?view=JUICYS` showing: total graded, hit rate by strategy type, score-vs-outcome scatter, and top/bottom 10 graded recommendations. This is the "did our algos work?" surface.
+    - [ ] **grader-006**: Reference code touchpoints — `app/services/opportunity_service.py`, `app/services/scanner_service.py`, `app/models/opportunity.py`, `app/scheduler/jobs.py`. Grader is a new scheduler job only; no changes to scoring logic until eval phase confirms the metric.
+
+- [ ] **autoresearch-poc-score-optimizer**: PoC — Autonomous Scoring Parameter Self-Optimization Loop (autoresearch pattern applied to Juicy algos).
+    - [ ] **optimizer-001**: Define a single "scoring config file" (analogous to autoresearch `train.py`) — a JSON/YAML document or `system_config` Mongo document holding all scoring weights, thresholds, and multipliers for opportunity scoring (IV weight, delta weight, yield threshold, liquidity penalty, etc.). The agent modifies only this file per iteration.
+    - [ ] **optimizer-002**: Define the fixed evaluation window (analogous to 5-minute budget) — e.g., backtest over last 90 days of graded recommendations or simulate forward-test with DTE horizon. Must be deterministic and reproducible.
+    - [ ] **optimizer-003**: Implement the autoresearch loop: `modify config → run evaluation → measure hit rate / annualized yield improvement → keep if better → log result → repeat`. Loop runs autonomously via Claude Code or local LLM agent pointing at `program.md`-style instructions.
+    - [ ] **optimizer-004**: Add experiment log (analogous to autoresearch run log) — each iteration writes: `run_id`, `config_snapshot`, `metric_before`, `metric_after`, `delta`, `kept` (boolean), `timestamp`. Persist in `score_optimizer_runs` collection.
+    - [ ] **optimizer-005**: Safety guardrails — optimizer must NOT modify live trading-adjacent code; only the isolated config document. Add a `dry_run` mode that computes metric without persisting config changes for review.
+
+- [ ] **autoresearch-poc-strategy-comparator**: PoC — Multi-Strategy A/B Comparison using autoresearch-style controlled experiments.
+    - [ ] **comparator-001**: Define 2-3 strategy variants for the same underlying (e.g., "sell ATM call 30 DTE" vs "sell 10% OTM call 45 DTE" vs "diagonal spread"). Run each against the same historical ticker universe and graded outcomes.
+    - [ ] **comparator-002**: Produce a strategy leaderboard showing hit rate, average annualized yield, max drawdown, and Sharpe-equivalent metric per strategy. Surfaces which Juicy strategies actually outperform over time.
+    - [ ] **comparator-003**: Connect to existing backtesting F-R items (Section 3 — Backtesting Engine) as a downstream consumer of graded recommendation data.
+
+> **Scope / Refinement Questions for Ken** (answer these before any implementation):
+> 1. **Time horizon**: What defines "did a recommendation work"? DTE-based (option expired worthless = win)? Or 30-day forward P&L window regardless of DTE?
+> 2. **Data readiness**: Do you want to start grading historical `opportunities` collection records NOW (if enough exist), or prioritize recording-everything-forward first for 30-60 days before grading?
+> 3. **GPU/compute**: autoresearch requires an H100. For the Juicy adaptation (Python backtests on MongoDB), no GPU is needed — confirm this is acceptable vs exploring true LLM-in-the-loop optimization.
+> 4. **Primary goal priority**: (a) grade existing recommendations to measure algo quality, OR (b) actively improve the algo via self-optimization loop? These can sequence: grader first, optimizer second.
+> 5. **Agent autonomy level**: Should the optimizer suggest parameter changes for Ken to approve (semi-autonomous), or self-apply and log results overnight (fully autonomous)?
+
 ---
 
 ## 6. Risk Management & Safety 
