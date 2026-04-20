@@ -42,6 +42,36 @@ npm test
 npm run test:e2e
 ```
 
+## Guarded Pull/Merge (Game PC)
+
+Use this when syncing changes from your other machine and you want conflict guardrails.
+
+```bash
+./scripts/git_pull_gamepc_guarded.sh
+```
+
+What it does:
+
+- Fast-forwards if possible.
+- If branches diverged, starts a merge from `origin/main`.
+- Auto-resolves conflicts for low-risk paths by keeping this machine's version (`ours`).
+- Stops and lists files that still need manual review before commit.
+
+Default auto-ours patterns:
+
+- `docs/**`
+- `xdivs/**`
+- `logs/**`
+- `report-results/**`
+- `*.md`
+- `*.ics`
+
+Override patterns for a run:
+
+```bash
+AUTO_OURS_PATTERNS="docs/**,xdivs/**,logs/**,*.md" ./scripts/git_pull_gamepc_guarded.sh
+```
+
 ## Directory Layout
 
 ```
