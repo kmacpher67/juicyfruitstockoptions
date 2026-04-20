@@ -30,6 +30,7 @@ from app.models import (
     NavReportType,
     FrontendLogPayload,
 )
+from app.models.fr_followup_review import compute_effective_entry_price
 from app.services.portfolio_fixer import run_portfolio_fixer
 from app.services.stock_live_comparison import (
     run_stock_live_comparison,
@@ -1375,6 +1376,200 @@ def get_juicys(
         "count": len(rows),
         "rows": rows,
     }
+
+
+_FR_REVIEW_TRANSITIONS = {
+    FRReviewState.ACTIVE.value: {
+        FRReviewState.ACTIVE.value,
+        FRReviewState.REVIEWED.value,
+        FRReviewState.ASSIGNED.value,
+    },
+    FRReviewState.ASSIGNED.value: {
+        FRReviewState.ASSIGNED.value,
+        FRReviewState.REVIEWED.value,
+    },
+    FRReviewState.REVIEWED.value: {FRReviewState.REVIEWED.value},
+}
+
+
+def _normalize_ticker_for_fr(raw_ticker: str) -> str:
+    normalized = _normalize_ticker_symbol(raw_ticker)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Invalid ticker")
+    return normalized
+
+
+def _validate_review_state_transition(current_state: str, next_state: str):
+    allowed = _FR_REVIEW_TRANSITIONS.get(current_state, {current_state})
+    if next_state not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid review_state transition: {current_state} -> {next_state}",
+        )
+
+
+def _get_fr_collection(db):
+    coll = db.juicy_fr_followup_reviews
+    try:
+        coll.create_index("fr_id", unique=True)
+        coll.create_index([("status", 1), ("strategy_type", 1), ("updated_at", -1)])
+    except Exception:
+        pass
+    return coll
+
+
+@router.get("/juicys/followup-review", response_model=FRListResponse)
+@log_endpoint
+def list_juicy_followup_review_items(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    status: FRStatus | None = FRStatus.FOLLOWUP_REVIEW,
+    strategy_type: FRStrategyType | None = None,
+    review_state: FRReviewState | None = None,
+    limit: int = 200,
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    coll = _get_fr_collection(db)
+
+    query: dict = {}
+    if status is not None:
+        query["status"] = status.value
+    if strategy_type is not None:
+        query["strategy_type"] = strategy_type.value
+    if review_state is not None:
+        query["review_state"] = review_state.value
+
+    cursor = coll.find(query, {"_id": 0}).sort("updated_at", -1).limit(max(1, min(int(limit or 200), 500)))
+    rows = [FRItem(**row) for row in cursor]
+    return FRListResponse(count=len(rows), rows=rows)
+
+
+@router.post("/juicys/followup-review", response_model=FRItem)
+@log_endpoint
+def create_juicy_followup_review_item(
+    payload: FRCreateRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    coll = _get_fr_collection(db)
+
+    now = datetime.now(timezone.utc)
+    normalized_ticker = _normalize_ticker_for_fr(payload.ticker)
+    effective_entry_price = compute_effective_entry_price(payload.strategy_type, payload.legs, payload.net_credit)
+    last_mtm_sync_at = payload.last_mtm_sync_at
+    if payload.underlying_last_price is not None and last_mtm_sync_at is None:
+        last_mtm_sync_at = now
+
+    item = FRItem(
+        fr_id=f"fr_{uuid4().hex[:12]}",
+        status=payload.status,
+        review_state=payload.review_state,
+        ticker=normalized_ticker,
+        trade_date=payload.trade_date,
+        strategy_type=payload.strategy_type,
+        legs=payload.legs,
+        net_credit=payload.net_credit,
+        effective_entry_price=effective_entry_price,
+        underlying_last_price=payload.underlying_last_price,
+        last_mtm_sync_at=last_mtm_sync_at,
+        notes=payload.notes,
+        created_at=now,
+        updated_at=now,
+    )
+
+    doc = item.model_dump(mode="json")
+    coll.insert_one(doc)
+    return FRItem(**doc)
+
+
+@router.patch("/juicys/followup-review/{fr_id}", response_model=FRItem)
+@log_endpoint
+def update_juicy_followup_review_item(
+    fr_id: str,
+    payload: FRUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    coll = _get_fr_collection(db)
+
+    existing_doc = coll.find_one({"fr_id": fr_id}, {"_id": 0})
+    if not existing_doc:
+        raise HTTPException(status_code=404, detail="F-R item not found")
+
+    now = datetime.now(timezone.utc)
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        return FRItem(**existing_doc)
+
+    if "ticker" in updates:
+        updates["ticker"] = _normalize_ticker_for_fr(updates["ticker"])
+
+    current_state = str(existing_doc.get("review_state") or FRReviewState.ACTIVE.value)
+    if "review_state" in updates and updates["review_state"] is not None:
+        next_state = updates["review_state"].value
+        _validate_review_state_transition(current_state, next_state)
+        updates["review_state"] = next_state
+
+    if "status" in updates and updates["status"] is not None:
+        updates["status"] = updates["status"].value
+
+    if "strategy_type" in updates and updates["strategy_type"] is not None:
+        updates["strategy_type"] = updates["strategy_type"].value
+
+    if "underlying_last_price" in updates and "last_mtm_sync_at" not in updates:
+        updates["last_mtm_sync_at"] = now
+
+    if "last_mtm_sync_at" in updates and isinstance(updates["last_mtm_sync_at"], datetime):
+        mtm_dt = updates["last_mtm_sync_at"]
+        updates["last_mtm_sync_at"] = mtm_dt if mtm_dt.tzinfo else mtm_dt.replace(tzinfo=timezone.utc)
+
+    merged = dict(existing_doc)
+    merged.update(updates)
+
+    create_payload = FRCreateRequest(
+        status=merged.get("status", FRStatus.FOLLOWUP_REVIEW.value),
+        review_state=merged.get("review_state", FRReviewState.ACTIVE.value),
+        ticker=merged.get("ticker"),
+        trade_date=merged.get("trade_date"),
+        strategy_type=merged.get("strategy_type"),
+        legs=merged.get("legs"),
+        net_credit=merged.get("net_credit"),
+        underlying_last_price=merged.get("underlying_last_price"),
+        last_mtm_sync_at=merged.get("last_mtm_sync_at"),
+        notes=merged.get("notes"),
+    )
+
+    effective_entry_price = compute_effective_entry_price(
+        create_payload.strategy_type,
+        create_payload.legs,
+        create_payload.net_credit,
+    )
+    merged["effective_entry_price"] = effective_entry_price
+    merged["updated_at"] = now
+
+    item = FRItem(
+        fr_id=existing_doc["fr_id"],
+        status=create_payload.status,
+        review_state=create_payload.review_state,
+        ticker=_normalize_ticker_for_fr(create_payload.ticker),
+        trade_date=create_payload.trade_date,
+        strategy_type=create_payload.strategy_type,
+        legs=create_payload.legs,
+        net_credit=create_payload.net_credit,
+        effective_entry_price=effective_entry_price,
+        underlying_last_price=create_payload.underlying_last_price,
+        last_mtm_sync_at=create_payload.last_mtm_sync_at,
+        notes=create_payload.notes,
+        created_at=existing_doc.get("created_at"),
+        updated_at=now,
+    )
+
+    doc = item.model_dump(mode="json")
+    coll.update_one({"fr_id": fr_id}, {"$set": doc}, upsert=False)
+    updated_doc = coll.find_one({"fr_id": fr_id}, {"_id": 0}) or doc
+    return FRItem(**updated_doc)
 
 
 @router.post("/juicys/refresh")
@@ -3208,7 +3403,34 @@ def remove_tracked_ticker(
     
     # Optional: Delete the actual data record?
     # User might want to keep history, but for "Live Comparison" it might be confusing to see it if it's not "Tracked".
-    # But the "Live View" comes from /stocks which dumps everything. 
+    # But the "Live View" comes from /stocks which dumps everything.
     # Let's LEAVE the data for now. The user can just ignore it, or we can add a cleanup later.
-    
+
     return {"status": "success", "message": f"Removed {ticker} from tracking list."}
+
+
+@router.get("/thorp/{symbol}")
+@log_endpoint
+async def get_thorp_audit(
+    symbol: str,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    """
+    GET /api/thorp/{symbol}
+    Returns Edward Thorp 10-point risk/edge audit for a ticker.
+    """
+    if not re.match(r"^[A-Za-z0-9.\-/]{1,20}$", symbol):
+        raise HTTPException(status_code=400, detail="Invalid symbol. Alphanumeric and ./-  only.")
+    symbol = symbol.upper().strip()
+
+    from app.services.thorp_service import ThorpService
+
+    client = MongoClient(settings.MONGO_URI)
+    db = client.get_default_database("stock_analysis")
+    try:
+        service = ThorpService(db)
+        result = await service.compute(symbol)
+        return result.model_dump()
+    except Exception:
+        logging.exception("get_thorp_audit failed symbol=%s", symbol)
+        raise HTTPException(status_code=500, detail="Thorp audit computation failed.")

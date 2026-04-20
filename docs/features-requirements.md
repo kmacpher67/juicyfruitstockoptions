@@ -484,20 +484,20 @@ The goal of this project is to build a robust, semi-automated trading dashboard 
 Edward Thorp's 10-point mathematical risk/edge framework integrated as a new tab in `TickerModal.jsx`. See [Feature Doc](features/thorp_modal_integration.md) | [Implementation Plan](plans/implementation_plan-20260419-thorp-protocol.md) | [Thorp Protocol Learning](learning/thorp-protocol-investing.md) | [Kelly Criterion for Options](learning/kelly-criterion-options.md)
 
 - [ ] **stock-analysis-thorpe-001**: Add "Thorp Audit" tab (7th tab) to `TickerModal.jsx` wired to `GET /api/thorp/{symbol}`.
-- [ ] **stock-analysis-thorpe-002**: Create `app/services/thorp_service.py` — single-responsibility service computing all 10 Thorp points from existing MongoDB collections (`stock_data`, `juicy_opportunities`, `ibkr_holdings`, `trades`, `system_config`).
-- [ ] **stock-analysis-thorpe-003**: **Edge Audit** — compare ticker historical win rate × avg yield against `system_config.thorp_inflation_baseline` (default 5.9%). Return `EDGE` / `CAUTION` / `RISK` status.
-- [ ] **stock-analysis-thorpe-004**: **Position Sizing (Kelly Criterion)** — compute `f* = (b×p - q)/b` and Half-Kelly (`f*/2`) from win rate + yield data. Compare current `ibkr_holdings` exposure to recommended Half-Kelly fraction. See [Kelly Criterion for Options](learning/kelly-criterion-options.md).
-- [ ] **stock-analysis-thorpe-005**: **Inefficiency Map** — flag Call/Put Skew anomalies (skew > 1.5) and IV vs RV gaps (> 20%) from `stock_data`. Return `INSUFFICIENT_DATA` if realized vol not yet computed.
-- [ ] **stock-analysis-thorpe-006**: **Ruin Check** — simulate −25% single-day drop on current `ibkr_holdings` position; compute NLV impact in dollars and %. Flag `RISK` if simulated loss > 10% of total NLV.
-- [ ] **stock-analysis-thorpe-007**: **Fraud Scan** — flag option volume > 3× average daily volume or premium > Black-Scholes theoretical by > 30%; flag liquidity grade `D` as execution-quality risk.
-- [ ] **stock-analysis-thorpe-008**: **Compounding Review** — display `annualized_yield_pct` vs average days held; compare realized annualized return against linear growth at inflation baseline. Flag positions held > 180 days below baseline yield.
-- [ ] **stock-analysis-thorpe-009**: **Adaptability Check** — compute yield trend slope across last 3–4 `(ticker, strategy)` trade occurrences from `trades` collection. Flag `CAUTION` if declining > 15% per cycle.
-- [ ] **stock-analysis-thorpe-010**: **Independence Test** — compare `stock_data.news_sentiment` against `stock_data.markov_prediction`; flag "crowded consensus" when both agree with > 70% directional conviction.
-- [ ] **stock-analysis-thorpe-011**: **Circle of Competence** — look up Ken's historical win rate for the ticker's `(asset_class, strategy)` category from `trades`. Flag `RISK` if < 40% win rate or < 5 samples.
-- [ ] **stock-analysis-thorpe-012**: **The Thorp Decision** — aggregate scores from points 1–9 (Ruin Check + Edge Audit weighted 2×); generate top 3 ranked actions (Increase / Roll+Adjust / Exit) each with edge rationale, specific risk, and concrete first step.
-- [ ] **setup-thorp-logic-backend**: Initialize `app/models/thorp.py` (Pydantic `ThorpAuditResponse`) and `app/services/thorp_service.py` skeleton + `GET /api/thorp/{symbol}` route. Add `tests/test_thorp_service.py`.
+- [x] **stock-analysis-thorpe-002**: Create `app/services/thorp_service.py` — single-responsibility service computing all 10 Thorp points from existing MongoDB collections (`stock_data`, `juicy_opportunities`, `ibkr_holdings`, `trades`, `system_config`).
+- [x] **stock-analysis-thorpe-003**: **Edge Audit** — compare ticker historical win rate × avg yield against `system_config.thorp_inflation_baseline` (default 5.9%). Return `EDGE` / `CAUTION` / `RISK` status.
+- [x] **stock-analysis-thorpe-004**: **Position Sizing (Kelly Criterion)** — compute `f* = (b×p - q)/b` and Half-Kelly (`f*/2`) from win rate + yield data. Compare current `ibkr_holdings` exposure to recommended Half-Kelly fraction. See [Kelly Criterion for Options](learning/kelly-criterion-options.md).
+- [x] **stock-analysis-thorpe-005**: **Inefficiency Map** — flag Call/Put Skew anomalies (skew > 1.5) and IV vs RV gaps (> 20%) from `stock_data`. Return `INSUFFICIENT_DATA` if realized vol not yet computed.
+- [x] **stock-analysis-thorpe-006**: **Ruin Check** — simulate −25% single-day drop on current `ibkr_holdings` position; compute NLV impact in dollars and %. Flag `RISK` if simulated loss > 10% of total NLV.
+- [x] **stock-analysis-thorpe-007**: **Fraud Scan** — flag option volume > 3× average daily volume or premium > Black-Scholes theoretical by > 30%; flag liquidity grade `D` as execution-quality risk.
+- [x] **stock-analysis-thorpe-008**: **Compounding Review** — display `annualized_yield_pct` vs average days held; compare realized annualized return against linear growth at inflation baseline. Flag positions held > 180 days below baseline yield.
+- [x] **stock-analysis-thorpe-009**: **Adaptability Check** — compute yield trend slope across last 3–4 `(ticker, strategy)` trade occurrences from `trades` collection. Flag `CAUTION` if declining > 15% per cycle.
+- [x] **stock-analysis-thorpe-010**: **Independence Test** — compare `stock_data.news_sentiment` against `stock_data.markov_prediction`; flag "crowded consensus" when both agree with > 70% directional conviction.
+- [x] **stock-analysis-thorpe-011**: **Circle of Competence** — look up Ken's historical win rate for the ticker's `(asset_class, strategy)` category from `trades`. Flag `RISK` if < 40% win rate or < 5 samples.
+- [x] **stock-analysis-thorpe-012**: **The Thorp Decision** — aggregate scores from points 1–9 (Ruin Check + Edge Audit weighted 2×); generate top 3 ranked actions (Increase / Roll+Adjust / Exit) each with edge rationale, specific risk, and concrete first step.
+- [x] **setup-thorp-logic-backend**: Initialize `app/models/thorp.py` (Pydantic `ThorpAuditResponse`) and `app/services/thorp_service.py` skeleton + `GET /api/thorp/{symbol}` route. Add `tests/test_thorp_service.py`.
 - [ ] **setup-thorp-ui-tab**: Add "Thorp Audit" tab to `TickerModal.jsx` with 10-point dense table + Thorp Decision summary card. Extend `frontend/tests/specs/modal.spec.js`.
-- [ ] **thorp-ruin-simulation**: Implement `-25%` worst-case stress test for `thorpe-006` using `ibkr_holdings` position data.
+- [x] **thorp-ruin-simulation**: Implement `-25%` worst-case stress test for `thorpe-006` using `ibkr_holdings` position data.
 
 ### Portfolio Management UI
 - [x] **Portfolio Analytics**: Show Key Performance Indicators (NAV, d/w/m/y changes) on the Portfolio Dashboard (via `NAVStats`).
